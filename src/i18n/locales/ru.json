@@ -1,0 +1,400 @@
+{
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "create": "Создать",
+    "update": "Обновить",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "sort": "Сортировка",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "next": "Далее",
+    "previous": "Предыдущий",
+    "close": "Закрыть",
+    "open": "Открыть",
+    "export": "Экспорт",
+    "import": "Импорт",
+    "download": "Скачать",
+    "upload": "Загрузить",
+    "view": "Просмотр",
+    "actions": "Действия",
+    "status": "Статус",
+    "active": "Активный",
+    "inactive": "Неактивный",
+    "pending": "Ожидает",
+    "noData": "Нет данных",
+    "retry": "Повторить",
+    "refresh": "Обновить",
+    "today": "Сегодня",
+    "week": "Эта неделя",
+    "month": "Этот месяц",
+    "allTime": "Всё время",
+    "required": "Обязательно",
+    "optional": "Необязательно",
+    "yes": "Да",
+    "no": "Нет",
+    "total": "Итого",
+    "of": "из",
+    "items": "записей",
+    "perPage": "На странице",
+    "page": "Страница",
+    "rowsSelected": "Выбрано {count}",
+    "clearSelection": "Снять выделение",
+    "selectAll": "Выбрать все",
+    "bulkActions": "Групповые действия",
+    "deleteSelected": "Удалить выбранные",
+    "confirmDelete": "Вы уверены, что хотите удалить это?",
+    "cannotUndo": "Это действие нельзя отменить.",
+    "offline": "Вы не в сети",
+    "backOnline": "Снова онлайн!",
+    "offlineQueue": "{count} действий в очереди",
+    "siteHeader": "Заголовок сайта",
+    "expandSidebar": "Развернуть панель",
+    "collapseSidebar": "Свернуть панель",
+    "toggleTheme": "Сменить тему",
+    "notifications": "Уведомления",
+    "openUserMenu": "Открыть меню",
+    "globalSearch": "Глобальный поиск"
+  },
+  "auth": {
+    "login": "Войти",
+    "logout": "Выйти",
+    "email": "Электронная почта",
+    "password": "Пароль",
+    "forgotPassword": "Забыли пароль?",
+    "resetPassword": "Сбросить пароль",
+    "sendResetLink": "Отправить ссылку для сброса",
+    "loginTitle": "С возвращением",
+    "loginSubtitle": "Войдите в свой аккаунт",
+    "invalidCredentials": "Неверный email или пароль",
+    "sessionExpired": "Сессия истекла, войдите снова",
+    "newPassword": "Новый пароль",
+    "confirmPassword": "Подтвердить пароль",
+    "passwordsNotMatch": "Пароли не совпадают",
+    "resetSuccess": "Пароль успешно сброшен"
+  },
+  "nav": {
+    "dashboard": "Главная",
+    "courses": "Курсы",
+    "schedule": "Расписание",
+    "attendance": "Посещаемость",
+    "homework": "Домашние задания",
+    "grades": "Оценки",
+    "exams": "Экзамены",
+    "certificates": "Сертификаты",
+    "notifications": "Уведомления",
+    "profile": "Профиль",
+    "groups": {
+      "main": "Главное",
+      "academic": "Учёба",
+      "personal": "Личное",
+      "insights": "Аналитика",
+      "management": "Управление",
+      "business": "Бизнес"
+    },
+    "lessons": "Уроки",
+    "students": "Студенты",
+    "teachers": "Учителя",
+    "analytics": "Аналитика",
+    "chat": "Чат",
+    "payments": "Платежи",
+    "reports": "Отчёты",
+    "settings": "Настройки",
+    "users": "Пользователи",
+    "roles": "Роли",
+    "branches": "Филиалы",
+    "finances": "Финансы",
+    "hr": "HR",
+    "system": "Система"
+  },
+  "student": {
+    "dashboard": {
+      "title": "Панель студента",
+      "welcomeBack": "С возвращением, {name}!",
+      "coursesEnrolled": "Записан на курсы",
+      "attendanceRate": "Посещаемость",
+      "homeworkPending": "Ожидает сдачи",
+      "averageGrade": "Средняя оценка",
+      "upcomingClasses": "Предстоящие занятия",
+      "recentActivity": "Недавняя активность"
+    },
+    "courses": {
+      "title": "Мои курсы",
+      "enrolled": "Записан",
+      "progress": "Прогресс",
+      "viewCourse": "Просмотр курса",
+      "continueLearning": "Продолжить обучение",
+      "completed": "Завершён",
+      "notEnrolled": "Вы не записаны ни на один курс"
+    },
+    "attendance": {
+      "title": "Посещаемость",
+      "present": "Присутствует",
+      "absent": "Отсутствует",
+      "late": "Опоздал",
+      "excused": "Уважительная причина",
+      "rate": "Процент посещаемости"
+    },
+    "homework": {
+      "title": "Домашние задания",
+      "submit": "Сдать",
+      "submitted": "Сдано",
+      "graded": "Оценено",
+      "pending": "Ожидает",
+      "overdue": "Просрочено",
+      "dueDate": "Срок сдачи",
+      "grade": "Оценка"
+    },
+    "grades": {
+      "title": "Оценки",
+      "subject": "Предмет",
+      "grade": "Оценка",
+      "date": "Дата",
+      "examName": "Экзамен"
+    },
+    "certificates": {
+      "title": "Сертификаты",
+      "download": "Скачать",
+      "issued": "Выдан",
+      "course": "Курс"
+    }
+  },
+  "teacher": {
+    "dashboard": {
+      "title": "Панель учителя",
+      "activeGroups": "Активные группы",
+      "totalStudents": "Всего студентов",
+      "pendingHomework": "Ожидает проверки",
+      "todayClasses": "Занятия сегодня"
+    },
+    "groups": {
+      "title": "Мои группы",
+      "students": "Студенты",
+      "schedule": "Расписание",
+      "viewGroup": "Просмотр группы"
+    },
+    "attendance": {
+      "title": "Отметить посещаемость",
+      "markAll": "Отметить всех присутствующими",
+      "save": "Сохранить посещаемость",
+      "date": "Дата",
+      "group": "Группа"
+    },
+    "homework": {
+      "title": "Домашние задания",
+      "create": "Создать задание",
+      "grade": "Оценить",
+      "submissions": "Сданные работы",
+      "deadline": "Срок",
+      "points": "Баллы"
+    },
+    "lessons": {
+      "title": "Уроки",
+      "upload": "Загрузить урок",
+      "file": "Файл",
+      "videoUrl": "URL видео",
+      "description": "Описание"
+    }
+  },
+  "admin": {
+    "dashboard": {
+      "title": "Панель администратора",
+      "totalStudents": "Всего студентов",
+      "totalTeachers": "Всего учителей",
+      "totalCourses": "Всего курсов",
+      "monthlyRevenue": "Доход за месяц",
+      "newEnrollments": "Новые записи",
+      "pendingPayments": "Ожидающие платежи"
+    },
+    "courses": {
+      "title": "Курсы",
+      "create": "Создать курс",
+      "modules": "Модули",
+      "enrolled": "Записаны",
+      "price": "Цена"
+    },
+    "teachers": {
+      "title": "Учителя",
+      "invite": "Пригласить учителя"
+    },
+    "students": {
+      "title": "Студенты",
+      "enroll": "Записать",
+      "transfer": "Перевести"
+    },
+    "payments": {
+      "title": "Платежи",
+      "invoice": "Счёт",
+      "paid": "Оплачено",
+      "unpaid": "Не оплачено",
+      "debt": "Долг",
+      "amount": "Сумма",
+      "currency": "Валюта",
+      "method": "Способ"
+    },
+    "schedule": {
+      "title": "Расписание",
+      "add": "Добавить событие",
+      "room": "Аудитория",
+      "startTime": "Время начала",
+      "endTime": "Время окончания"
+    },
+    "reports": {
+      "title": "Отчёты",
+      "generate": "Сформировать",
+      "attendance": "Отчёт по посещаемости",
+      "financial": "Финансовый отчёт",
+      "performance": "Отчёт по успеваемости"
+    }
+  },
+  "owner": {
+    "dashboard": {
+      "title": "Панель владельца",
+      "totalRevenue": "Общий доход",
+      "totalBranches": "Всего филиалов",
+      "totalUsers": "Всего пользователей",
+      "growth": "Рост",
+      "mrr": "Ежемесячный доход",
+      "arr": "Годовой доход"
+    },
+    "branches": {
+      "title": "Филиалы",
+      "add": "Добавить филиал",
+      "name": "Название",
+      "address": "Адрес",
+      "manager": "Менеджер"
+    },
+    "roles": {
+      "title": "Роли и разрешения",
+      "create": "Создать роль",
+      "permissions": "Разрешения",
+      "users": "Пользователи с этой ролью"
+    },
+    "hr": {
+      "title": "HR панель",
+      "salary": "Зарплата",
+      "contract": "Договор",
+      "department": "Отдел"
+    },
+    "system": {
+      "title": "Настройки системы",
+      "maintenance": "Режим обслуживания",
+      "features": "Флаги функций",
+      "theme": "Настройки темы"
+    }
+  },
+  "errors": {
+    "required": "Это поле обязательно",
+    "invalidEmail": "Неверный адрес электронной почты",
+    "minLength": "Минимум {min} символов",
+    "maxLength": "Максимум {max} символов",
+    "invalidPhone": "Неверный номер телефона",
+    "notFound": "Не найдено",
+    "accessDenied": "Доступ запрещён",
+    "serverError": "Ошибка сервера, попробуйте снова",
+    "networkError": "Ошибка сети",
+    "rateLimited": "Слишком много запросов. Повторите через {seconds} секунд",
+    "fileTooLarge": "Размер файла превышает {max}МБ",
+    "invalidFileType": "Недопустимый тип файла",
+    "uploadFailed": "Ошибка загрузки, попробуйте снова"
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "markAllRead": "Отметить все как прочитанные",
+    "noNotifications": "Нет уведомлений",
+    "homeworkGraded": "Ваша домашняя работа оценена",
+    "paymentReceived": "Платёж получен",
+    "paymentOverdue": "Просроченный платёж",
+    "scheduleUpdated": "Расписание обновлено",
+    "examStarted": "Экзамен начался",
+    "newMessage": "Новое сообщение"
+  },
+  "theme": {
+    "light": "Светлая",
+    "dark": "Тёмная",
+    "system": "Системная"
+  },
+  "language": {
+    "uz": "O'zbek",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "search": {
+    "placeholder": "Поиск... (⌘K)",
+    "noResults": "Результаты не найдены",
+    "recent": "Последние поиски",
+    "all": "Показать все результаты"
+  },
+  "upload": {
+    "dragDrop": "Перетащите файлы сюда",
+    "or": "или",
+    "browse": "выберите файлы",
+    "maxSize": "Максимальный размер файла: {max}МБ",
+    "uploading": "Загрузка...",
+    "uploaded": "Загружено успешно",
+    "failed": "Ошибка загрузки",
+    "remove": "Удалить",
+    "preview": "Предпросмотр",
+    "retry": "Повторить загрузку",
+    "camera": "Сделать фото"
+  },
+  "pagination": {
+    "showing": "Показано {from}–{to} из {total}",
+    "loadMore": "Загрузить ещё",
+    "pullToRefresh": "Потяните для обновления"
+  },
+  "kpi": {
+    "trend": "{value}% {label}",
+    "vsLastMonth": "к прошлому месяцу",
+    "up": "рост",
+    "down": "падение",
+    "neutral": "без изменений"
+  },
+  "datepicker": {
+    "placeholder": "Выберите дату",
+    "today": "Сегодня",
+    "clear": "Очистить"
+  },
+  "dialog": {
+    "close": "Закрыть",
+    "confirm": "Подтвердить",
+    "cancel": "Отмена"
+  },
+  "editor": {
+    "placeholder": "Введите текст...",
+    "bold": "Жирный",
+    "italic": "Курсив"
+  },
+  "table": {
+    "search": "Поиск...",
+    "noData": "Данные не найдены",
+    "loading": "Загрузка...",
+    "showing": "Показано",
+    "of": "из",
+    "results": "результатов",
+    "prev": "Назад",
+    "next": "Далее",
+    "rowsPerPage": "Строк на странице",
+    "selected": "выбрано",
+    "clearSelection": "Снять выделение",
+    "exportCsv": "Экспорт CSV",
+    "exportExcel": "Экспорт Excel",
+    "columns": "Столбцы",
+    "filters": "Фильтры",
+    "sortAsc": "По возрастанию",
+    "sortDesc": "По убыванию"
+  },
+  "userMenu": {
+    "profile": "Профиль",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "theme": "Тема",
+    "language": "Язык"
+  }
+}

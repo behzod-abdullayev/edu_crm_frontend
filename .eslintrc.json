@@ -1,0 +1,14 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "no-console": "error",
+    "no-debugger": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/consistent-type-imports": ["error", { "prefer": "type-imports" }],
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    "import/no-anonymous-default-export": "warn",
+    "react/display-name": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}

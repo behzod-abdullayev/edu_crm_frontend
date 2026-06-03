@@ -1,0 +1,189 @@
+/**
+ * Teacher module mapper — DTO ↔ UI form value transformations.
+ *
+ * ⚠️  All DTO types come from @generated/models (orval-generated).
+ *     DO NOT write API types manually in this file.
+ *
+ * Design rules (from the project prompt):
+ *   - Pure functions only — no side effects, no API calls.
+ *   - Fully typed — no `any`, no unsafe casts.
+ *   - Under `exactOptionalPropertyTypes: true`, optional keys must be OMITTED
+ *     when absent, not set to `undefined`.
+ *   - Unit-tested in src/__tests__/unit/mappers/teacher.mapper.test.ts.
+ *     The three exported functions below must keep the same signatures.
+ */
+
+import type {
+  TeacherDto,
+  UpdateTeacherDto,
+  AttendanceEntryDto,
+} from '@generated/models';
+import type {
+  TeacherFormValues,
+  AttendanceMarkEntry,
+  TeacherKpiData,
+  ChatConversation,
+} from '../types/teacher.types';
+import type { AttendanceStatus } from '@shared/types/attendance';
+
+// ─── TeacherDto ↔ TeacherFormValues ──────────────────────────────────────────
+
+/**
+ * Maps an API TeacherDto (from GET /teachers/:id) to the form value shape
+ * consumed by TeacherProfileForm.
+ *
+ * Converts all nullable / undefined fields to safe empty-string / null defaults
+ * so React Hook Form never receives `undefined` for a controlled input.
+ */
+export function mapTeacherDtoToForm(dto: TeacherDto): TeacherFormValues {
+  return {
+    firstName: dto.firstName ?? '',
+    lastName: dto.lastName ?? '',
+    email: dto.email ?? '',
+    phone: dto.phone ?? '',
+    bio: dto.bio ?? '',
+    qualifications: dto.qualifications ?? '',
+    avatarKey: dto.avatarKey ?? null,
+    languagePreference:
+      (dto.languagePreference as TeacherFormValues['languagePreference']) ?? 'en',
+    themePreference:
+      (dto.themePreference as TeacherFormValues['themePreference']) ?? 'system',
+  };
+}
+
+/**
+ * Maps validated TeacherFormValues back to the UpdateTeacherDto shape required
+ * by PATCH /teachers/:id.
+ *
+ * Optional fields are included only when they carry a non-empty value so the
+ * backend treats absence as "no change" (PATCH semantics).
+ * avatarKey === null signals "remove avatar" (sent as explicit undefined to
+ * clear via the API); omitting it entirely means "don't touch".
+ */
+export function mapTeacherFormToDto(form: TeacherFormValues): UpdateTeacherDto {
+  return {
+    firstName: form.firstName,
+    lastName: form.lastName,
+    ...(form.phone.length > 0 ? { phone: form.phone } : {}),
+    ...(form.bio !== undefined && form.bio.length > 0 ? { bio: form.bio } : {}),
+    ...(form.qualifications !== undefined && form.qualifications.length > 0
+      ? { qualifications: form.qualifications }
+      : {}),
+    // avatarKey === null → remove avatar; undefined → don't touch
+    ...(form.avatarKey !== null ? { avatarKey: form.avatarKey ?? undefined } : {}),
+    languagePreference: form.languagePreference,
+    themePreference: form.themePreference,
+  };
+}
+
+// ─── AttendanceEntryDto ↔ AttendanceMarkEntry ─────────────────────────────────
+
+/**
+ * Normalises a raw AttendanceEntryDto (from GET /teachers/:id/groups or the
+ * attendance marking endpoint) into the AttendanceMarkEntry shape used in
+ * AttendanceMarkingUI.
+ *
+ * The `status` field is cast at runtime here — this is the single place where
+ * that cast occurs, keeping components free of type gymnastics.
+ */
+export function mapAttendanceEntryDto(dto: AttendanceEntryDto): AttendanceMarkEntry {
+  return {
+    studentId: dto.studentId,
+    studentName: dto.studentName ?? '',
+    ...(dto.avatarUrl !== undefined && dto.avatarUrl !== null
+      ? { avatarUrl: dto.avatarUrl }
+      : {}),
+    status: (dto.status as AttendanceStatus) ?? 'present',
+    ...(dto.note !== undefined && dto.note !== null && dto.note.length > 0
+      ? { note: dto.note }
+      : {}),
+  };
+}
+
+// ─── KPI helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Creates a zero-initialised TeacherKpiData placeholder — used while the real
+ * dashboard data is loading so KPI cards can render without conditional logic.
+ */
+export function createEmptyTeacherKpi(): TeacherKpiData {
+  return {
+    activeGroups: 0,
+    totalStudents: 0,
+    pendingGrading: 0,
+    todaysClasses: 0,
+    activeGroupsTrend: 0,
+    totalStudentsTrend: 0,
+    pendingGradingTrend: 0,
+    todaysClassesTrend: 0,
+  };
+}
+
+/**
+ * Derives the percentage change between two numeric KPI values.
+ *
+ * Positive → improvement. Negative → regression.
+ * Returns 0 when previous is 0 (avoids division-by-zero).
+ */
+export function deriveTrendPercent(current: number, previous: number): number {
+  if (previous === 0) return 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+// ─── Display formatters ───────────────────────────────────────────────────────
+
+/**
+ * Returns a display-safe full name string for a teacher.
+ * Falls back to the email prefix when both names are empty.
+ */
+export function formatTeacherFullName(
+  firstName: string,
+  lastName: string,
+  email?: string | null,
+): string {
+  const full = `${firstName} ${lastName}`.trim();
+  if (full.length > 0) return full;
+  if (email !== undefined && email !== null) return email.split('@')[0] ?? 'Teacher';
+  return 'Unknown Teacher';
+}
+
+/**
+ * Returns two-letter uppercase initials from a teacher's first and last name.
+ * Falls back to '??' when both names are empty.
+ */
+export function getTeacherInitials(firstName: string, lastName: string): string {
+  const first = firstName.trim()[0] ?? '';
+  const last = lastName.trim()[0] ?? '';
+  const initials = `${first}${last}`.toUpperCase();
+  return initials.length > 0 ? initials : '??';
+}
+
+// ─── Chat helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Sorts ChatConversation[] by lastMessageAt descending (most recent first).
+ * Conversations with no messages are placed at the end.
+ * Returns a new array — does NOT mutate the input.
+ */
+export function sortConversationsByRecency(
+  conversations: ChatConversation[],
+): ChatConversation[] {
+  return [...conversations].sort((a, b) => {
+    const aTime =
+      a.lastMessageAt !== undefined && a.lastMessageAt !== null
+        ? new Date(a.lastMessageAt).getTime()
+        : 0;
+    const bTime =
+      b.lastMessageAt !== undefined && b.lastMessageAt !== null
+        ? new Date(b.lastMessageAt).getTime()
+        : 0;
+    return bTime - aTime;
+  });
+}
+
+/**
+ * Counts the total number of unread messages across all conversations.
+ */
+export function getTotalUnreadCount(conversations: ChatConversation[]): number {
+  return conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+}

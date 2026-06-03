@@ -1,0 +1,400 @@
+{
+  "common": {
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "delete": "O'chirish",
+    "edit": "Tahrirlash",
+    "create": "Yaratish",
+    "update": "Yangilash",
+    "search": "Qidirish",
+    "filter": "Filtrlash",
+    "sort": "Saralash",
+    "loading": "Yuklanmoqda...",
+    "error": "Xato",
+    "success": "Muvaffaqiyat",
+    "confirm": "Tasdiqlash",
+    "back": "Orqaga",
+    "next": "Keyingi",
+    "previous": "Oldingi",
+    "close": "Yopish",
+    "open": "Ochish",
+    "export": "Eksport",
+    "import": "Import",
+    "download": "Yuklab olish",
+    "upload": "Yuklash",
+    "view": "Ko'rish",
+    "actions": "Amallar",
+    "status": "Holat",
+    "active": "Faol",
+    "inactive": "Nofaol",
+    "pending": "Kutilmoqda",
+    "noData": "Ma'lumot mavjud emas",
+    "retry": "Qayta urinish",
+    "refresh": "Yangilash",
+    "today": "Bugun",
+    "week": "Shu hafta",
+    "month": "Shu oy",
+    "allTime": "Barcha vaqt",
+    "required": "Majburiy",
+    "optional": "Ixtiyoriy",
+    "yes": "Ha",
+    "no": "Yo'q",
+    "total": "Jami",
+    "of": "/",
+    "items": "ta",
+    "perPage": "Sahifada",
+    "page": "Sahifa",
+    "rowsSelected": "{count} ta tanlandi",
+    "clearSelection": "Tanlovni tozalash",
+    "selectAll": "Hammasini tanlash",
+    "bulkActions": "Ommaviy amallar",
+    "deleteSelected": "Tanlanganlarni o'chirish",
+    "confirmDelete": "Haqiqatan ham o'chirmoqchimisiz?",
+    "cannotUndo": "Bu amalni qaytarib bo'lmaydi.",
+    "offline": "Siz oflayn holatdasiz",
+    "backOnline": "Onlayn holatga qaytdingiz!",
+    "offlineQueue": "{count} ta amal navbatda",
+    "siteHeader": "Sayt sarlavhasi",
+    "expandSidebar": "Yon panelni kengaytirish",
+    "collapseSidebar": "Yon panelni yig'ish",
+    "toggleTheme": "Mavzuni o'zgartirish",
+    "notifications": "Bildirishnomalar",
+    "openUserMenu": "Foydalanuvchi menyusini ochish",
+    "globalSearch": "Global qidiruv"
+  },
+  "auth": {
+    "login": "Kirish",
+    "logout": "Chiqish",
+    "email": "Elektron pochta",
+    "password": "Parol",
+    "forgotPassword": "Parolni unutdingizmi?",
+    "resetPassword": "Parolni tiklash",
+    "sendResetLink": "Tiklash havolasini yuborish",
+    "loginTitle": "Xush kelibsiz",
+    "loginSubtitle": "Hisobingizga kiring",
+    "invalidCredentials": "Elektron pochta yoki parol noto'g'ri",
+    "sessionExpired": "Sessiya tugadi, qayta kiring",
+    "newPassword": "Yangi parol",
+    "confirmPassword": "Parolni tasdiqlash",
+    "passwordsNotMatch": "Parollar mos kelmaydi",
+    "resetSuccess": "Parol muvaffaqiyatli tiklandi"
+  },
+  "nav": {
+    "dashboard": "Bosh sahifa",
+    "courses": "Kurslar",
+    "schedule": "Jadval",
+    "attendance": "Davomat",
+    "homework": "Uy vazifalari",
+    "grades": "Baholar",
+    "exams": "Imtihonlar",
+    "certificates": "Sertifikatlar",
+    "notifications": "Bildirishnomalar",
+    "profile": "Profil",
+    "groups": {
+      "main": "Asosiy",
+      "academic": "Ta'lim",
+      "personal": "Shaxsiy",
+      "insights": "Tahlil",
+      "management": "Boshqaruv",
+      "business": "Biznes"
+    },
+    "lessons": "Darslar",
+    "students": "O'quvchilar",
+    "teachers": "O'qituvchilar",
+    "analytics": "Tahlil",
+    "chat": "Chat",
+    "payments": "To'lovlar",
+    "reports": "Hisobotlar",
+    "settings": "Sozlamalar",
+    "users": "Foydalanuvchilar",
+    "roles": "Rollar",
+    "branches": "Filiallar",
+    "finances": "Moliya",
+    "hr": "HR",
+    "system": "Tizim"
+  },
+  "student": {
+    "dashboard": {
+      "title": "O'quvchi bosh sahifasi",
+      "welcomeBack": "Xush kelibsiz, {name}!",
+      "coursesEnrolled": "Yozilgan kurslar",
+      "attendanceRate": "Davomat ko'rsatkichi",
+      "homeworkPending": "Kutilayotgan vazifalar",
+      "averageGrade": "O'rtacha baho",
+      "upcomingClasses": "Kelgusi darslar",
+      "recentActivity": "So'nggi faollik"
+    },
+    "courses": {
+      "title": "Mening kurslarim",
+      "enrolled": "Yozilgan",
+      "progress": "Jarayon",
+      "viewCourse": "Kursni ko'rish",
+      "continueLearning": "O'qishni davom ettirish",
+      "completed": "Tugatilgan",
+      "notEnrolled": "Hech qanday kursga yozilmagansiz"
+    },
+    "attendance": {
+      "title": "Davomat",
+      "present": "Keldi",
+      "absent": "Kelmadi",
+      "late": "Kech qoldi",
+      "excused": "Uzrli",
+      "rate": "Davomat ko'rsatkichi"
+    },
+    "homework": {
+      "title": "Uy vazifalari",
+      "submit": "Topshirish",
+      "submitted": "Topshirildi",
+      "graded": "Baholandi",
+      "pending": "Kutilmoqda",
+      "overdue": "Muddati o'tdi",
+      "dueDate": "Topshirish sanasi",
+      "grade": "Baho"
+    },
+    "grades": {
+      "title": "Baholar",
+      "subject": "Fan",
+      "grade": "Baho",
+      "date": "Sana",
+      "examName": "Imtihon"
+    },
+    "certificates": {
+      "title": "Sertifikatlar",
+      "download": "Yuklab olish",
+      "issued": "Berildi",
+      "course": "Kurs"
+    }
+  },
+  "teacher": {
+    "dashboard": {
+      "title": "O'qituvchi bosh sahifasi",
+      "activeGroups": "Faol guruhlar",
+      "totalStudents": "Jami o'quvchilar",
+      "pendingHomework": "Baholash kutilmoqda",
+      "todayClasses": "Bugungi darslar"
+    },
+    "groups": {
+      "title": "Mening guruhlarim",
+      "students": "O'quvchilar",
+      "schedule": "Jadval",
+      "viewGroup": "Guruhni ko'rish"
+    },
+    "attendance": {
+      "title": "Davomatni belgilash",
+      "markAll": "Hammasini keldi deb belgilash",
+      "save": "Davomatni saqlash",
+      "date": "Sana",
+      "group": "Guruh"
+    },
+    "homework": {
+      "title": "Uy vazifalari",
+      "create": "Vazifa yaratish",
+      "grade": "Baholash",
+      "submissions": "Topshirilganlar",
+      "deadline": "Muddat",
+      "points": "Ball"
+    },
+    "lessons": {
+      "title": "Darslar",
+      "upload": "Darsni yuklash",
+      "file": "Fayl",
+      "videoUrl": "Video manzili",
+      "description": "Tavsif"
+    }
+  },
+  "admin": {
+    "dashboard": {
+      "title": "Admin bosh sahifasi",
+      "totalStudents": "Jami o'quvchilar",
+      "totalTeachers": "Jami o'qituvchilar",
+      "totalCourses": "Jami kurslar",
+      "monthlyRevenue": "Oylik daromad",
+      "newEnrollments": "Yangi yozilishlar",
+      "pendingPayments": "Kutilayotgan to'lovlar"
+    },
+    "courses": {
+      "title": "Kurslar",
+      "create": "Kurs yaratish",
+      "modules": "Modullar",
+      "enrolled": "Yozilgan",
+      "price": "Narx"
+    },
+    "teachers": {
+      "title": "O'qituvchilar",
+      "invite": "O'qituvchini taklif qilish"
+    },
+    "students": {
+      "title": "O'quvchilar",
+      "enroll": "Yozish",
+      "transfer": "Ko'chirish"
+    },
+    "payments": {
+      "title": "To'lovlar",
+      "invoice": "Hisob-faktura",
+      "paid": "To'langan",
+      "unpaid": "To'lanmagan",
+      "debt": "Qarzdorlik",
+      "amount": "Miqdor",
+      "currency": "Valyuta",
+      "method": "Usul"
+    },
+    "schedule": {
+      "title": "Jadval",
+      "add": "Tadbirni qo'shish",
+      "room": "Xona",
+      "startTime": "Boshlanish vaqti",
+      "endTime": "Tugash vaqti"
+    },
+    "reports": {
+      "title": "Hisobotlar",
+      "generate": "Yaratish",
+      "attendance": "Davomat hisoboti",
+      "financial": "Moliyaviy hisobot",
+      "performance": "Ko'rsatkich hisoboti"
+    }
+  },
+  "owner": {
+    "dashboard": {
+      "title": "Egasi bosh sahifasi",
+      "totalRevenue": "Jami daromad",
+      "totalBranches": "Jami filiallar",
+      "totalUsers": "Jami foydalanuvchilar",
+      "growth": "O'sish",
+      "mrr": "Oylik daromad",
+      "arr": "Yillik daromad"
+    },
+    "branches": {
+      "title": "Filiallar",
+      "add": "Filial qo'shish",
+      "name": "Nomi",
+      "address": "Manzil",
+      "manager": "Menejer"
+    },
+    "roles": {
+      "title": "Rollar va ruxsatlar",
+      "create": "Rol yaratish",
+      "permissions": "Ruxsatlar",
+      "users": "Bu roldagi foydalanuvchilar"
+    },
+    "hr": {
+      "title": "HR paneli",
+      "salary": "Maosh",
+      "contract": "Shartnoma",
+      "department": "Bo'lim"
+    },
+    "system": {
+      "title": "Tizim sozlamalari",
+      "maintenance": "Texnik xizmat rejimi",
+      "features": "Xususiyat bayroqlari",
+      "theme": "Mavzu sozlamalari"
+    }
+  },
+  "errors": {
+    "required": "Bu maydon majburiy",
+    "invalidEmail": "Noto'g'ri elektron pochta manzili",
+    "minLength": "Kamida {min} ta belgi talab qilinadi",
+    "maxLength": "Ko'pi bilan {max} ta belgi ruxsat etiladi",
+    "invalidPhone": "Noto'g'ri telefon raqami",
+    "notFound": "Topilmadi",
+    "accessDenied": "Ruxsat rad etildi",
+    "serverError": "Server xatosi, qayta urinib ko'ring",
+    "networkError": "Tarmoq xatosi",
+    "rateLimited": "Juda ko'p so'rov. {seconds} soniyadan keyin qayta urinib ko'ring",
+    "fileTooLarge": "Fayl hajmi {max}MB chegarasidan oshdi",
+    "invalidFileType": "Noto'g'ri fayl turi",
+    "uploadFailed": "Yuklash muvaffaqiyatsiz, qayta urinib ko'ring"
+  },
+  "notifications": {
+    "title": "Bildirishnomalar",
+    "markAllRead": "Hammasini o'qilgan deb belgilash",
+    "noNotifications": "Bildirishnomalar yo'q",
+    "homeworkGraded": "Uy vazifangiz baholandi",
+    "paymentReceived": "To'lov qabul qilindi",
+    "paymentOverdue": "To'lov muddati o'tdi",
+    "scheduleUpdated": "Jadval yangilandi",
+    "examStarted": "Imtihon boshlandi",
+    "newMessage": "Yangi xabar"
+  },
+  "theme": {
+    "light": "Yorug'",
+    "dark": "Qorong'u",
+    "system": "Tizim"
+  },
+  "language": {
+    "uz": "O'zbek",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "search": {
+    "placeholder": "Qidirish... (⌘K)",
+    "noResults": "Natija topilmadi",
+    "recent": "So'nggi qidiruvlar",
+    "all": "Barcha natijalarni ko'rish"
+  },
+  "upload": {
+    "dragDrop": "Fayllarni bu yerga tashlang",
+    "or": "yoki",
+    "browse": "fayllarni tanlang",
+    "maxSize": "Maksimal fayl hajmi: {max}MB",
+    "uploading": "Yuklanmoqda...",
+    "uploaded": "Muvaffaqiyatli yuklandi",
+    "failed": "Yuklash muvaffaqiyatsiz",
+    "remove": "O'chirish",
+    "preview": "Ko'rinish",
+    "retry": "Qayta yuklash",
+    "camera": "Rasm olish"
+  },
+  "pagination": {
+    "showing": "{from}–{to} / {total} ta ko'rsatilmoqda",
+    "loadMore": "Ko'proq yuklash",
+    "pullToRefresh": "Yangilash uchun torting"
+  },
+  "kpi": {
+    "trend": "{value}% {label}",
+    "vsLastMonth": "o'tgan oyga nisbatan",
+    "up": "yuqori",
+    "down": "past",
+    "neutral": "o'zgarishsiz"
+  },
+  "datepicker": {
+    "placeholder": "Sana tanlang",
+    "today": "Bugun",
+    "clear": "Tozalash"
+  },
+  "dialog": {
+    "close": "Yopish",
+    "confirm": "Tasdiqlash",
+    "cancel": "Bekor qilish"
+  },
+  "editor": {
+    "placeholder": "Matn kiriting...",
+    "bold": "Qalin",
+    "italic": "Kursiv"
+  },
+  "table": {
+    "search": "Qidirish...",
+    "noData": "Ma'lumot topilmadi",
+    "loading": "Yuklanmoqda...",
+    "showing": "Ko'rsatilmoqda",
+    "of": "dan",
+    "results": "natija",
+    "prev": "Oldingi",
+    "next": "Keyingi",
+    "rowsPerPage": "Qatorlar soni",
+    "selected": "tanlandi",
+    "clearSelection": "Tanlovni tozalash",
+    "exportCsv": "CSV export",
+    "exportExcel": "Excel export",
+    "columns": "Ustunlar",
+    "filters": "Filtrlar",
+    "sortAsc": "O'sish",
+    "sortDesc": "Kamayish"
+  },
+  "userMenu": {
+    "profile": "Profil",
+    "settings": "Sozlamalar",
+    "logout": "Chiqish",
+    "theme": "Mavzu",
+    "language": "Til"
+  }
+}

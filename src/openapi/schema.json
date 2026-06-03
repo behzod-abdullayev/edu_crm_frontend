@@ -1,0 +1,2908 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "EduCRM API",
+    "version": "1.0.0",
+    "description": "Educational CRM + LMS Platform REST API — Full Schema"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API v1"
+    }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "auth",          "description": "Authentication" },
+    { "name": "students",      "description": "Student management" },
+    { "name": "teachers",      "description": "Teacher management" },
+    { "name": "courses",       "description": "Course management" },
+    { "name": "payments",      "description": "Payment management" },
+    { "name": "admin",         "description": "Admin operations" },
+    { "name": "owner",         "description": "Owner / super-admin operations" },
+    { "name": "files",         "description": "File upload & signed URLs" },
+    { "name": "notifications", "description": "Notifications" },
+    { "name": "tenants",       "description": "Tenant config" }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "operationId": "authLogin",
+        "summary": "Login with email and password",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthTokensResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["auth"],
+        "operationId": "authRefresh",
+        "summary": "Refresh access token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefreshTokenDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthTokensResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired refresh token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "operationId": "authLogout",
+        "summary": "Logout current session",
+        "responses": {
+          "204": { "description": "Logged out successfully" },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "operationId": "authGetMe",
+        "summary": "Get current authenticated user profile",
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfile" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "tags": ["auth"],
+        "operationId": "authForgotPassword",
+        "summary": "Request password reset email",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ForgotPasswordDto" }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Reset email sent (if account exists)" },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "tags": ["auth"],
+        "operationId": "authResetPassword",
+        "summary": "Reset password with token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResetPasswordDto" }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Password reset successfully" },
+          "400": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudents",
+        "summary": "List students with pagination",
+        "parameters": [
+          { "name": "page",    "in": "query", "schema": { "type": "integer", "default": 1, "minimum": 1 } },
+          { "name": "limit",   "in": "query", "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 } },
+          { "name": "search",  "in": "query", "schema": { "type": "string" } },
+          { "name": "sortBy",  "in": "query", "schema": { "type": "string", "default": "createdAt" } },
+          { "name": "order",   "in": "query", "schema": { "type": "string", "enum": ["ASC", "DESC"], "default": "DESC" } },
+          { "name": "status",  "in": "query", "schema": { "$ref": "#/components/schemas/StudentStatus" } },
+          { "name": "cursor",  "in": "query", "schema": { "type": "string" }, "description": "Cursor for infinite scroll (mobile)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated student list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedStudents" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["students"],
+        "operationId": "createStudent",
+        "summary": "Create a new student",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateStudentDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Student created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Student" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentById",
+        "summary": "Get a student by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Student" }
+              }
+            }
+          },
+          "404": {
+            "description": "Student not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["students"],
+        "operationId": "updateStudent",
+        "summary": "Update a student",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateStudentDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Student updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Student" }
+              }
+            }
+          },
+          "404": {
+            "description": "Student not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["students"],
+        "operationId": "deleteStudent",
+        "summary": "Delete a student",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Student deleted" },
+          "404": {
+            "description": "Student not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/courses": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentCourses",
+        "summary": "Get enrolled courses for a student",
+        "parameters": [
+          { "name": "id",    "in": "path",  "required": true, "schema": { "type": "string" } },
+          { "name": "page",  "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Enrolled courses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/EnrolledCourse" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/attendance": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentAttendance",
+        "summary": "Get attendance records for a student",
+        "parameters": [
+          { "name": "id",        "in": "path",  "required": true, "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attendance records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Attendance" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/grades": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentGrades",
+        "summary": "Get grades for a student",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student grades",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Grade" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/schedule": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentSchedule",
+        "summary": "Get schedule for a student",
+        "parameters": [
+          { "name": "id",        "in": "path",  "required": true, "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ScheduleEvent" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/homework/{hwId}/submit": {
+      "post": {
+        "tags": ["students"],
+        "operationId": "submitHomework",
+        "summary": "Submit homework for a student",
+        "parameters": [
+          { "name": "id",   "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "hwId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HomeworkSubmissionDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Homework submitted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HomeworkSubmission" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/certificates": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentCertificates",
+        "summary": "Get certificates for a student",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student certificates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Certificate" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}/notifications": {
+      "get": {
+        "tags": ["students"],
+        "operationId": "getStudentNotifications",
+        "summary": "Get notifications for a student",
+        "parameters": [
+          { "name": "id",    "in": "path",  "required": true, "schema": { "type": "string" } },
+          { "name": "page",  "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Notification" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers": {
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getTeachers",
+        "summary": "List teachers with pagination",
+        "parameters": [
+          { "name": "page",   "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",  "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "sortBy", "in": "query", "schema": { "type": "string", "default": "createdAt" } },
+          { "name": "order",  "in": "query", "schema": { "type": "string", "enum": ["ASC", "DESC"], "default": "DESC" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated teacher list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedTeachers" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers/{id}": {
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getTeacherById",
+        "summary": "Get a teacher by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Teacher detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Teacher" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers/{id}/groups": {
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getTeacherGroups",
+        "summary": "Get groups assigned to a teacher",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Teacher groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Group" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers/{id}/students": {
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getTeacherStudents",
+        "summary": "Get students of a teacher",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Teacher students",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Student" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers/{id}/analytics": {
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getTeacherAnalytics",
+        "summary": "Get analytics for a teacher",
+        "parameters": [
+          { "name": "id",     "in": "path",  "required": true, "schema": { "type": "string" } },
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["week", "month", "quarter", "year"], "default": "month" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Teacher analytics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeacherAnalytics" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teachers/{id}/attendance": {
+      "post": {
+        "tags": ["teachers"],
+        "operationId": "markAttendance",
+        "summary": "Mark attendance for a group",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MarkAttendanceDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Attendance marked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Attendance" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/homework": {
+      "post": {
+        "tags": ["teachers"],
+        "operationId": "createHomework",
+        "summary": "Create homework assignment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateHomeworkDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Homework created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Homework" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getHomeworkList",
+        "summary": "Get homework list",
+        "parameters": [
+          { "name": "page",    "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",   "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "groupId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated homework list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Homework" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/homework/{id}": {
+      "patch": {
+        "tags": ["teachers"],
+        "operationId": "updateHomework",
+        "summary": "Update a homework assignment",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateHomeworkDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Homework updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Homework" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getHomeworkById",
+        "summary": "Get homework by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Homework detail with submissions",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HomeworkDetail" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/homework/{id}/grade/{submissionId}": {
+      "post": {
+        "tags": ["teachers"],
+        "operationId": "gradeHomeworkSubmission",
+        "summary": "Grade a homework submission",
+        "parameters": [
+          { "name": "id",           "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "submissionId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GradeSubmissionDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Submission graded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GradedSubmission" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons": {
+      "post": {
+        "tags": ["teachers"],
+        "operationId": "createLesson",
+        "summary": "Create a lesson",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateLessonDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lesson created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Lesson" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["teachers"],
+        "operationId": "getLessons",
+        "summary": "Get lessons list",
+        "parameters": [
+          { "name": "page",     "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",    "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "courseId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated lessons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Lesson" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons/{id}/upload": {
+      "post": {
+        "tags": ["teachers"],
+        "operationId": "uploadLessonFile",
+        "summary": "Upload file for a lesson",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File uploaded and lesson updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Lesson" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses": {
+      "get": {
+        "tags": ["courses"],
+        "operationId": "getCourses",
+        "summary": "List courses with pagination",
+        "parameters": [
+          { "name": "page",     "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",    "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search",   "in": "query", "schema": { "type": "string" } },
+          { "name": "sortBy",   "in": "query", "schema": { "type": "string", "default": "createdAt" } },
+          { "name": "order",    "in": "query", "schema": { "type": "string", "enum": ["ASC", "DESC"], "default": "DESC" } },
+          { "name": "status",   "in": "query", "schema": { "$ref": "#/components/schemas/CourseStatus" } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated course list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedCourses" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["courses"],
+        "operationId": "createCourse",
+        "summary": "Create a new course",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCourseDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Course created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Course" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}": {
+      "get": {
+        "tags": ["courses"],
+        "operationId": "getCourseById",
+        "summary": "Get a course by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Course detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CourseDetail" }
+              }
+            }
+          },
+          "404": {
+            "description": "Course not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["courses"],
+        "operationId": "updateCourse",
+        "summary": "Update a course",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCourseDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Course updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Course" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["courses"],
+        "operationId": "deleteCourse",
+        "summary": "Delete a course",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Course deleted" },
+          "404": {
+            "description": "Course not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/modules": {
+      "get": {
+        "tags": ["courses"],
+        "operationId": "getCourseModules",
+        "summary": "Get modules for a course",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Course modules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Module" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/enroll/{studentId}": {
+      "post": {
+        "tags": ["courses"],
+        "operationId": "enrollStudent",
+        "summary": "Enroll a student in a course",
+        "parameters": [
+          { "name": "id",        "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "studentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": {
+            "description": "Student enrolled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Enrollment" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getPayments",
+        "summary": "List payments with pagination",
+        "parameters": [
+          { "name": "page",      "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",     "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search",    "in": "query", "schema": { "type": "string" } },
+          { "name": "status",    "in": "query", "schema": { "$ref": "#/components/schemas/PaymentStatus" } },
+          { "name": "studentId", "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated payments",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedPayments" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["payments"],
+        "operationId": "createPayment",
+        "summary": "Create a new payment record",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePaymentDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Payment" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/{id}": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getPaymentById",
+        "summary": "Get payment detail",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentDetail" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/invoices": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getInvoices",
+        "summary": "List invoices with pagination",
+        "parameters": [
+          { "name": "page",      "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",     "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "studentId", "in": "query", "schema": { "type": "string" } },
+          { "name": "status",    "in": "query", "schema": { "$ref": "#/components/schemas/InvoiceStatus" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated invoices",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedInvoices" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/invoices/{id}": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getInvoiceById",
+        "summary": "Get invoice detail",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Invoice" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/debt/{studentId}": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getStudentDebt",
+        "summary": "Get debt summary for a student",
+        "parameters": [
+          { "name": "studentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Debt summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DebtSummary" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/subscriptions": {
+      "get": {
+        "tags": ["payments"],
+        "operationId": "getSubscriptions",
+        "summary": "Get active subscriptions",
+        "responses": {
+          "200": {
+            "description": "Subscriptions list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Subscription" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "tags": ["admin"],
+        "operationId": "getAdminDashboard",
+        "summary": "Get admin dashboard KPI data",
+        "responses": {
+          "200": {
+            "description": "Admin dashboard data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminDashboardData" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reports/{type}": {
+      "get": {
+        "tags": ["admin"],
+        "operationId": "getAdminReport",
+        "summary": "Get a specific report by type",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["revenue", "attendance", "enrollments", "performance", "payments"]
+            }
+          },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "groupBy",   "in": "query", "schema": { "type": "string", "enum": ["day", "week", "month"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReportData" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/schedule": {
+      "get": {
+        "tags": ["admin"],
+        "operationId": "getAdminSchedule",
+        "summary": "Get all schedule events",
+        "parameters": [
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "groupId",   "in": "query", "schema": { "type": "string" } },
+          { "name": "teacherId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ScheduleEvent" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["admin"],
+        "operationId": "createScheduleEvent",
+        "summary": "Create a schedule event",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateScheduleEventDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Schedule event created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScheduleEvent" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/schedule/{id}": {
+      "patch": {
+        "tags": ["admin"],
+        "operationId": "updateScheduleEvent",
+        "summary": "Update a schedule event",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateScheduleEventDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Schedule event updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScheduleEvent" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["admin"],
+        "operationId": "deleteScheduleEvent",
+        "summary": "Delete a schedule event",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Schedule event deleted" }
+        }
+      }
+    },
+    "/admin/analytics": {
+      "get": {
+        "tags": ["admin"],
+        "operationId": "getAdminAnalytics",
+        "summary": "Get admin analytics data",
+        "parameters": [
+          { "name": "period",    "in": "query", "schema": { "type": "string", "enum": ["week", "month", "quarter", "year"], "default": "month" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",   "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AnalyticsData" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/dashboard": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getOwnerDashboard",
+        "summary": "Get owner dashboard data",
+        "responses": {
+          "200": {
+            "description": "Owner dashboard data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OwnerDashboardData" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/analytics/global": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getGlobalAnalytics",
+        "summary": "Get global platform analytics",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["week", "month", "quarter", "year"], "default": "month" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Global analytics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GlobalAnalytics" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/branches": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getBranches",
+        "summary": "List all branches",
+        "responses": {
+          "200": {
+            "description": "Branches list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Branch" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["owner"],
+        "operationId": "createBranch",
+        "summary": "Create a new branch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateBranchDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Branch created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Branch" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/roles": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getRoles",
+        "summary": "List all roles",
+        "responses": {
+          "200": {
+            "description": "Roles list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Role" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["owner"],
+        "operationId": "createRole",
+        "summary": "Create a custom role",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRoleDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Role created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Role" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/roles/{id}/permissions": {
+      "patch": {
+        "tags": ["owner"],
+        "operationId": "updateRolePermissions",
+        "summary": "Update permissions for a role",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRolePermissionsDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role permissions updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Role" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/users": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getOwnerUsers",
+        "summary": "List all users (paginated)",
+        "parameters": [
+          { "name": "page",   "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",  "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "role",   "in": "query", "schema": { "$ref": "#/components/schemas/UserRole" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated users",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedUsers" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/users/{id}/role": {
+      "post": {
+        "tags": ["owner"],
+        "operationId": "assignUserRole",
+        "summary": "Assign a role to a user",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AssignRoleDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role assigned",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfile" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/system/config": {
+      "get": {
+        "tags": ["owner"],
+        "operationId": "getSystemConfig",
+        "summary": "Get system configuration",
+        "responses": {
+          "200": {
+            "description": "System config",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SystemConfig" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["owner"],
+        "operationId": "updateSystemConfig",
+        "summary": "Update system configuration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateSystemConfigDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "System config updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SystemConfig" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/upload": {
+      "post": {
+        "tags": ["files"],
+        "operationId": "uploadFile",
+        "summary": "Upload a file",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "folder": { "type": "string" },
+                  "isPublic": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File uploaded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UploadedFile" }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{key}/signed-url": {
+      "get": {
+        "tags": ["files"],
+        "operationId": "getSignedUrl",
+        "summary": "Get a signed URL for a private file",
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed URL",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SignedUrl" }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{key}": {
+      "delete": {
+        "tags": ["files"],
+        "operationId": "deleteFile",
+        "summary": "Delete a file",
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "File deleted" }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["notifications"],
+        "operationId": "getNotifications",
+        "summary": "List notifications for current user",
+        "parameters": [
+          { "name": "page",     "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",    "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "isRead",   "in": "query", "schema": { "type": "boolean" } },
+          { "name": "cursor",   "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated notifications",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedNotifications" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/{id}/read": {
+      "patch": {
+        "tags": ["notifications"],
+        "operationId": "markNotificationRead",
+        "summary": "Mark a notification as read",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked as read",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Notification" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/read-all": {
+      "patch": {
+        "tags": ["notifications"],
+        "operationId": "markAllNotificationsRead",
+        "summary": "Mark all notifications as read",
+        "responses": {
+          "204": { "description": "All notifications marked as read" }
+        }
+      }
+    },
+    "/notifications/{id}": {
+      "delete": {
+        "tags": ["notifications"],
+        "operationId": "deleteNotification",
+        "summary": "Delete a notification",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Notification deleted" }
+        }
+      }
+    },
+    "/tenants/config": {
+      "get": {
+        "tags": ["tenants"],
+        "operationId": "getTenantConfig",
+        "summary": "Get tenant configuration by slug",
+        "security": [],
+        "parameters": [
+          { "name": "slug", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant configuration",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantConfig" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email":      { "type": "string", "format": "email", "example": "admin@example.com" },
+          "password":   { "type": "string", "minLength": 8, "example": "password123" },
+          "tenantSlug": { "type": "string", "example": "academy1" }
+        }
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email":      { "type": "string", "format": "email" },
+          "tenantSlug": { "type": "string" }
+        }
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "required": ["token", "password"],
+        "properties": {
+          "token":    { "type": "string" },
+          "password": { "type": "string", "minLength": 8 }
+        }
+      },
+      "AuthTokensResponse": {
+        "type": "object",
+        "required": ["accessToken", "refreshToken", "expiresIn"],
+        "properties": {
+          "accessToken":  { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresIn":    { "type": "integer", "description": "Token lifetime in seconds", "example": 900 }
+        }
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": ["student", "teacher", "admin", "owner"]
+      },
+      "UserProfile": {
+        "type": "object",
+        "required": ["id", "email", "firstName", "lastName", "role", "permissions", "tenantId", "tenantSlug", "isEmailVerified", "createdAt", "updatedAt"],
+        "properties": {
+          "id":              { "type": "string", "format": "uuid" },
+          "email":           { "type": "string", "format": "email" },
+          "firstName":       { "type": "string" },
+          "lastName":        { "type": "string" },
+          "role":            { "$ref": "#/components/schemas/UserRole" },
+          "permissions":     { "type": "array", "items": { "type": "string" } },
+          "avatar":          { "type": "string", "nullable": true },
+          "tenantId":        { "type": "string", "format": "uuid" },
+          "tenantSlug":      { "type": "string" },
+          "phone":           { "type": "string", "nullable": true },
+          "isEmailVerified": { "type": "boolean" },
+          "lastLoginAt":     { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt":       { "type": "string", "format": "date-time" },
+          "updatedAt":       { "type": "string", "format": "date-time" }
+        }
+      },
+      "StudentStatus": {
+        "type": "string",
+        "enum": ["active", "inactive", "pending", "blocked"]
+      },
+      "Student": {
+        "type": "object",
+        "required": ["id", "email", "firstName", "lastName", "status", "tenantId", "createdAt", "updatedAt"],
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "email":     { "type": "string", "format": "email" },
+          "firstName": { "type": "string" },
+          "lastName":  { "type": "string" },
+          "phone":     { "type": "string", "nullable": true },
+          "avatar":    { "type": "string", "nullable": true },
+          "birthDate": { "type": "string", "format": "date", "nullable": true },
+          "status":    { "$ref": "#/components/schemas/StudentStatus" },
+          "tenantId":  { "type": "string", "format": "uuid" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateStudentDto": {
+        "type": "object",
+        "required": ["email", "firstName", "lastName"],
+        "properties": {
+          "email":     { "type": "string", "format": "email" },
+          "firstName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "lastName":  { "type": "string", "minLength": 1, "maxLength": 100 },
+          "phone":     { "type": "string" },
+          "birthDate": { "type": "string", "format": "date" }
+        }
+      },
+      "UpdateStudentDto": {
+        "type": "object",
+        "properties": {
+          "firstName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "lastName":  { "type": "string", "minLength": 1, "maxLength": 100 },
+          "phone":     { "type": "string" },
+          "birthDate": { "type": "string", "format": "date" },
+          "status":    { "$ref": "#/components/schemas/StudentStatus" },
+          "avatar":    { "type": "string" }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": ["page", "limit", "total", "totalPages", "hasNextPage", "hasPrevPage"],
+        "properties": {
+          "page":        { "type": "integer", "minimum": 1 },
+          "limit":       { "type": "integer", "minimum": 1 },
+          "total":       { "type": "integer", "minimum": 0 },
+          "totalPages":  { "type": "integer", "minimum": 0 },
+          "hasNextPage": { "type": "boolean" },
+          "hasPrevPage": { "type": "boolean" },
+          "nextCursor":  { "type": "string", "nullable": true },
+          "hasMore":     { "type": "boolean" }
+        }
+      },
+      "PaginatedStudents": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Student" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "Teacher": {
+        "type": "object",
+        "required": ["id", "email", "firstName", "lastName", "tenantId", "createdAt", "updatedAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "email":       { "type": "string", "format": "email" },
+          "firstName":   { "type": "string" },
+          "lastName":    { "type": "string" },
+          "phone":       { "type": "string", "nullable": true },
+          "avatar":      { "type": "string", "nullable": true },
+          "bio":         { "type": "string", "nullable": true },
+          "subjects":    { "type": "array", "items": { "type": "string" } },
+          "isActive":    { "type": "boolean", "default": true },
+          "tenantId":    { "type": "string", "format": "uuid" },
+          "groupCount":  { "type": "integer", "default": 0 },
+          "studentCount":{ "type": "integer", "default": 0 },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "updatedAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaginatedTeachers": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Teacher" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "Group": {
+        "type": "object",
+        "required": ["id", "name", "teacherId", "courseId", "tenantId", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "name":         { "type": "string" },
+          "teacherId":    { "type": "string", "format": "uuid" },
+          "courseId":     { "type": "string", "format": "uuid" },
+          "courseName":   { "type": "string" },
+          "studentCount": { "type": "integer", "default": 0 },
+          "maxStudents":  { "type": "integer", "nullable": true },
+          "startDate":    { "type": "string", "format": "date", "nullable": true },
+          "endDate":      { "type": "string", "format": "date", "nullable": true },
+          "isActive":     { "type": "boolean", "default": true },
+          "tenantId":     { "type": "string", "format": "uuid" },
+          "createdAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "Attendance": {
+        "type": "object",
+        "required": ["id", "studentId", "groupId", "date", "status", "tenantId", "createdAt"],
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "studentId": { "type": "string", "format": "uuid" },
+          "groupId":   { "type": "string", "format": "uuid" },
+          "teacherId": { "type": "string", "format": "uuid" },
+          "date":      { "type": "string", "format": "date" },
+          "status":    { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+          "note":      { "type": "string", "nullable": true },
+          "tenantId":  { "type": "string", "format": "uuid" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MarkAttendanceDto": {
+        "type": "object",
+        "required": ["groupId", "date", "records"],
+        "properties": {
+          "groupId": { "type": "string", "format": "uuid" },
+          "date":    { "type": "string", "format": "date" },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["studentId", "status"],
+              "properties": {
+                "studentId": { "type": "string", "format": "uuid" },
+                "status":    { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+                "note":      { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "Grade": {
+        "type": "object",
+        "required": ["id", "studentId", "courseId", "type", "score", "maxScore", "gradedAt", "createdAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "studentId":   { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "courseName":  { "type": "string" },
+          "homeworkId":  { "type": "string", "format": "uuid", "nullable": true },
+          "examId":      { "type": "string", "format": "uuid", "nullable": true },
+          "type":        { "type": "string", "enum": ["homework", "exam", "quiz", "project", "participation"] },
+          "score":       { "type": "number", "minimum": 0 },
+          "maxScore":    { "type": "number", "minimum": 0 },
+          "percentage":  { "type": "number", "minimum": 0, "maximum": 100 },
+          "letterGrade": { "type": "string", "nullable": true },
+          "feedback":    { "type": "string", "nullable": true },
+          "gradedAt":    { "type": "string", "format": "date-time" },
+          "createdAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "CourseStatus": {
+        "type": "string",
+        "enum": ["draft", "active", "paused", "archived"]
+      },
+      "Course": {
+        "type": "object",
+        "required": ["id", "name", "status", "tenantId", "createdAt", "updatedAt"],
+        "properties": {
+          "id":             { "type": "string", "format": "uuid" },
+          "name":           { "type": "string" },
+          "slug":           { "type": "string" },
+          "description":    { "type": "string", "nullable": true },
+          "thumbnail":      { "type": "string", "nullable": true },
+          "status":         { "$ref": "#/components/schemas/CourseStatus" },
+          "category":       { "type": "string", "nullable": true },
+          "duration":       { "type": "integer", "description": "Duration in hours", "nullable": true },
+          "price":          { "type": "number", "minimum": 0, "nullable": true },
+          "currency":       { "type": "string", "default": "UZS" },
+          "enrolledCount":  { "type": "integer", "default": 0 },
+          "moduleCount":    { "type": "integer", "default": 0 },
+          "lessonCount":    { "type": "integer", "default": 0 },
+          "tenantId":       { "type": "string", "format": "uuid" },
+          "createdAt":      { "type": "string", "format": "date-time" },
+          "updatedAt":      { "type": "string", "format": "date-time" }
+        }
+      },
+      "CourseDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Course" },
+          {
+            "type": "object",
+            "properties": {
+              "modules": { "type": "array", "items": { "$ref": "#/components/schemas/Module" } }
+            }
+          }
+        ]
+      },
+      "CreateCourseDto": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":        { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "thumbnail":   { "type": "string" },
+          "status":      { "$ref": "#/components/schemas/CourseStatus" },
+          "category":    { "type": "string" },
+          "duration":    { "type": "integer", "minimum": 0 },
+          "price":       { "type": "number", "minimum": 0 },
+          "currency":    { "type": "string", "default": "UZS" }
+        }
+      },
+      "UpdateCourseDto": {
+        "type": "object",
+        "properties": {
+          "name":        { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "thumbnail":   { "type": "string" },
+          "status":      { "$ref": "#/components/schemas/CourseStatus" },
+          "category":    { "type": "string" },
+          "duration":    { "type": "integer", "minimum": 0 },
+          "price":       { "type": "number", "minimum": 0 },
+          "currency":    { "type": "string" }
+        }
+      },
+      "PaginatedCourses": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Course" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "Module": {
+        "type": "object",
+        "required": ["id", "courseId", "title", "order", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "courseId":     { "type": "string", "format": "uuid" },
+          "title":        { "type": "string" },
+          "description":  { "type": "string", "nullable": true },
+          "order":        { "type": "integer", "minimum": 0 },
+          "lessonCount":  { "type": "integer", "default": 0 },
+          "lessons":      { "type": "array", "items": { "$ref": "#/components/schemas/Lesson" } },
+          "createdAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "Lesson": {
+        "type": "object",
+        "required": ["id", "moduleId", "courseId", "title", "order", "type", "createdAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "moduleId":    { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "title":       { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "type":        { "type": "string", "enum": ["video", "text", "quiz", "file", "live"] },
+          "content":     { "type": "string", "nullable": true },
+          "fileUrl":     { "type": "string", "nullable": true },
+          "fileKey":     { "type": "string", "nullable": true },
+          "duration":    { "type": "integer", "description": "Duration in minutes", "nullable": true },
+          "order":       { "type": "integer", "minimum": 0 },
+          "isPublished": { "type": "boolean", "default": false },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "updatedAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateLessonDto": {
+        "type": "object",
+        "required": ["moduleId", "title", "type"],
+        "properties": {
+          "moduleId":    { "type": "string", "format": "uuid" },
+          "title":       { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string" },
+          "type":        { "type": "string", "enum": ["video", "text", "quiz", "file", "live"] },
+          "content":     { "type": "string" },
+          "duration":    { "type": "integer", "minimum": 0 },
+          "order":       { "type": "integer", "minimum": 0 }
+        }
+      },
+      "Enrollment": {
+        "type": "object",
+        "required": ["id", "studentId", "courseId", "status", "enrolledAt", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "studentId":    { "type": "string", "format": "uuid" },
+          "courseId":     { "type": "string", "format": "uuid" },
+          "courseName":   { "type": "string" },
+          "status":       { "type": "string", "enum": ["active", "completed", "dropped", "paused"] },
+          "progress":     { "type": "number", "minimum": 0, "maximum": 100, "default": 0 },
+          "enrolledAt":   { "type": "string", "format": "date-time" },
+          "completedAt":  { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "EnrolledCourse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Course" },
+          {
+            "type": "object",
+            "properties": {
+              "enrollment": { "$ref": "#/components/schemas/Enrollment" }
+            }
+          }
+        ]
+      },
+      "Homework": {
+        "type": "object",
+        "required": ["id", "title", "groupId", "teacherId", "dueDate", "status", "tenantId", "createdAt"],
+        "properties": {
+          "id":              { "type": "string", "format": "uuid" },
+          "title":           { "type": "string" },
+          "description":     { "type": "string", "nullable": true },
+          "groupId":         { "type": "string", "format": "uuid" },
+          "groupName":       { "type": "string" },
+          "teacherId":       { "type": "string", "format": "uuid" },
+          "courseId":        { "type": "string", "format": "uuid", "nullable": true },
+          "dueDate":         { "type": "string", "format": "date-time" },
+          "maxScore":        { "type": "number", "default": 100 },
+          "status":          { "type": "string", "enum": ["draft", "published", "closed"] },
+          "attachments":     { "type": "array", "items": { "type": "string" } },
+          "submissionCount": { "type": "integer", "default": 0 },
+          "tenantId":        { "type": "string", "format": "uuid" },
+          "createdAt":       { "type": "string", "format": "date-time" },
+          "updatedAt":       { "type": "string", "format": "date-time" }
+        }
+      },
+      "HomeworkDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Homework" },
+          {
+            "type": "object",
+            "properties": {
+              "submissions": { "type": "array", "items": { "$ref": "#/components/schemas/HomeworkSubmission" } }
+            }
+          }
+        ]
+      },
+      "CreateHomeworkDto": {
+        "type": "object",
+        "required": ["title", "groupId", "dueDate"],
+        "properties": {
+          "title":       { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string" },
+          "groupId":     { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "dueDate":     { "type": "string", "format": "date-time" },
+          "maxScore":    { "type": "number", "minimum": 0, "default": 100 },
+          "attachments": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "UpdateHomeworkDto": {
+        "type": "object",
+        "properties": {
+          "title":       { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string" },
+          "dueDate":     { "type": "string", "format": "date-time" },
+          "maxScore":    { "type": "number", "minimum": 0 },
+          "status":      { "type": "string", "enum": ["draft", "published", "closed"] },
+          "attachments": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "HomeworkSubmissionDto": {
+        "type": "object",
+        "required": ["answer"],
+        "properties": {
+          "answer":      { "type": "string", "minLength": 1 },
+          "attachments": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "HomeworkSubmission": {
+        "type": "object",
+        "required": ["id", "homeworkId", "studentId", "answer", "status", "submittedAt", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "homeworkId":   { "type": "string", "format": "uuid" },
+          "studentId":    { "type": "string", "format": "uuid" },
+          "studentName":  { "type": "string" },
+          "answer":       { "type": "string" },
+          "attachments":  { "type": "array", "items": { "type": "string" } },
+          "score":        { "type": "number", "nullable": true },
+          "feedback":     { "type": "string", "nullable": true },
+          "status":       { "type": "string", "enum": ["submitted", "graded", "returned"] },
+          "submittedAt":  { "type": "string", "format": "date-time" },
+          "gradedAt":     { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "GradeSubmissionDto": {
+        "type": "object",
+        "required": ["score"],
+        "properties": {
+          "score":    { "type": "number", "minimum": 0 },
+          "feedback": { "type": "string" }
+        }
+      },
+      "GradedSubmission": {
+        "allOf": [
+          { "$ref": "#/components/schemas/HomeworkSubmission" },
+          {
+            "type": "object",
+            "required": ["score"],
+            "properties": {
+              "score": { "type": "number" }
+            }
+          }
+        ]
+      },
+      "Certificate": {
+        "type": "object",
+        "required": ["id", "studentId", "courseId", "issuedAt", "createdAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "studentId":   { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "courseName":  { "type": "string" },
+          "fileUrl":     { "type": "string", "nullable": true },
+          "fileKey":     { "type": "string", "nullable": true },
+          "issuedAt":    { "type": "string", "format": "date-time" },
+          "expiresAt":   { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "ScheduleEvent": {
+        "type": "object",
+        "required": ["id", "title", "startTime", "endTime", "type", "tenantId", "createdAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "title":       { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "startTime":   { "type": "string", "format": "date-time" },
+          "endTime":     { "type": "string", "format": "date-time" },
+          "type":        { "type": "string", "enum": ["lesson", "exam", "event", "holiday", "other"] },
+          "groupId":     { "type": "string", "format": "uuid", "nullable": true },
+          "groupName":   { "type": "string", "nullable": true },
+          "teacherId":   { "type": "string", "format": "uuid", "nullable": true },
+          "teacherName": { "type": "string", "nullable": true },
+          "courseId":    { "type": "string", "format": "uuid", "nullable": true },
+          "courseName":  { "type": "string", "nullable": true },
+          "room":        { "type": "string", "nullable": true },
+          "color":       { "type": "string", "nullable": true },
+          "isRecurring": { "type": "boolean", "default": false },
+          "tenantId":    { "type": "string", "format": "uuid" },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "updatedAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateScheduleEventDto": {
+        "type": "object",
+        "required": ["title", "startTime", "endTime", "type"],
+        "properties": {
+          "title":       { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string" },
+          "startTime":   { "type": "string", "format": "date-time" },
+          "endTime":     { "type": "string", "format": "date-time" },
+          "type":        { "type": "string", "enum": ["lesson", "exam", "event", "holiday", "other"] },
+          "groupId":     { "type": "string", "format": "uuid" },
+          "teacherId":   { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "room":        { "type": "string" },
+          "color":       { "type": "string" },
+          "isRecurring": { "type": "boolean", "default": false }
+        }
+      },
+      "UpdateScheduleEventDto": {
+        "type": "object",
+        "properties": {
+          "title":       { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string" },
+          "startTime":   { "type": "string", "format": "date-time" },
+          "endTime":     { "type": "string", "format": "date-time" },
+          "type":        { "type": "string", "enum": ["lesson", "exam", "event", "holiday", "other"] },
+          "room":        { "type": "string" },
+          "color":       { "type": "string" }
+        }
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": ["pending", "paid", "overdue", "cancelled", "refunded", "partial"]
+      },
+      "Payment": {
+        "type": "object",
+        "required": ["id", "studentId", "amount", "currency", "status", "paymentDate", "tenantId", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "studentId":    { "type": "string", "format": "uuid" },
+          "studentName":  { "type": "string" },
+          "courseId":     { "type": "string", "format": "uuid", "nullable": true },
+          "courseName":   { "type": "string", "nullable": true },
+          "invoiceId":    { "type": "string", "format": "uuid", "nullable": true },
+          "amount":       { "type": "number", "minimum": 0 },
+          "currency":     { "type": "string", "default": "UZS" },
+          "status":       { "$ref": "#/components/schemas/PaymentStatus" },
+          "method":       { "type": "string", "enum": ["cash", "card", "transfer", "online"], "nullable": true },
+          "reference":    { "type": "string", "nullable": true },
+          "note":         { "type": "string", "nullable": true },
+          "paymentDate":  { "type": "string", "format": "date-time" },
+          "tenantId":     { "type": "string", "format": "uuid" },
+          "createdAt":    { "type": "string", "format": "date-time" },
+          "updatedAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaymentDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Payment" },
+          {
+            "type": "object",
+            "properties": {
+              "invoice": { "$ref": "#/components/schemas/Invoice" }
+            }
+          }
+        ]
+      },
+      "CreatePaymentDto": {
+        "type": "object",
+        "required": ["studentId", "amount", "paymentDate"],
+        "properties": {
+          "studentId":   { "type": "string", "format": "uuid" },
+          "courseId":    { "type": "string", "format": "uuid" },
+          "invoiceId":   { "type": "string", "format": "uuid" },
+          "amount":      { "type": "number", "minimum": 0 },
+          "currency":    { "type": "string", "default": "UZS" },
+          "method":      { "type": "string", "enum": ["cash", "card", "transfer", "online"] },
+          "reference":   { "type": "string" },
+          "note":        { "type": "string" },
+          "paymentDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaginatedPayments": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Payment" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "InvoiceStatus": {
+        "type": "string",
+        "enum": ["draft", "sent", "paid", "overdue", "cancelled", "partial"]
+      },
+      "Invoice": {
+        "type": "object",
+        "required": ["id", "studentId", "amount", "currency", "status", "dueDate", "tenantId", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "studentId":    { "type": "string", "format": "uuid" },
+          "studentName":  { "type": "string" },
+          "courseId":     { "type": "string", "format": "uuid", "nullable": true },
+          "courseName":   { "type": "string", "nullable": true },
+          "invoiceNumber":{ "type": "string" },
+          "amount":       { "type": "number", "minimum": 0 },
+          "paidAmount":   { "type": "number", "minimum": 0, "default": 0 },
+          "currency":     { "type": "string", "default": "UZS" },
+          "status":       { "$ref": "#/components/schemas/InvoiceStatus" },
+          "dueDate":      { "type": "string", "format": "date-time" },
+          "description":  { "type": "string", "nullable": true },
+          "tenantId":     { "type": "string", "format": "uuid" },
+          "createdAt":    { "type": "string", "format": "date-time" },
+          "updatedAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaginatedInvoices": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Invoice" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "DebtSummary": {
+        "type": "object",
+        "required": ["studentId", "totalDebt", "currency"],
+        "properties": {
+          "studentId":       { "type": "string", "format": "uuid" },
+          "studentName":     { "type": "string" },
+          "totalDebt":       { "type": "number", "minimum": 0 },
+          "overdueAmount":   { "type": "number", "minimum": 0, "default": 0 },
+          "pendingAmount":   { "type": "number", "minimum": 0, "default": 0 },
+          "currency":        { "type": "string", "default": "UZS" },
+          "overdueInvoices": { "type": "integer", "default": 0 },
+          "lastPaymentDate": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "required": ["id", "studentId", "courseId", "plan", "status", "startDate", "nextBillingDate", "amount", "currency", "createdAt"],
+        "properties": {
+          "id":              { "type": "string", "format": "uuid" },
+          "studentId":       { "type": "string", "format": "uuid" },
+          "courseId":        { "type": "string", "format": "uuid" },
+          "courseName":      { "type": "string" },
+          "plan":            { "type": "string", "enum": ["monthly", "quarterly", "yearly"] },
+          "status":          { "type": "string", "enum": ["active", "cancelled", "expired", "paused"] },
+          "startDate":       { "type": "string", "format": "date-time" },
+          "endDate":         { "type": "string", "format": "date-time", "nullable": true },
+          "nextBillingDate": { "type": "string", "format": "date-time" },
+          "amount":          { "type": "number", "minimum": 0 },
+          "currency":        { "type": "string", "default": "UZS" },
+          "createdAt":       { "type": "string", "format": "date-time" }
+        }
+      },
+      "TeacherAnalytics": {
+        "type": "object",
+        "required": ["teacherId", "period"],
+        "properties": {
+          "teacherId":          { "type": "string", "format": "uuid" },
+          "period":             { "type": "string" },
+          "totalStudents":      { "type": "integer", "default": 0 },
+          "totalGroups":        { "type": "integer", "default": 0 },
+          "avgAttendanceRate":  { "type": "number", "minimum": 0, "maximum": 100 },
+          "avgGrade":           { "type": "number", "minimum": 0, "maximum": 100 },
+          "homeworkSubmitted":  { "type": "integer", "default": 0 },
+          "homeworkGraded":     { "type": "integer", "default": 0 },
+          "lessonsDelivered":   { "type": "integer", "default": 0 },
+          "attendanceTrend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "rate"],
+              "properties": {
+                "date": { "type": "string", "format": "date" },
+                "rate": { "type": "number" }
+              }
+            }
+          },
+          "gradeTrend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "avg"],
+              "properties": {
+                "date": { "type": "string", "format": "date" },
+                "avg":  { "type": "number" }
+              }
+            }
+          }
+        }
+      },
+      "AdminDashboardData": {
+        "type": "object",
+        "required": ["totalStudents", "totalTeachers", "totalCourses", "totalRevenue", "currency"],
+        "properties": {
+          "totalStudents":     { "type": "integer" },
+          "totalTeachers":     { "type": "integer" },
+          "totalCourses":      { "type": "integer" },
+          "activeEnrollments": { "type": "integer" },
+          "totalRevenue":      { "type": "number" },
+          "pendingRevenue":    { "type": "number" },
+          "currency":          { "type": "string", "default": "UZS" },
+          "avgAttendanceRate": { "type": "number" },
+          "newStudentsThisMonth": { "type": "integer" },
+          "revenueChange":     { "type": "number", "description": "% change vs prev period" },
+          "studentChange":     { "type": "number" },
+          "enrollmentChange":  { "type": "number" }
+        }
+      },
+      "ReportData": {
+        "type": "object",
+        "required": ["type", "period", "data"],
+        "properties": {
+          "type":   { "type": "string" },
+          "period": {
+            "type": "object",
+            "required": ["startDate", "endDate"],
+            "properties": {
+              "startDate": { "type": "string", "format": "date" },
+              "endDate":   { "type": "string", "format": "date" }
+            }
+          },
+          "summary": { "type": "object" },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["label", "value"],
+              "properties": {
+                "label":     { "type": "string" },
+                "value":     { "type": "number" },
+                "secondary": { "type": "number" },
+                "date":      { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "AnalyticsData": {
+        "type": "object",
+        "required": ["period"],
+        "properties": {
+          "period":      { "type": "string" },
+          "revenue": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "amount"],
+              "properties": {
+                "date":   { "type": "string" },
+                "amount": { "type": "number" }
+              }
+            }
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "count"],
+              "properties": {
+                "date":  { "type": "string" },
+                "count": { "type": "integer" }
+              }
+            }
+          },
+          "attendance": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "rate"],
+              "properties": {
+                "date": { "type": "string" },
+                "rate": { "type": "number" }
+              }
+            }
+          },
+          "debtByStatus": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["status", "amount", "count"],
+              "properties": {
+                "status": { "type": "string" },
+                "amount": { "type": "number" },
+                "count":  { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      "OwnerDashboardData": {
+        "type": "object",
+        "required": ["totalBranches", "totalUsers", "totalRevenue", "currency"],
+        "properties": {
+          "totalBranches":       { "type": "integer" },
+          "totalUsers":          { "type": "integer" },
+          "totalStudents":       { "type": "integer" },
+          "totalTeachers":       { "type": "integer" },
+          "totalCourses":        { "type": "integer" },
+          "totalRevenue":        { "type": "number" },
+          "pendingRevenue":      { "type": "number" },
+          "currency":            { "type": "string", "default": "UZS" },
+          "monthlyGrowthRate":   { "type": "number" },
+          "avgAttendanceRate":   { "type": "number" },
+          "revenueChange":       { "type": "number" },
+          "userGrowthChange":    { "type": "number" }
+        }
+      },
+      "GlobalAnalytics": {
+        "type": "object",
+        "required": ["period", "overview"],
+        "properties": {
+          "period":   { "type": "string" },
+          "overview": { "$ref": "#/components/schemas/OwnerDashboardData" },
+          "branchComparison": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["branchId", "branchName", "revenue", "students"],
+              "properties": {
+                "branchId":   { "type": "string" },
+                "branchName": { "type": "string" },
+                "revenue":    { "type": "number" },
+                "students":   { "type": "integer" },
+                "teachers":   { "type": "integer" },
+                "courses":    { "type": "integer" }
+              }
+            }
+          },
+          "userGrowth": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "count"],
+              "properties": {
+                "date":    { "type": "string" },
+                "count":   { "type": "integer" },
+                "role":    { "type": "string" }
+              }
+            }
+          },
+          "revenueByMonth": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["month", "amount"],
+              "properties": {
+                "month":  { "type": "string" },
+                "amount": { "type": "number" }
+              }
+            }
+          }
+        }
+      },
+      "Branch": {
+        "type": "object",
+        "required": ["id", "name", "tenantId", "createdAt"],
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "name":         { "type": "string" },
+          "slug":         { "type": "string" },
+          "address":      { "type": "string", "nullable": true },
+          "phone":        { "type": "string", "nullable": true },
+          "email":        { "type": "string", "format": "email", "nullable": true },
+          "isActive":     { "type": "boolean", "default": true },
+          "studentCount": { "type": "integer", "default": 0 },
+          "teacherCount": { "type": "integer", "default": 0 },
+          "courseCount":  { "type": "integer", "default": 0 },
+          "tenantId":     { "type": "string", "format": "uuid" },
+          "createdAt":    { "type": "string", "format": "date-time" },
+          "updatedAt":    { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateBranchDto": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":    { "type": "string", "minLength": 1, "maxLength": 200 },
+          "address": { "type": "string" },
+          "phone":   { "type": "string" },
+          "email":   { "type": "string", "format": "email" }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "required": ["id", "name", "permissions", "isSystem", "tenantId", "createdAt"],
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "name":        { "type": "string" },
+          "displayName": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "isSystem":    { "type": "boolean", "default": false },
+          "userCount":   { "type": "integer", "default": 0 },
+          "tenantId":    { "type": "string", "format": "uuid" },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "updatedAt":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateRoleDto": {
+        "type": "object",
+        "required": ["name", "permissions"],
+        "properties": {
+          "name":        { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string" },
+          "description": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "UpdateRolePermissionsDto": {
+        "type": "object",
+        "required": ["permissions"],
+        "properties": {
+          "permissions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "AssignRoleDto": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": { "$ref": "#/components/schemas/UserRole" }
+        }
+      },
+      "PaginatedUsers": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/UserProfile" } },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "SystemConfig": {
+        "type": "object",
+        "required": ["tenantId", "updatedAt"],
+        "properties": {
+          "tenantId":            { "type": "string", "format": "uuid" },
+          "siteName":            { "type": "string" },
+          "logoUrl":             { "type": "string", "nullable": true },
+          "faviconUrl":          { "type": "string", "nullable": true },
+          "primaryColor":        { "type": "string", "nullable": true },
+          "defaultLocale":       { "type": "string", "default": "uz" },
+          "timezone":            { "type": "string", "default": "Asia/Tashkent" },
+          "currency":            { "type": "string", "default": "UZS" },
+          "paymentsEnabled":     { "type": "boolean", "default": true },
+          "chatEnabled":         { "type": "boolean", "default": true },
+          "certificatesEnabled": { "type": "boolean", "default": true },
+          "examEngineEnabled":   { "type": "boolean", "default": true },
+          "maintenanceMode":     { "type": "boolean", "default": false },
+          "maxStudentsPerGroup": { "type": "integer", "nullable": true },
+          "updatedAt":           { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpdateSystemConfigDto": {
+        "type": "object",
+        "properties": {
+          "siteName":            { "type": "string" },
+          "logoUrl":             { "type": "string" },
+          "faviconUrl":          { "type": "string" },
+          "primaryColor":        { "type": "string" },
+          "defaultLocale":       { "type": "string" },
+          "timezone":            { "type": "string" },
+          "currency":            { "type": "string" },
+          "paymentsEnabled":     { "type": "boolean" },
+          "chatEnabled":         { "type": "boolean" },
+          "certificatesEnabled": { "type": "boolean" },
+          "examEngineEnabled":   { "type": "boolean" },
+          "maintenanceMode":     { "type": "boolean" },
+          "maxStudentsPerGroup": { "type": "integer" }
+        }
+      },
+      "UploadedFile": {
+        "type": "object",
+        "required": ["url", "key", "filename", "size", "mimeType"],
+        "properties": {
+          "url":      { "type": "string" },
+          "key":      { "type": "string" },
+          "filename": { "type": "string" },
+          "size":     { "type": "integer", "description": "File size in bytes" },
+          "mimeType": { "type": "string" },
+          "isPublic": { "type": "boolean", "default": false }
+        }
+      },
+      "SignedUrl": {
+        "type": "object",
+        "required": ["url", "expiresAt"],
+        "properties": {
+          "url":       { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "key":       { "type": "string" }
+        }
+      },
+      "NotificationType": {
+        "type": "string",
+        "enum": [
+          "homework_graded",
+          "homework_submitted",
+          "payment_received",
+          "payment_overdue",
+          "attendance_updated",
+          "schedule_updated",
+          "exam_started",
+          "exam_ended",
+          "certificate_issued",
+          "announcement",
+          "system"
+        ]
+      },
+      "Notification": {
+        "type": "object",
+        "required": ["id", "userId", "title", "body", "type", "isRead", "createdAt"],
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "userId":    { "type": "string", "format": "uuid" },
+          "title":     { "type": "string" },
+          "body":      { "type": "string" },
+          "type":      { "$ref": "#/components/schemas/NotificationType" },
+          "isRead":    { "type": "boolean", "default": false },
+          "readAt":    { "type": "string", "format": "date-time", "nullable": true },
+          "data":      { "type": "object", "nullable": true },
+          "actionUrl": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaginatedNotifications": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data":        { "type": "array", "items": { "$ref": "#/components/schemas/Notification" } },
+          "meta":        { "$ref": "#/components/schemas/PaginationMeta" },
+          "unreadCount": { "type": "integer", "default": 0 }
+        }
+      },
+      "TenantConfig": {
+        "type": "object",
+        "required": ["id", "slug", "name", "featureFlags"],
+        "properties": {
+          "id":                { "type": "string", "format": "uuid" },
+          "slug":              { "type": "string" },
+          "name":              { "type": "string" },
+          "logoUrl":           { "type": "string", "nullable": true },
+          "faviconUrl":        { "type": "string", "nullable": true },
+          "primaryColor":      { "type": "string", "nullable": true },
+          "defaultLocale":     { "type": "string", "default": "uz" },
+          "timezone":          { "type": "string", "default": "Asia/Tashkent" },
+          "currency":          { "type": "string", "default": "UZS" },
+          "featureFlags": {
+            "type": "object",
+            "required": ["paymentsEnabled", "chatEnabled", "certificatesEnabled", "examEngineEnabled"],
+            "properties": {
+              "paymentsEnabled":     { "type": "boolean" },
+              "chatEnabled":         { "type": "boolean" },
+              "certificatesEnabled": { "type": "boolean" },
+              "examEngineEnabled":   { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["statusCode", "message", "code"],
+        "properties": {
+          "statusCode": { "type": "integer" },
+          "message":    { "type": "string" },
+          "code":       { "type": "string" }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "required": ["statusCode", "message", "code", "errors"],
+        "properties": {
+          "statusCode": { "type": "integer", "example": 422 },
+          "message":    { "type": "string", "example": "Validation failed" },
+          "code":       { "type": "string", "example": "VALIDATION_ERROR" },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "example": {
+              "email": ["Must be a valid email address"],
+              "password": ["Must be at least 8 characters"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

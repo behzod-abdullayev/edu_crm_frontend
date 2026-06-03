@@ -1,0 +1,14 @@
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+coverage
+.git
+.gitignore
+*.md
+.eslintrc*
+.prettierrc*
+playwright-report
+test-results
+src/generated

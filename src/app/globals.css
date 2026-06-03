@@ -1,0 +1,432 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Light theme tokens ─────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --brand-primary:           #4F46E5;
+  --brand-primary-hover:     #4338CA;
+  --brand-secondary:         #06B6D4;
+  --brand-accent:            #8B5CF6;
+
+  /* Backgrounds */
+  --bg-page:                 #F8FAFC;
+  --bg-surface:              #FFFFFF;
+  --bg-surface-hover:        #F1F5F9;
+  --bg-surface-secondary:    #F8FAFC;
+  --bg-overlay:              rgba(15, 23, 42, 0.5);
+  --bg-sidebar:              #1E1B4B;
+  --bg-sidebar-item-hover:   #312E81;
+  --bg-sidebar-item-active:  #4F46E5;
+
+  /* Text */
+  --text-primary:            #0F172A;
+  --text-secondary:          #475569;
+  --text-muted:              #94A3B8;
+  --text-inverse:            #FFFFFF;
+  --text-on-brand:           #FFFFFF;
+  --text-sidebar:            #C7D2FE;
+  --text-sidebar-active:     #FFFFFF;
+
+  /* Borders */
+  --border-default:          #E2E8F0;
+  --border-strong:           #CBD5E1;
+  --border-focus:            #4F46E5;
+
+  /* Semantic — Success */
+  --success-bg:              #F0FDF4;
+  --success-border:          #86EFAC;
+  --success-text:            #166534;
+  --success-solid:           #22C55E;
+
+  /* Semantic — Warning */
+  --warning-bg:              #FFFBEB;
+  --warning-border:          #FCD34D;
+  --warning-text:            #92400E;
+  --warning-solid:           #F59E0B;
+
+  /* Semantic — Error */
+  --error-bg:                #FFF1F2;
+  --error-border:            #FCA5A5;
+  --error-text:              #991B1B;
+  --error-solid:             #EF4444;
+
+  /* Semantic — Info */
+  --info-bg:                 #EFF6FF;
+  --info-border:             #93C5FD;
+  --info-text:               #1E40AF;
+  --info-solid:              #3B82F6;
+
+  /* Role colors */
+  --role-student:            #3B82F6;
+  --role-teacher:            #22C55E;
+  --role-admin:              #8B5CF6;
+  --role-owner:              #F59E0B;
+
+  /* Shadows */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
+
+  /* Layout dimensions */
+  --sidebar-width:           260px;
+  --sidebar-collapsed:       72px;
+  --header-height:           64px;
+  --header-height-mobile:    56px;
+  --bottom-nav-height:       64px;
+
+  /* Transitions */
+  --transition-fast:         150ms ease;
+  --transition-base:         200ms ease;
+  --transition-slow:         300ms ease;
+
+  /* Border radius */
+  --radius-sm:               6px;
+  --radius-md:               8px;
+  --radius-lg:               12px;
+  --radius-xl:               16px;
+  --radius-2xl:              20px;
+  --radius-full:             9999px;
+
+  /* Spacing scale (matches prompt) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── shadcn/ui compatible tokens ──────────────────────────────────────────
+     Components that call hsl(var(--primary)), hsl(var(--border)), etc.
+     (e.g. OperationalDashboard, generated shadcn primitives) need these.
+     Values are raw R G B channel triples — no commas — so they work as:
+       color: hsl(var(--primary))           → still needs hsl wrapper
+       background-color: rgb(var(--card))   → works with rgb wrapper
+     For Recharts / inline uses we use the hex vars above via strokeColor.
+     shadcn generated files wrap them in hsl(), so we store HSL values:   */
+
+  /* hsl values: hue saturation% lightness% */
+  --background:              0 0% 98%;          /* approx #F8FAFC            */
+  --foreground:              222 47% 11%;        /* #0F172A                   */
+
+  --card:                    0 0% 100%;          /* #FFFFFF                   */
+  --card-foreground:         222 47% 11%;
+
+  --popover:                 0 0% 100%;
+  --popover-foreground:      222 47% 11%;
+
+  --primary:                 243 75% 59%;        /* #4F46E5                   */
+  --primary-foreground:      0 0% 100%;
+
+  --secondary:               210 40% 96%;
+  --secondary-foreground:    215 20% 40%;
+
+  --muted:                   210 40% 93%;        /* #F1F5F9                   */
+  --muted-foreground:        215 16% 57%;        /* #94A3B8                   */
+
+  --accent:                  258 90% 66%;        /* #8B5CF6                   */
+  --accent-foreground:       0 0% 100%;
+
+  --destructive:             0 84% 60%;          /* #EF4444                   */
+  --destructive-foreground:  0 0% 100%;
+
+  --border:                  214 32% 91%;        /* #E2E8F0                   */
+  --input:                   214 32% 91%;
+  --ring:                    243 75% 59%;        /* #4F46E5                   */
+
+  /* shadcn radius alias */
+  --radius:                  var(--radius-md);
+}
+
+/* ─── Dark theme tokens ──────────────────────────────────────────────────────── */
+.dark {
+  /* Brand */
+  --brand-primary:           #6366F1;
+  --brand-primary-hover:     #818CF8;
+  --brand-secondary:         #22D3EE;
+  --brand-accent:            #A78BFA;
+
+  /* Backgrounds */
+  --bg-page:                 #0F172A;
+  --bg-surface:              #1E293B;
+  --bg-surface-hover:        #334155;
+  --bg-surface-secondary:    #1E293B;
+  --bg-overlay:              rgba(0, 0, 0, 0.7);
+  --bg-sidebar:              #0F172A;
+  --bg-sidebar-item-hover:   #1E293B;
+  --bg-sidebar-item-active:  #4F46E5;
+
+  /* Text */
+  --text-primary:            #F1F5F9;
+  --text-secondary:          #94A3B8;
+  --text-muted:              #64748B;
+  --text-inverse:            #0F172A;
+  --text-on-brand:           #FFFFFF;
+  --text-sidebar:            #94A3B8;
+  --text-sidebar-active:     #FFFFFF;
+
+  /* Borders */
+  --border-default:          #334155;
+  --border-strong:           #475569;
+  --border-focus:            #6366F1;
+
+  /* Semantic — Success */
+  --success-bg:              #052E16;
+  --success-border:          #166534;
+  --success-text:            #86EFAC;
+  --success-solid:           #22C55E;
+
+  /* Semantic — Warning */
+  --warning-bg:              #1C1400;
+  --warning-border:          #92400E;
+  --warning-text:            #FCD34D;
+  --warning-solid:           #F59E0B;
+
+  /* Semantic — Error */
+  --error-bg:                #1C0A0A;
+  --error-border:            #991B1B;
+  --error-text:              #FCA5A5;
+  --error-solid:             #EF4444;
+
+  /* Semantic — Info */
+  --info-bg:                 #0C1A33;
+  --info-border:             #1E40AF;
+  --info-text:               #93C5FD;
+  --info-solid:              #3B82F6;
+
+  /* Shadows (darker) */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+
+  /* shadcn/ui hsl tokens — dark overrides */
+  --background:              222 47% 11%;        /* #0F172A                   */
+  --foreground:              210 40% 96%;        /* #F1F5F9                   */
+
+  --card:                    217 33% 17%;        /* #1E293B                   */
+  --card-foreground:         210 40% 96%;
+
+  --popover:                 217 33% 17%;
+  --popover-foreground:      210 40% 96%;
+
+  --primary:                 239 84% 67%;        /* #6366F1                   */
+  --primary-foreground:      0 0% 100%;
+
+  --secondary:               217 33% 17%;
+  --secondary-foreground:    215 16% 57%;
+
+  --muted:                   215 25% 27%;        /* #334155                   */
+  --muted-foreground:        215 16% 57%;        /* #64748B                   */
+
+  --accent:                  258 85% 76%;        /* #A78BFA                   */
+  --accent-foreground:       0 0% 100%;
+
+  --destructive:             0 84% 60%;
+  --destructive-foreground:  0 0% 100%;
+
+  --border:                  215 25% 27%;        /* #334155                   */
+  --input:                   215 25% 27%;
+  --ring:                    239 84% 67%;        /* #6366F1                   */
+}
+
+/* ─── Base styles ────────────────────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    /* Use CSS var so dark/light switching propagates automatically */
+    border-color: var(--border-default);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      Roboto, Oxygen, Ubuntu, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Monospace elements */
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono',
+      Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  /* Focus ring — WCAG 2.1 AA visible focus */
+  :focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+
+  /* Selection color */
+  ::selection {
+    background-color: var(--brand-primary);
+    color: var(--text-on-brand);
+  }
+
+  /* Custom scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+  }
+
+  /* Headings use text-primary by default */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  /* Anchor base */
+  a {
+    color: var(--brand-primary);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--brand-primary-hover);
+  }
+}
+
+/* ─── Shimmer animation (skeleton loaders) ──────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface-hover) 25%,
+    var(--bg-surface)       50%,
+    var(--bg-surface-hover) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* ─── Additional utility animations ─────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Component utilities ────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Safe-area aware padding for mobile bottom nav */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pb-bottom-nav {
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Sidebar offset for main content */
+  .ml-sidebar {
+    margin-left: var(--sidebar-width);
+  }
+
+  .ml-sidebar-collapsed {
+    margin-left: var(--sidebar-collapsed);
+  }
+
+  /* Hide scrollbar but keep scrollable */
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Full dynamic viewport height (accounts for mobile browser chrome) */
+  .min-h-dvh {
+    min-height: 100dvh;
+  }
+
+  .h-dvh {
+    height: 100dvh;
+  }
+
+  /* Tap highlight removal for touch */
+  .tap-transparent {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .select-none-touch {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
