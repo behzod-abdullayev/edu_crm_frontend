@@ -1,91 +1,220 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Download, Award } from "lucide-react";
-import { Button } from "@shared/components/ui/button";
-import { httpClient } from "@/services/api/axios.instance";
-import { useToast } from "@shared/hooks/useToast";
-import { cn } from "@shared/lib/utils";
+import { useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Download, Award, CheckCircle2, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { format } from 'date-fns';
+import { axiosInstance } from '@/services/api/axios.instance';
+import { useToast } from '@shared/hooks/useToast';
+import { cn } from '@shared/utils/cn';
+import type { SignedUrl } from '@generated/models/signedUrl';
+
+// ─── CertificateDto ───────────────────────────────────────────────────────────
+// Exported so StudentCertificatesClient can import it.
+// Mirrors the shape returned by GET /students/:id/certificates.
 
 export interface CertificateDto {
   id: string;
-  courseName: string;
+  studentId: string;
   courseId: string;
-  fileKey: string;
-  issueDate: string;
+  courseName?: string | undefined;
+  fileUrl?: string | null | undefined;
+  fileKey?: string | null | undefined;
+  issuedAt: string;
+  expiresAt?: string | null | undefined;
+  createdAt: string;
 }
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface CertificateDownloadProps {
   certificate: CertificateDto;
-  className?: string;
+  className?: string | undefined;
 }
 
-export function CertificateDownload({ certificate, className }: CertificateDownloadProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
+// ─── Component ────────────────────────────────────────────────────────────────
 
-  const handleDownload = async () => {
+export function CertificateDownload({
+  certificate,
+  className,
+}: CertificateDownloadProps) {
+  const t = useTranslations('student.certificates');
+  const { toast } = useToast();
+  const reduced = useReducedMotion() ?? false;
+
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [justDownloaded, setJustDownloaded] = useState(false);
+
+  const fileKey = certificate.fileKey ?? null;
+  const canDownload = !!fileKey;
+
+  const courseName = certificate.courseName ?? 'Course';
+  const issuedAt = certificate.issuedAt
+    ? format(new Date(certificate.issuedAt), 'MMMM d, yyyy')
+    : null;
+
+  function safeFilename(name: string): string {
+    return name.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-_]/g, '');
+  }
+
+  async function handleDownload() {
+    if (!fileKey || isDownloading) return;
+
     setIsDownloading(true);
     try {
-      const res = await httpClient.get<{ url: string }>(`/files/${certificate.fileKey}/signed-url`);
-      const url = res.data.url;
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `certificate-${certificate.courseName?.replace(/\s+/g, "-")}.pdf`;
+      const res = await axiosInstance<SignedUrl>({
+        url: `/files/${fileKey}/signed-url`,
+        method: 'GET',
+      });
+
+      const link = document.createElement('a');
+      link.href = res.url;
+      link.download = `certificate-${safeFilename(courseName)}.pdf`;
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      setJustDownloaded(true);
+      toast.success(`${t('download')} ✓`);
+
+      const timer = window.setTimeout(() => setJustDownloaded(false), 3000);
+      return () => window.clearTimeout(timer);
     } catch {
-      toast.error("Failed to download certificate");
+      toast.error('Failed to download certificate. Please try again.');
     } finally {
       setIsDownloading(false);
     }
+  }
+
+  const cardVariants = {
+    initial: reduced ? {} : { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    whileHover: reduced ? {} : { y: -2 },
   };
 
   return (
-    <div
+    <motion.article
+      variants={cardVariants}
+      initial="initial"
+      animate="animate"
+      whileHover="whileHover"
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       className={cn(
-        "group relative rounded-xl border border-border bg-card overflow-hidden",
-        "hover:border-amber-400/60 hover:shadow-lg transition-all duration-300",
-        "animate-in fade-in slide-in-from-bottom-2 duration-400",
-        className
+        'group relative flex flex-col overflow-hidden rounded-[var(--radius-xl)]',
+        'border border-[var(--border-default)] bg-[var(--bg-surface)]',
+        'shadow-[var(--shadow-sm)] transition-shadow duration-[var(--transition-base)]',
+        'hover:shadow-[var(--shadow-lg)]',
+        className,
       )}
+      aria-label={`Certificate for ${courseName}`}
     >
-      <div className="relative h-36 bg-gradient-to-br from-amber-50 via-amber-100 to-yellow-50 flex flex-col items-center justify-center gap-2 border-b border-amber-200/60">
-        <div className="w-14 h-14 rounded-full bg-amber-400/20 flex items-center justify-center">
-          <Award className="w-8 h-8 text-amber-600" />
+      {/* ── Decorative header ────────────────────────────────────────────── */}
+      <div
+        className="relative flex h-36 flex-col items-center justify-center gap-2 overflow-hidden"
+        aria-hidden="true"
+        style={{
+          background:
+            'linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fef9c3 100%)',
+          borderBottom: '1px solid #fcd34d',
+        }}
+      >
+        {/* Watermark rings */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-10">
+          <div className="h-40 w-40 rounded-full border-4 border-amber-600" />
+          <div className="absolute h-32 w-32 rounded-full border-2 border-amber-600" />
         </div>
-        <div className="text-center">
-          <p className="text-xs text-amber-600 font-semibold uppercase tracking-wider">Certificate of Completion</p>
-        </div>
-        <div className="absolute inset-x-4 bottom-3 h-px bg-amber-300/40" />
-        <div className="absolute inset-x-8 bottom-5 h-px bg-amber-300/20" />
+
+        <motion.div
+          className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100/80 shadow-md"
+          whileHover={reduced ? {} : { rotate: [0, -6, 6, 0] }}
+          transition={{ duration: 0.4 }}
+        >
+          <Award size={32} className="text-amber-600" strokeWidth={1.5} />
+        </motion.div>
+
+        <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.15em] text-amber-700">
+          Certificate of Completion
+        </p>
+
+        <div className="absolute inset-x-6 bottom-3 h-px bg-amber-300/60" />
+        <div className="absolute inset-x-10 bottom-5 h-px bg-amber-300/30" />
       </div>
 
-      <div className="p-4 space-y-3">
-        <div>
-          <h3 className="font-semibold text-sm line-clamp-2 leading-snug text-foreground">
-            {certificate.courseName}
+      {/* ── Content ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        <div className="space-y-1">
+          <h3
+            className="line-clamp-2 text-sm font-semibold leading-snug text-[var(--text-primary)]"
+            title={courseName}
+          >
+            {courseName}
           </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Issued {new Date(certificate.issueDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-          </p>
+          {issuedAt && (
+            <p className="text-xs text-[var(--text-muted)]">
+              <span className="sr-only">{t('issued')}:</span>
+              {t('issued')} {issuedAt}
+            </p>
+          )}
         </div>
 
-        <Button
+        <p
+          className="truncate font-mono text-[10px] text-[var(--text-muted)]"
+          title={`ID: ${certificate.id}`}
+          aria-label={`Certificate ID: ${certificate.id}`}
+        >
+          ID: {certificate.id}
+        </p>
+
+        {/* Download button */}
+        <motion.button
+          type="button"
           onClick={handleDownload}
-          disabled={isDownloading}
-          size="sm"
-          className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+          disabled={!canDownload || isDownloading}
+          aria-busy={isDownloading}
+          aria-label={
+            isDownloading
+              ? 'Downloading certificate…'
+              : canDownload
+                ? `Download certificate for ${courseName}`
+                : 'Certificate file not available'
+          }
+          whileTap={reduced ? {} : { scale: 0.97 }}
+          className={cn(
+            'mt-auto flex w-full items-center justify-center gap-2 rounded-lg',
+            'h-11 min-h-[44px] px-4 text-sm font-semibold',
+            'transition-colors duration-[var(--transition-fast)]',
+            'focus-visible:outline-none focus-visible:ring-2',
+            'focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-1',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            justDownloaded
+              ? 'bg-[var(--success-solid)] text-white'
+              : canDownload
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]',
+          )}
         >
           {isDownloading ? (
-            <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+            <>
+              <Loader2 size={16} aria-hidden="true" className="animate-spin" />
+              <span>Downloading…</span>
+            </>
+          ) : justDownloaded ? (
+            <>
+              <CheckCircle2 size={16} aria-hidden="true" />
+              <span>Downloaded!</span>
+            </>
           ) : (
-            <Download className="w-4 h-4" />
+            <>
+              <Download size={16} aria-hidden="true" />
+              <span>
+                {canDownload ? `${t('download')} PDF` : 'Not available'}
+              </span>
+            </>
           )}
-          {isDownloading ? "Downloading…" : "Download PDF"}
-        </Button>
+        </motion.button>
       </div>
-    </div>
+    </motion.article>
   );
 }

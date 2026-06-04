@@ -1,10 +1,21 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { AttendanceRecord } from "../types/student.types";
-import type { AttendanceStatus } from "@shared/types/attendance";
-import { cn } from "@shared/lib/utils";
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import {
+  ATTENDANCE_STATUS_META,
+  type AttendanceStatus,
+} from '@shared/types/attendance';
+import type { AttendanceRecord } from '../types/student.types';
+import { cn } from '@shared/utils/cn';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AttendanceCalendarProps {
   records: AttendanceRecord[];
@@ -12,23 +23,214 @@ interface AttendanceCalendarProps {
   className?: string;
 }
 
-const STATUS_COLORS: Record<AttendanceStatus, string> = {
-  present: "bg-green-500 text-white",
-  absent: "bg-red-500 text-white",
-  late: "bg-amber-500 text-white",
-  excused: "bg-gray-400 text-white",
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const STATUS_DOT: Record<AttendanceStatus, string> = {
-  present: "bg-green-500",
-  absent: "bg-red-500",
-  late: "bg-amber-500",
-  excused: "bg-gray-400",
-};
+function buildDayGrid(year: number, month: number): (number | null)[] {
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const grid: (number | null)[] = Array(firstWeekday).fill(null) as null[];
+  for (let d = 1; d <= lastDay; d++) grid.push(d);
+  while (grid.length % 7 !== 0) grid.push(null);
+  return grid;
+}
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function toDateStr(year: number, month: number, day: number): string {
+  const m = String(month + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  return `${year}-${m}-${d}`;
+}
 
-export function AttendanceCalendar({ records, onMonthChange, className }: AttendanceCalendarProps) {
+// ─── Day cell ─────────────────────────────────────────────────────────────────
+
+interface DayCellProps {
+  day: number;
+  dateStr: string;
+  record: AttendanceRecord | undefined;
+  isToday: boolean;
+  isFuture: boolean;
+  isHovered: boolean;
+  onHover: (d: string | null) => void;
+}
+
+function DayCell({
+  day,
+  dateStr,
+  record,
+  isToday,
+  isFuture,
+  isHovered,
+  onHover,
+}: DayCellProps) {
+  const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
+
+  const cellClasses = cn(
+    'relative flex aspect-square w-full cursor-default items-center justify-center',
+    'rounded-lg text-xs font-medium select-none',
+    'transition-colors duration-[var(--transition-fast,150ms)]',
+    record && meta
+      ? `${meta.bgClass} ${meta.textClass} border ${meta.borderClass}`
+      : isToday
+        ? 'ring-2 ring-[var(--brand-primary)] ring-offset-1 bg-[var(--info-bg)] text-[var(--brand-primary)]'
+        : isFuture
+          ? 'text-[var(--text-muted)]'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]',
+  );
+
+  return (
+    <div
+      className="relative flex flex-col items-center"
+      onMouseEnter={() => onHover(dateStr)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(dateStr)}
+      onBlur={() => onHover(null)}
+    >
+      <div
+        className={cellClasses}
+        aria-label={
+          record
+            ? `${dateStr}: ${record.status}${record.courseName ? ` — ${record.courseName}` : ''}`
+            : isToday
+              ? `${dateStr}: today`
+              : dateStr
+        }
+        role="cell"
+      >
+        {day}
+      </div>
+
+      {/* Tooltip — desktop hover only */}
+      <AnimatePresence>
+        {isHovered && record && (
+          <motion.div
+            key="tooltip"
+            role="tooltip"
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.12 }}
+            className={cn(
+              'pointer-events-none absolute bottom-full z-20 mb-2',
+              'left-1/2 -translate-x-1/2',
+              'rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]',
+              'px-2.5 py-1.5 shadow-[var(--shadow-md)] whitespace-nowrap',
+              'text-xs',
+            )}
+          >
+            <p className={cn('font-semibold capitalize', meta?.textClass)}>
+              {record.status}
+            </p>
+            {record.courseName && (
+              <p className="text-[var(--text-muted)] mt-0.5">
+                {record.courseName}
+              </p>
+            )}
+            {record.teacherName && (
+              <p className="text-[var(--text-muted)]">{record.teacherName}</p>
+            )}
+            {record.note && (
+              <p className="text-[var(--text-secondary)] mt-0.5 max-w-[180px] truncate">
+                {record.note}
+              </p>
+            )}
+            <span
+              aria-hidden="true"
+              className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[var(--border-default)]"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Summary bar ──────────────────────────────────────────────────────────────
+
+interface SummaryBarProps {
+  records: AttendanceRecord[];
+}
+
+function SummaryBar({ records }: SummaryBarProps) {
+  const counts = useMemo(() => {
+    const c: Record<AttendanceStatus, number> = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+    };
+    for (const r of records) {
+      // status is typed as AttendanceStatus so direct indexing is safe
+      c[r.status]++;
+    }
+    return c;
+  }, [records]);
+
+  const total = records.length;
+  const rate =
+    total > 0
+      ? Math.round(((counts.present + counts.late) / total) * 100)
+      : 0;
+
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-secondary)] px-4 py-3"
+      aria-label="Attendance summary"
+    >
+      <div className="flex items-baseline gap-1">
+        <span
+          className={cn(
+            'text-2xl font-black tabular-nums',
+            rate >= 80
+              ? 'text-[var(--success-solid)]'
+              : rate >= 60
+                ? 'text-[var(--warning-solid)]'
+                : 'text-[var(--error-solid)]',
+          )}
+          aria-label={`Attendance rate: ${rate}%`}
+        >
+          {rate}%
+        </span>
+        <span className="text-xs text-[var(--text-muted)]">rate</span>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        {(
+          Object.entries(ATTENDANCE_STATUS_META) as [
+            AttendanceStatus,
+            (typeof ATTENDANCE_STATUS_META)[AttendanceStatus],
+          ][]
+        ).map(([status, meta]) => (
+          <div key={status} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'h-2.5 w-2.5 rounded-full',
+                meta.bgClass,
+                `border ${meta.borderClass}`,
+              )}
+            />
+            <span
+              className="text-xs text-[var(--text-secondary)] capitalize"
+              aria-label={`${status}: ${counts[status]}`}
+            >
+              {status}: <strong>{counts[status]}</strong>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function AttendanceCalendar({
+  records,
+  onMonthChange,
+  className,
+}: AttendanceCalendarProps) {
+  const t = useTranslations('student.attendance');
+  const reduced = useReducedMotion() ?? false;
+
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -42,114 +244,169 @@ export function AttendanceCalendar({ records, onMonthChange, className }: Attend
     return map;
   }, [records]);
 
-  const days = useMemo(() => {
-    const firstDay = new Date(year, month, 1).getDay();
-    const totalDays = new Date(year, month + 1, 0).getDate();
-    const result: (number | null)[] = Array(firstDay).fill(null);
-    for (let d = 1; d <= totalDays; d++) result.push(d);
-    // pad to 6 rows
-    while (result.length % 7 !== 0) result.push(null);
-    return result;
-  }, [year, month]);
+  const monthRecords = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    return records.filter((r) => r.date.startsWith(prefix));
+  }, [records, year, month]);
 
-  const navigateMonth = (dir: -1 | 1) => {
-    let newMonth = month + dir;
-    let newYear = year;
-    if (newMonth < 0) { newMonth = 11; newYear--; }
-    if (newMonth > 11) { newMonth = 0; newYear++; }
-    setMonth(newMonth);
-    setYear(newYear);
-    onMonthChange?.(newYear, newMonth + 1);
-  };
+  const days = useMemo(() => buildDayGrid(year, month), [year, month]);
 
-  const monthName = new Date(year, month).toLocaleString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = new Date(year, month).toLocaleString('default', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const isCurrentMonth =
+    year === now.getFullYear() && month === now.getMonth();
+
+  function navigate(dir: -1 | 1) {
+    let m = month + dir;
+    let y = year;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    setMonth(m);
+    setYear(y);
+    onMonthChange?.(y, m + 1);
+  }
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Header */}
+    <section
+      className={cn('space-y-4', className)}
+      aria-label="Attendance calendar"
+    >
+      {/* ── Month navigation ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigateMonth(-1)}
-          className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          type="button"
+          onClick={() => navigate(-1)}
           aria-label="Previous month"
+          className={cn(
+            'flex h-9 w-9 items-center justify-center rounded-lg',
+            'border border-[var(--border-default)] bg-[var(--bg-surface)]',
+            'text-[var(--text-secondary)] transition-colors duration-[var(--transition-fast)]',
+            'hover:bg-[var(--bg-surface-hover)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+          )}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft size={16} aria-hidden="true" />
         </button>
-        <span className="font-medium text-sm">{monthName}</span>
-        <button
-          onClick={() => navigateMonth(1)}
-          className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-          aria-label="Next month"
-          disabled={year === now.getFullYear() && month === now.getMonth()}
+
+        <motion.h2
+          key={`${year}-${month}`}
+          initial={reduced ? false : { opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+          className="text-sm font-semibold text-[var(--text-primary)]"
+          aria-live="polite"
+          aria-atomic="true"
         >
-          <ChevronRight className="w-4 h-4" />
+          {monthLabel}
+        </motion.h2>
+
+        <button
+          type="button"
+          onClick={() => navigate(1)}
+          disabled={isCurrentMonth}
+          aria-label="Next month"
+          className={cn(
+            'flex h-9 w-9 items-center justify-center rounded-lg',
+            'border border-[var(--border-default)] bg-[var(--bg-surface)]',
+            'text-[var(--text-secondary)] transition-colors duration-[var(--transition-fast)]',
+            'hover:bg-[var(--bg-surface-hover)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+            'disabled:cursor-not-allowed disabled:opacity-40',
+          )}
+        >
+          <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
 
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 gap-1">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">
-            {d}
+      {/* ── Weekday headers ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-7 gap-1" role="row">
+        {WEEKDAY_LABELS.map((label) => (
+          <div
+            key={label}
+            className="py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]"
+            role="columnheader"
+            aria-label={label}
+          >
+            {label.charAt(0)}
           </div>
         ))}
       </div>
 
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-1">
-        {days.map((day, i) => {
-          if (!day) return <div key={i} />;
-
-          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      {/* ── Day grid ─────────────────────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-7 gap-1"
+        role="grid"
+        aria-label={`Attendance for ${monthLabel}`}
+      >
+        {days.map((day, idx) => {
+          if (day === null) {
+            return (
+              <div
+                key={`empty-${idx}`}
+                role="cell"
+                aria-hidden="true"
+              />
+            );
+          }
+          const dateStr = toDateStr(year, month, day);
           const record = recordMap.get(dateStr);
+          const dayDate = new Date(year, month, day);
           const isToday =
-            day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-          const isPast = new Date(year, month, day) < now;
+            day === now.getDate() &&
+            month === now.getMonth() &&
+            year === now.getFullYear();
+          const isFuture = dayDate > now && !isToday;
 
           return (
-            <div
-              key={i}
-              className="relative flex flex-col items-center"
-              onMouseEnter={() => setHoveredDate(dateStr)}
-              onMouseLeave={() => setHoveredDate(null)}
-            >
-              <div
-                className={cn(
-                  "w-full aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all duration-200",
-                  record ? STATUS_COLORS[record.status] : isToday ? "ring-2 ring-primary ring-offset-1 bg-primary/10 text-primary" : isPast ? "text-muted-foreground hover:bg-muted" : "text-foreground hover:bg-muted"
-                )}
-              >
-                {day}
-              </div>
-
-              {/* Mobile: dot indicator */}
-              {record && (
-                <div className="sm:hidden mt-0.5">
-                  <div className={cn("w-1 h-1 rounded-full", STATUS_DOT[record.status])} />
-                </div>
-              )}
-
-              {/* Tooltip */}
-              {hoveredDate === dateStr && record && (
-                <div className="absolute z-10 bottom-full mb-1 left-1/2 -translate-x-1/2 bg-popover border border-border rounded-lg px-2 py-1 text-xs shadow-md whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95 duration-150">
-                  <div className="font-medium capitalize">{record.status}</div>
-                  <div className="text-muted-foreground">{record.courseName}</div>
-                </div>
-              )}
-            </div>
+            <DayCell
+              key={dateStr}
+              day={day}
+              dateStr={dateStr}
+              record={record}
+              isToday={isToday}
+              isFuture={isFuture}
+              isHovered={hoveredDate === dateStr}
+              onHover={setHoveredDate}
+            />
           );
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 flex-wrap justify-center pt-2">
-        {(Object.entries(STATUS_DOT) as [AttendanceStatus, string][]).map(([status, dot]) => (
-          <div key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className={cn("w-2.5 h-2.5 rounded-full", dot)} />
+      {/* ── Monthly summary ───────────────────────────────────────────────── */}
+      {monthRecords.length > 0 && <SummaryBar records={monthRecords} />}
+
+      {/* ── Legend ───────────────────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center justify-center gap-3 pt-1"
+        role="list"
+        aria-label="Status legend"
+      >
+        {(
+          Object.entries(ATTENDANCE_STATUS_META) as [
+            AttendanceStatus,
+            (typeof ATTENDANCE_STATUS_META)[AttendanceStatus],
+          ][]
+        ).map(([status, meta]) => (
+          <div
+            key={status}
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"
+            role="listitem"
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'h-2.5 w-2.5 rounded-sm border',
+                meta.bgClass,
+                meta.borderClass,
+              )}
+            />
             <span className="capitalize">{status}</span>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

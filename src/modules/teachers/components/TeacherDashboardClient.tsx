@@ -1,26 +1,40 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCurrentUser } from "@shared/hooks/useCurrentUser";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import {
+  Users,
+  GraduationCap,
+  ClipboardList,
+  Calendar,
+  CheckSquare,
+  PlusCircle,
+  Upload,
+} from "lucide-react";
+
 import { httpClient } from "@/services/api/axios.instance";
-import { useWebSocket } from "@shared/hooks/useWebSocket";
+import { useCurrentUser } from "@shared/hooks/useCurrentUser";
+import { useSocketEvent } from "@shared/hooks/useWebSocket";
 import { useToast } from "@shared/hooks/useToast";
 import { KPICard } from "@shared/components/data-display/KPICard";
-import Link from "next/link";
 import { Button } from "@shared/components/ui/button";
-import { CheckSquare, PlusCircle, Upload, Users, GraduationCap, ClipboardList, Calendar } from "lucide-react";
+import {
+  SocketEvent,
+  type HomeworkSubmittedPayload,
+  type ScheduleUpdatedPayload,
+} from "@/services/websocket/socket.events";
+import type { TeacherKpiData } from "../types/teacher.types";
 
-const PerformanceChart = dynamic(() => import("./TeacherPerformanceChart"), { ssr: false });
+// ─── Lazy-loaded chart (heavy Recharts bundle) ────────────────────────────────
+const TeacherPerformanceChart = dynamic(
+  () => import("./TeacherPerformanceChart"),
+  { ssr: false },
+);
 
-interface TeacherKPI {
-  activeGroups: number;
-  totalStudents: number;
-  pendingGrading: number;
-  todaysClasses: number;
-}
-
-function isTeacherKPI(data: unknown): data is TeacherKPI {
+// ─── Runtime type guard for KPI response ─────────────────────────────────────
+function isTeacherKpiData(data: unknown): data is TeacherKpiData {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   return (
@@ -31,103 +45,250 @@ function isTeacherKPI(data: unknown): data is TeacherKPI {
   );
 }
 
+// ─── Greeting helper ──────────────────────────────────────────────────────────
 function getGreeting(): string {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
+
+// ─── KPI card configuration ───────────────────────────────────────────────────
+interface KpiConfig {
+  title: string;
+  icon: typeof Users;
+  iconColor: string;
+  kpiKey: keyof TeacherKpiData;
+  trendKey?: keyof TeacherKpiData;
+}
+
+const KPI_CARDS: KpiConfig[] = [
+  {
+    title: "Active Groups",
+    icon: Users,
+    iconColor: "var(--role-student)",
+    kpiKey: "activeGroups",
+    trendKey: "activeGroupsTrend",
+  },
+  {
+    title: "Total Students",
+    icon: GraduationCap,
+    iconColor: "var(--role-teacher)",
+    kpiKey: "totalStudents",
+    trendKey: "totalStudentsTrend",
+  },
+  {
+    title: "Pending Grading",
+    icon: ClipboardList,
+    iconColor: "var(--role-owner)",
+    kpiKey: "pendingGrading",
+    trendKey: "pendingGradingTrend",
+  },
+  {
+    title: "Today's Classes",
+    icon: Calendar,
+    iconColor: "var(--brand-accent)",
+    kpiKey: "todaysClasses",
+    trendKey: "todaysClassesTrend",
+  },
+];
+
+// ─── Stagger animation variants ───────────────────────────────────────────────
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.08 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TeacherDashboardClient
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function TeacherDashboardClient() {
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const teacherId = user?.id ?? "";
+
+  // ── KPI data ──────────────────────────────────────────────────────────────
   const { data: kpiRaw, isLoading } = useQuery({
-    queryKey: ["teachers", user?.id, "kpi"],
+    queryKey: ["teachers", teacherId, "kpi"],
     queryFn: () =>
-      httpClient.get(`/teachers/${user?.id}/kpi`).then((r) => r.data),
-    enabled: !!user?.id,
+      httpClient
+        .get<unknown>(`/teachers/${teacherId}/kpi`)
+        .then((r) => r.data),
+    enabled: !!teacherId,
+    staleTime: 5 * 60 * 1_000,
   });
 
-  const kpi: TeacherKPI | null = isTeacherKPI(kpiRaw) ? kpiRaw : null;
+  const kpi: TeacherKpiData | null = isTeacherKpiData(kpiRaw) ? kpiRaw : null;
 
-  useWebSocket({
-    events: {
-      HOMEWORK_SUBMITTED: () => {
-        void queryClient.invalidateQueries({ queryKey: ["teachers", user?.id, "kpi"] });
-        toast({ title: "New homework submission received" });
-      },
-      SCHEDULE_UPDATED: () =>
-        void queryClient.invalidateQueries({ queryKey: ["teachers", user?.id, "kpi"] }),
+  // ── WebSocket: homework submitted → refresh KPI + toast ──────────────────
+  useSocketEvent(
+    SocketEvent.HOMEWORK_SUBMITTED,
+    (_payload: HomeworkSubmittedPayload) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["teachers", teacherId, "kpi"],
+      });
+      toast({ title: "New homework submission received", type: "info" });
     },
+    !!teacherId,
+  );
+
+  // ── WebSocket: schedule updated → refresh KPI ────────────────────────────
+  useSocketEvent(
+    SocketEvent.SCHEDULE_UPDATED,
+    (_payload: ScheduleUpdatedPayload) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["teachers", teacherId, "kpi"],
+      });
+    },
+    !!teacherId,
+  );
+
+  // ── Today's date label ────────────────────────────────────────────────────
+  const dateLabel = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
   });
 
   return (
-    <div className="space-y-8 pb-8 animate-in fade-in duration-500">
-      <div className="animate-in slide-in-from-top-4 duration-500">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {getGreeting()}, {user?.firstName ?? "Teacher"}!
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="space-y-8 pb-8"
+    >
+      {/* ── Greeting ──────────────────────────────────────────────────────── */}
+      <motion.div variants={itemVariants}>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-[var(--text-primary)]">
+          {getGreeting()},{" "}
+          <span className="text-[var(--brand-primary)]">
+            {user?.firstName ?? "Teacher"}
+          </span>
+          !
         </h1>
-        <p className="text-muted-foreground text-sm">
-          {new Date().toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          })}
-        </p>
-      </div>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">{dateLabel}</p>
+      </motion.div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: "Active Groups", value: kpi?.activeGroups ?? 0, icon: Users, iconColor: "#3b82f6" },
-          { title: "Total Students", value: kpi?.totalStudents ?? 0, icon: GraduationCap, iconColor: "#22c55e" },
-          { title: "Pending Grading", value: kpi?.pendingGrading ?? 0, icon: ClipboardList, iconColor: "#f59e0b" },
-          { title: "Today's Classes", value: kpi?.todaysClasses ?? 0, icon: Calendar, iconColor: "#8b5cf6" },
-        ].map((card, i) => (
-          <div
-            key={card.title}
-            className="animate-in slide-in-from-bottom-4 fade-in duration-500"
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            <KPICard
-              title={card.title}
-              value={card.value}
-              icon={card.icon}
-              iconColor={card.iconColor}
-              isLoading={isLoading}
-            />
-          </div>
-        ))}
-      </div>
+      {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
+      <motion.div
+        variants={containerVariants}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        aria-label="Key performance indicators"
+      >
+        {KPI_CARDS.map((card) => {
+          const value = kpi?.[card.kpiKey] ?? 0;
+          const trendValue =
+            card.trendKey !== undefined ? (kpi?.[card.trendKey] ?? 0) : undefined;
 
-      <div className="flex flex-wrap gap-3 animate-in fade-in duration-500 delay-200">
-        <Button asChild variant="outline" className="gap-2">
+          return (
+            <motion.div key={card.title} variants={itemVariants}>
+              <KPICard
+                title={card.title}
+                value={value as number}
+                icon={card.icon}
+                iconColor={card.iconColor}
+                isLoading={isLoading}
+                {...(trendValue !== undefined
+                  ? {
+                      trend: {
+                        value: trendValue as number,
+                        label: "vs last week",
+                        direction:
+                          (trendValue as number) > 0
+                            ? "up"
+                            : (trendValue as number) < 0
+                              ? "down"
+                              : "neutral",
+                      },
+                    }
+                  : {})}
+              />
+            </motion.div>
+          );
+        })}
+      </motion.div>
+
+      {/* ── Quick actions ─────────────────────────────────────────────────── */}
+      <motion.div
+        variants={itemVariants}
+        className="flex flex-wrap gap-3"
+        role="group"
+        aria-label="Quick actions"
+      >
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
+        >
           <Link href="/teacher/attendance">
-            <CheckSquare className="w-4 h-4" />Mark Attendance
+            <CheckSquare size={16} aria-hidden="true" />
+            Mark Attendance
           </Link>
         </Button>
-        <Button asChild variant="outline" className="gap-2">
-          <Link href="/teacher/homework/create">
-            <PlusCircle className="w-4 h-4" />Create Homework
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="gap-2">
-          <Link href="/teacher/lessons/upload">
-            <Upload className="w-4 h-4" />Upload Lesson
-          </Link>
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-500 delay-300">
-        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-          <h2 className="font-semibold text-base">Student Performance</h2>
-          <PerformanceChart teacherId={user?.id ?? ""} chartType="bar" />
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-          <h2 className="font-semibold text-base">Attendance Rate</h2>
-          <PerformanceChart teacherId={user?.id ?? ""} chartType="area" />
-        </div>
-      </div>
-    </div>
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
+        >
+          <Link href="/teacher/homework/create">
+            <PlusCircle size={16} aria-hidden="true" />
+            Create Homework
+          </Link>
+        </Button>
+
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
+        >
+          <Link href="/teacher/lessons/upload">
+            <Upload size={16} aria-hidden="true" />
+            Upload Lesson
+          </Link>
+        </Button>
+      </motion.div>
+
+      {/* ── Charts ──────────────────────────────────────────────────────────── */}
+      <motion.div
+        variants={containerVariants}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      >
+        {/* Student Performance */}
+        <motion.div
+          variants={itemVariants}
+          className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 space-y-3 shadow-[var(--shadow-sm)]"
+        >
+          <h2 className="font-semibold text-base text-[var(--text-primary)]">
+            Student Performance
+          </h2>
+          <TeacherPerformanceChart teacherId={teacherId} chartType="bar" />
+        </motion.div>
+
+        {/* Attendance Rate */}
+        <motion.div
+          variants={itemVariants}
+          className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 space-y-3 shadow-[var(--shadow-sm)]"
+        >
+          <h2 className="font-semibold text-base text-[var(--text-primary)]">
+            Attendance Rate
+          </h2>
+          <TeacherPerformanceChart teacherId={teacherId} chartType="area" />
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
