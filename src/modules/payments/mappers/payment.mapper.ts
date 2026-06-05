@@ -1,16 +1,19 @@
 /**
+ * @file src/modules/payments/mappers/payment.mapper.ts
+ *
  * Payment module mapper — DTO ↔ UI form value transformations.
  *
- * ⚠️  Types in this file come from '../types/payment.types' (module-level
- *     types), matching the pattern established throughout the payments module.
- *     The tests in src/__tests__/unit/mappers/payment.mapper.test.ts import
- *     these four functions by name — their signatures must not change.
+ * All types come from '../types/payment.types' (module-level types).
+ * The tests in src/__tests__/unit/mappers/payment.mapper.test.ts import
+ * mapPaymentDtoToForm, mapPaymentFormToDto, mapInvoiceDtoToDisplay, and
+ * mapInvoiceFormToDto by name — their signatures must not change.
  *
  * Design rules (from the project prompt):
  *   - Pure functions only — no side effects, no API calls.
  *   - Fully typed — no `any`, no unsafe casts.
  *   - Under `exactOptionalPropertyTypes: true`, optional keys are OMITTED
  *     when absent, not set to `undefined`.
+ *   - Unit-tested in src/__tests__/unit/mappers/payment.mapper.test.ts.
  */
 
 import { format } from 'date-fns';
@@ -34,6 +37,10 @@ import {
  *
  * Only the fields the form manages are mapped; read-only fields
  * (id, studentName, createdAt, …) are discarded.
+ *
+ * Under exactOptionalPropertyTypes: notes is included only when it has an
+ * actual string value — null and undefined both result in the key being
+ * omitted from the returned object.
  */
 export function mapPaymentDtoToForm(dto: PaymentDto): PaymentFormValues {
   return {
@@ -53,6 +60,9 @@ export function mapPaymentDtoToForm(dto: PaymentDto): PaymentFormValues {
  *
  * The returned type omits all read-only / server-computed fields so the caller
  * can pass it directly to the API without further transformation.
+ *
+ * notes is set to null (not omitted) when absent so the backend can
+ * distinguish "clear the note" from "don't touch the note".
  */
 export function mapPaymentFormToDto(
   form: PaymentFormValues,
@@ -78,8 +88,9 @@ export function mapPaymentFormToDto(
  * Converts a full InvoiceDto to the flat PaymentDisplayItem shape used by
  * InvoiceList and the admin payments tables.
  *
- * `amount` is formatted as a localised currency string (see formatAmount()).
- * Dates are formatted as "dd MMM yyyy".
+ * `amount` is formatted as a localised currency string via formatAmount().
+ * Dates are formatted as "dd MMM yyyy"; paidAt additionally includes HH:mm.
+ * paidAt is null when the invoice has not been settled.
  */
 export function mapInvoiceDtoToDisplay(dto: InvoiceDto): PaymentDisplayItem {
   return {
@@ -101,14 +112,22 @@ export function mapInvoiceDtoToDisplay(dto: InvoiceDto): PaymentDisplayItem {
 // ─── InvoiceFormValues ↔ InvoiceDto (write payload) ──────────────────────────
 
 /**
- * Maps validated InvoiceFormValues to the write payload for POST /payments/invoices
- * or PATCH /payments/invoices/:id.
+ * Maps validated InvoiceFormValues to the write payload for
+ * POST /payments/invoices or PATCH /payments/invoices/:id.
  *
- * Omits all read-only / server-computed fields.
+ * Omits all read-only / server-computed fields (id, studentName,
+ * studentEmail, courseName, history, paidAt, createdAt).
+ *
+ * description is set to null when absent so the backend can treat an
+ * explicit null as "clear the description" rather than "no change".
+ * discount defaults to 0 when not provided.
  */
 export function mapInvoiceFormToDto(
   form: InvoiceFormValues,
-): Omit<InvoiceDto, 'id' | 'studentName' | 'studentEmail' | 'courseName' | 'history' | 'paidAt' | 'createdAt'> {
+): Omit<
+  InvoiceDto,
+  'id' | 'studentName' | 'studentEmail' | 'courseName' | 'history' | 'paidAt' | 'createdAt'
+> {
   return {
     studentId: form.studentId,
     courseId: form.courseId,
@@ -131,7 +150,7 @@ export function formatDebtAmount(debt: DebtSummary): string {
   return formatAmount(debt.totalOwed, debt.currency);
 }
 
-// ─── Derived helpers ──────────────────────────────────────────────────────────
+// ─── Derived status helpers ───────────────────────────────────────────────────
 
 /**
  * Returns true when a payment is still actionable — can be paid or cancelled.
@@ -166,7 +185,7 @@ export function sumPaymentsByStatus(
 /**
  * Formats a numeric amount as a locale-appropriate currency string.
  *
- * UZS → no decimal places (tiyin not used in practice)
+ * UZS → 0 decimal places (tiyin not used in practice)
  * USD, EUR, RUB → 2 decimal places
  */
 function formatAmount(amount: number, currency: Currency): string {

@@ -3,8 +3,11 @@ import { defineConfig } from 'orval';
 export default defineConfig({
   educrm: {
     input: {
-  target: './src/openapi/schema.json',
-},
+      target: process.env['NEXT_PUBLIC_API_URL']
+        ? process.env['NEXT_PUBLIC_API_URL'] + '/api/v1/docs-json'
+        : './src/openapi/schema.json',
+      validation: false,
+    },
     output: {
       mode: 'tags-split',
       target: './src/generated/api',
@@ -31,11 +34,15 @@ export default defineConfig({
             query: true,
             response: true,
           },
+          coerce: {
+            response: true,
+            body: true,
+          },
         },
       },
     },
     hooks: {
-      afterAllFilesWrite: 'prettier --write',
+      afterAllFilesWrite: 'prettier --write src/generated',
     },
   },
 });

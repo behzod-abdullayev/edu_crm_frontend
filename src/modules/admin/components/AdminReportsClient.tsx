@@ -2,12 +2,12 @@
 
 // src/modules/admin/components/AdminReportsClient.tsx
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ReportGenerator } from './ReportGenerator';
 import { AdminReportsSkeleton } from './AdminReportsSkeleton';
-import { useAdminReports, useAdminCourses, useAdminTeachers } from '../hooks/useAdmin';
+import { useAdminReports } from '../hooks/useAdmin';
 import { useToast } from '@shared/hooks/useToast';
 import type { ReportRequest } from '../types/admin.types';
 
@@ -30,27 +30,23 @@ export function AdminReportsClient() {
 
   const {
     recentReports,
-    isLoading: reportsLoading,
+    isLoading,
     generateReport,
   } = useAdminReports();
-
-  const { courses, isLoading: coursesLoading } = useAdminCourses();
-  const { teachers, isLoading: teachersLoading } = useAdminTeachers();
-
-  const isLoading = reportsLoading || coursesLoading || teachersLoading;
 
   // ── Handler ───────────────────────────────────────────────────────────────
 
   const handleGenerate = useCallback(
-    async (request: ReportRequest, format: ExportFormat) => {
+    async (
+      request: { type: ReportRequest['type']; startDate: string; endDate: string },
+      format: ExportFormat,
+    ) => {
       try {
         await generateReport(
           {
             type: request.type,
             startDate: request.startDate,
             endDate: request.endDate,
-            ...(request.courseId !== undefined ? { courseId: request.courseId } : {}),
-            ...(request.teacherId !== undefined ? { teacherId: request.teacherId } : {}),
           },
           format,
         );
@@ -70,13 +66,6 @@ export function AdminReportsClient() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-
-  // Map CourseDto/TeacherDto arrays to the minimal shape ReportGenerator needs
-  const courseOptions = courses.map((c) => ({ id: c.id, name: c.name }));
-  const teacherOptions = teachers.map((teacher) => ({
-    id: teacher.id,
-    name: teacher.name,
-  }));
 
   return (
     <motion.div
@@ -104,8 +93,7 @@ export function AdminReportsClient() {
       >
         <ReportGenerator
           recentReports={recentReports}
-          courses={courseOptions}
-          teachers={teacherOptions}
+          isLoading={false}
           onGenerate={handleGenerate}
         />
       </motion.div>

@@ -82,7 +82,7 @@ export function AdminPaymentsClient() {
     [router, locale],
   );
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (_ids?: string[]) => {
     try {
       const res = await fetch('/api/admin/payments/invoices/export?format=csv');
       if (!res.ok) throw new Error('Export failed');
@@ -291,9 +291,10 @@ export function AdminPaymentsClient() {
               invoices={invoices}
               canManage={true}
               onMarkPaid={(id) => { void handleMarkPaid(id); }}
+              onSendReminder={(id) => { void handleSendReminder(id); }}
               onCreateInvoice={handleCreateInvoice}
               onViewDetail={handleViewDetail}
-              onExport={() => { void handleExport(); }}
+              onExport={(ids) => { void handleExport(ids); }}
             />
           </motion.div>
         )}

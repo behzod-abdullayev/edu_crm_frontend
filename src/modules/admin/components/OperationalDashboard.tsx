@@ -7,52 +7,91 @@ import type {
   NameType,
   ValueType,
 } from 'recharts/types/component/DefaultTooltipContent';
+import { cn } from '@shared/utils/cn';
 import type { AdminDashboardData } from '../types/admin.types';
 import { mapActivityItemToDisplay } from '../utils/admin.mapper';
 
 // ─── Lazy-loaded Recharts ─────────────────────────────────────────────────────
-// Recharts is a heavy library (~300 KB). Lazy-load every component so the
-// dashboard page's initial bundle stays small.
 
 const AreaChart = lazy(() =>
-  import('recharts').then((m) => ({ default: m.AreaChart as React.ComponentType<React.ComponentProps<typeof m.AreaChart>> })),
+  import('recharts').then((m) => ({
+    default: m.AreaChart as React.ComponentType<
+      React.ComponentProps<typeof m.AreaChart>
+    >,
+  })),
 );
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Area = lazy(() =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  import('recharts').then((m) => ({ default: m.Area as unknown as React.ComponentType<any> })),
+  import('recharts').then((m) => ({
+    default: m.Area as unknown as React.ComponentType<React.ComponentProps<typeof m.Area>>,
+  })),
 );
 const XAxis = lazy(() =>
-  import('recharts').then((m) => ({ default: m.XAxis as React.ComponentType<React.ComponentProps<typeof m.XAxis>> })),
+  import('recharts').then((m) => ({
+    default: m.XAxis as React.ComponentType<
+      React.ComponentProps<typeof m.XAxis>
+    >,
+  })),
 );
 const YAxis = lazy(() =>
-  import('recharts').then((m) => ({ default: m.YAxis as React.ComponentType<React.ComponentProps<typeof m.YAxis>> })),
+  import('recharts').then((m) => ({
+    default: m.YAxis as React.ComponentType<
+      React.ComponentProps<typeof m.YAxis>
+    >,
+  })),
 );
 const CartesianGrid = lazy(() =>
-  import('recharts').then((m) => ({ default: m.CartesianGrid as React.ComponentType<React.ComponentProps<typeof m.CartesianGrid>> })),
+  import('recharts').then((m) => ({
+    default: m.CartesianGrid as React.ComponentType<
+      React.ComponentProps<typeof m.CartesianGrid>
+    >,
+  })),
 );
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Tooltip = lazy(() =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  import('recharts').then((m) => ({ default: m.Tooltip as React.ComponentType<any> })),
+  import('recharts').then((m) => ({
+    default: m.Tooltip as React.ComponentType<React.ComponentProps<typeof m.Tooltip>>,
+  })),
 );
 const ResponsiveContainer = lazy(() =>
-  import('recharts').then((m) => ({ default: m.ResponsiveContainer as React.ComponentType<React.ComponentProps<typeof m.ResponsiveContainer>> })),
+  import('recharts').then((m) => ({
+    default: m.ResponsiveContainer as React.ComponentType<
+      React.ComponentProps<typeof m.ResponsiveContainer>
+    >,
+  })),
 );
 const BarChart = lazy(() =>
-  import('recharts').then((m) => ({ default: m.BarChart as React.ComponentType<React.ComponentProps<typeof m.BarChart>> })),
+  import('recharts').then((m) => ({
+    default: m.BarChart as React.ComponentType<
+      React.ComponentProps<typeof m.BarChart>
+    >,
+  })),
 );
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Bar = lazy(() =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  import('recharts').then((m) => ({ default: m.Bar as unknown as React.ComponentType<any> })),
+  import('recharts').then((m) => ({
+    default: m.Bar as unknown as React.ComponentType<React.ComponentProps<typeof m.Bar>>,
+  })),
 );
 const PieChart = lazy(() =>
-  import('recharts').then((m) => ({ default: m.PieChart as React.ComponentType<React.ComponentProps<typeof m.PieChart>> })),
+  import('recharts').then((m) => ({
+    default: m.PieChart as React.ComponentType<
+      React.ComponentProps<typeof m.PieChart>
+    >,
+  })),
 );
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Pie = lazy(() =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  import('recharts').then((m) => ({ default: m.Pie as unknown as React.ComponentType<any> })),
+  import('recharts').then((m) => ({
+    default: m.Pie as unknown as React.ComponentType<React.ComponentProps<typeof m.Pie>>,
+  })),
 );
 const Cell = lazy(() =>
-  import('recharts').then((m) => ({ default: m.Cell as React.ComponentType<React.ComponentProps<typeof m.Cell>> })),
+  import('recharts').then((m) => ({
+    default: m.Cell as React.ComponentType<
+      React.ComponentProps<typeof m.Cell>
+    >,
+  })),
 );
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,7 +122,17 @@ const QUICK_ACTIONS = [
 function ChartSkeleton() {
   return (
     <div
-      className="h-full w-full rounded-lg shimmer"
+      className="h-full w-full overflow-hidden rounded-lg"
+      style={{
+        background: `linear-gradient(
+          90deg,
+          var(--bg-surface-hover) 25%,
+          var(--bg-surface)       50%,
+          var(--bg-surface-hover) 75%
+        )`,
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.5s linear infinite',
+      }}
       aria-hidden="true"
       role="presentation"
     />
@@ -92,22 +141,33 @@ function ChartSkeleton() {
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: TooltipProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
 
   return (
     <div
-      className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 shadow-md text-xs"
+      className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-xs shadow-[var(--shadow-md)]"
       role="tooltip"
     >
       {label !== undefined && (
-        <p className="mb-1 font-semibold text-[var(--text-secondary)]">{String(label)}</p>
+        <p className="mb-1 font-semibold text-[var(--text-secondary)]">
+          {String(label)}
+        </p>
       )}
       {payload.map((entry, i) => (
-        <p key={i} className="text-[var(--text-primary)] tabular-nums">
+        <p
+          key={i}
+          className="tabular-nums text-[var(--text-primary)]"
+        >
           <span
             className="mr-1.5 inline-block h-2 w-2 rounded-full"
-            style={{ backgroundColor: entry.color ?? 'var(--brand-primary)' }}
+            style={{
+              backgroundColor: entry.color ?? 'var(--brand-primary)',
+            }}
             aria-hidden="true"
           />
           {entry.value !== undefined
@@ -127,23 +187,24 @@ interface KPICardProps {
   label: string;
   value: number;
   trend: number;
-  suffix?: string;
+  suffix?: string | undefined;
+  index: number;
 }
 
-const cardVariants = {
-  hidden:  { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0 },
-};
-
-function KPICard({ label, value, trend, suffix }: KPICardProps) {
+function KPICard({ label, value, trend, suffix, index }: KPICardProps) {
   const isPositive = trend >= 0;
 
   return (
     <motion.div
-      variants={cardVariants}
-      whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 transition-shadow"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.06, ease: 'easeOut' }}
+      whileHover={{
+        y: -2,
+        boxShadow: 'var(--shadow-md)',
+        transition: { duration: 0.2, ease: 'easeOut' },
+      }}
+      className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4"
       role="region"
       aria-label={`${label}: ${value.toLocaleString()}${suffix ? ' ' + suffix : ''}`}
     >
@@ -154,7 +215,7 @@ function KPICard({ label, value, trend, suffix }: KPICardProps) {
       <motion.p
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
+        transition={{ duration: 0.4, delay: index * 0.06 + 0.1 }}
         className="mt-2 text-3xl font-bold tabular-nums text-[var(--text-primary)]"
       >
         {value.toLocaleString()}
@@ -166,12 +227,12 @@ function KPICard({ label, value, trend, suffix }: KPICardProps) {
       </motion.p>
 
       <p
-        className={[
+        className={cn(
           'mt-1 flex items-center gap-1 text-xs font-medium',
           isPositive
             ? 'text-[var(--success-text)]'
             : 'text-[var(--error-text)]',
-        ].join(' ')}
+        )}
         aria-label={`${isPositive ? 'Up' : 'Down'} ${Math.abs(trend)}% vs last month`}
       >
         <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
@@ -181,24 +242,30 @@ function KPICard({ label, value, trend, suffix }: KPICardProps) {
   );
 }
 
-// ─── Chart Card wrapper ───────────────────────────────────────────────────────
+// ─── Chart Card ───────────────────────────────────────────────────────────────
 
 interface ChartCardProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  delay?: number;
 }
 
-function ChartCard({ title, children, className = '' }: ChartCardProps) {
+function ChartCard({
+  title,
+  children,
+  className,
+  delay = 0,
+}: ChartCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={[
+      transition={{ duration: 0.3, delay, ease: 'easeOut' }}
+      className={cn(
         'rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4',
         className,
-      ].join(' ')}
+      )}
     >
       <h3 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
         {title}
@@ -217,7 +284,10 @@ const attendanceFormatter = (
 
 // ─── OperationalDashboard ─────────────────────────────────────────────────────
 
-export function OperationalDashboard({ data, onNavigate }: OperationalDashboardProps) {
+export function OperationalDashboard({
+  data,
+  onNavigate,
+}: OperationalDashboardProps) {
   const debtData: Array<{ name: string; value: number }> = [
     { name: 'Paid',    value: data.debtBreakdown.paid },
     { name: 'Pending', value: data.debtBreakdown.pending },
@@ -226,68 +296,85 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
 
   const recentItems = data.recentActivity.map(mapActivityItemToDisplay);
 
-  // Stagger animation for the KPI grid
-  const containerVariants = {
-    hidden:  {},
-    visible: { transition: { staggerChildren: 0.06 } },
-  };
+  const kpiItems: Array<KPICardProps> = [
+    {
+      label: 'Students',
+      value: data.totalStudents,
+      trend: data.trends.studentsChange,
+      index: 0,
+    },
+    {
+      label: 'Teachers',
+      value: data.totalTeachers,
+      trend: data.trends.teachersChange,
+      index: 1,
+    },
+    {
+      label: 'Courses',
+      value: data.totalCourses,
+      trend: 0,
+      index: 2,
+    },
+    {
+      label: 'Revenue',
+      value: data.monthlyRevenue,
+      trend: data.trends.revenueChange,
+      suffix: 'UZS',
+      index: 3,
+    },
+    {
+      label: 'Enrollments',
+      value: data.newEnrollments,
+      trend: data.trends.enrollmentChange,
+      index: 4,
+    },
+    {
+      label: 'Pending',
+      value: data.pendingPayments,
+      trend: 0,
+      index: 5,
+    },
+  ];
 
   return (
     <div className="space-y-6">
 
-      {/* ── KPI Grid ─────────────────────────────────────────────────────── */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6"
+      {/* ── KPI Grid ───────────────────────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
         role="list"
         aria-label="Key performance indicators"
       >
-        <KPICard
-          label="Students"
-          value={data.totalStudents}
-          trend={data.trends.studentsChange}
-        />
-        <KPICard
-          label="Teachers"
-          value={data.totalTeachers}
-          trend={data.trends.teachersChange}
-        />
-        <KPICard
-          label="Courses"
-          value={data.totalCourses}
-          trend={0}
-        />
-        <KPICard
-          label="Revenue"
-          value={data.monthlyRevenue}
-          trend={data.trends.revenueChange}
-          suffix="UZS"
-        />
-        <KPICard
-          label="Enrollments"
-          value={data.newEnrollments}
-          trend={data.trends.enrollmentChange}
-        />
-        <KPICard
-          label="Pending"
-          value={data.pendingPayments}
-          trend={0}
-        />
-      </motion.div>
+        {kpiItems.map((item) => (
+          <div key={item.label} role="listitem">
+            <KPICard
+              label={item.label}
+              value={item.value}
+              trend={item.trend}
+              suffix={item.suffix}
+              index={item.index}
+            />
+          </div>
+        ))}
+      </div>
 
-      {/* ── Charts Grid ──────────────────────────────────────────────────── */}
+      {/* ── Charts Grid ────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
 
         {/* Revenue — Area Chart */}
-        <ChartCard title="Revenue (12 months)">
+        <ChartCard title="Revenue (12 months)" delay={0.1}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.revenueHistory}>
                   <defs>
-                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient
+                      id="revenueGrad"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
                       <stop
                         offset="5%"
                         stopColor="var(--brand-primary)"
@@ -331,7 +418,7 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4, fill: 'var(--brand-primary)' }}
-                    isAnimationActive={true}
+                    isAnimationActive
                     animationDuration={800}
                     animationEasing="ease-out"
                   />
@@ -342,7 +429,7 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
         </ChartCard>
 
         {/* Enrollments — Bar Chart */}
-        <ChartCard title="Enrollments (6 months)">
+        <ChartCard title="Enrollments (6 months)" delay={0.15}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
@@ -367,7 +454,7 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                     dataKey="value"
                     fill="var(--brand-primary)"
                     radius={[4, 4, 0, 0]}
-                    isAnimationActive={true}
+                    isAnimationActive
                     animationDuration={700}
                     animationEasing="ease-out"
                   />
@@ -377,8 +464,8 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
           </div>
         </ChartCard>
 
-        {/* Attendance by Group — Horizontal Bar Chart */}
-        <ChartCard title="Attendance by Group">
+        {/* Attendance by Group — Horizontal Bar */}
+        <ChartCard title="Attendance by Group" delay={0.2}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
@@ -411,7 +498,7 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                     dataKey="attendancePercent"
                     fill="var(--brand-secondary)"
                     radius={[0, 4, 4, 0]}
-                    isAnimationActive={true}
+                    isAnimationActive
                     animationDuration={700}
                     animationEasing="ease-out"
                   />
@@ -422,9 +509,8 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
         </ChartCard>
 
         {/* Payment Status — Pie Chart */}
-        <ChartCard title="Payment Status">
+        <ChartCard title="Payment Status" delay={0.25}>
           <div className="flex h-56 items-center gap-4">
-            {/* Pie */}
             <div className="min-w-0 flex-1">
               <Suspense fallback={<ChartSkeleton />}>
                 <ResponsiveContainer width="100%" height={224}>
@@ -437,7 +523,7 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                       outerRadius={80}
                       innerRadius={40}
                       paddingAngle={2}
-                      isAnimationActive={true}
+                      isAnimationActive
                       animationDuration={700}
                       animationEasing="ease-out"
                       label={({
@@ -450,7 +536,10 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                       labelLine={false}
                     >
                       {debtData.map((_, i) => (
-                        <Cell key={`cell-${i}`} fill={PIE_COLORS[i]} />
+                        <Cell
+                          key={`cell-${i}`}
+                          fill={PIE_COLORS[i]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
@@ -459,16 +548,23 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
               </Suspense>
             </div>
 
-            {/* Legend */}
-            <ul className="shrink-0 space-y-2" aria-label="Payment status legend">
+            <ul
+              className="shrink-0 space-y-2"
+              aria-label="Payment status legend"
+            >
               {debtData.map((item, i) => (
-                <li key={item.name} className="flex items-center gap-2 text-xs">
+                <li
+                  key={item.name}
+                  className="flex items-center gap-2 text-xs"
+                >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: PIE_COLORS[i] }}
                     aria-hidden="true"
                   />
-                  <span className="text-[var(--text-secondary)]">{item.name}</span>
+                  <span className="text-[var(--text-secondary)]">
+                    {item.name}
+                  </span>
                   <span className="ml-auto font-medium tabular-nums text-[var(--text-primary)]">
                     {item.value.toLocaleString()}
                   </span>
@@ -479,11 +575,11 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
         </ChartCard>
       </div>
 
-      {/* ── Quick Actions ─────────────────────────────────────────────────── */}
+      {/* ── Quick Actions ───────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         role="group"
         aria-label="Quick actions"
@@ -492,32 +588,38 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
           <motion.button
             key={action.path}
             onClick={() => onNavigate(action.path)}
-            whileHover={{ y: -1, boxShadow: 'var(--shadow-md)' }}
+            whileHover={{
+              y: -1,
+              boxShadow: 'var(--shadow-md)',
+              transition: { duration: 0.15 },
+            }}
             whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="
-              flex min-h-[44px] items-center gap-2 rounded-xl
-              border border-[var(--border-default)] bg-[var(--bg-surface)]
-              px-4 py-3 text-sm font-medium text-[var(--text-primary)]
-              transition-colors hover:border-[var(--brand-primary)]
-              hover:bg-[var(--bg-surface-hover)]
-              focus-visible:outline-none focus-visible:ring-2
-              focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2
-            "
+            className={cn(
+              'flex min-h-[44px] items-center gap-2 rounded-xl',
+              'border border-[var(--border-default)] bg-[var(--bg-surface)]',
+              'px-4 py-3 text-sm font-medium text-[var(--text-primary)]',
+              'transition-colors',
+              'hover:border-[var(--brand-primary)]',
+              'hover:bg-[var(--bg-surface-hover)]',
+              'focus-visible:outline-none focus-visible:ring-2',
+              'focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2',
+            )}
             type="button"
             aria-label={action.label}
           >
-            <span aria-hidden="true" className="text-base">{action.icon}</span>
+            <span aria-hidden="true" className="text-base">
+              {action.icon}
+            </span>
             <span className="truncate">{action.label}</span>
           </motion.button>
         ))}
       </motion.div>
 
-      {/* ── Recent Activity ───────────────────────────────────────────────── */}
+      {/* ── Recent Activity ─────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.25 }}
+        transition={{ duration: 0.3, delay: 0.35 }}
         className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
         role="region"
         aria-label="Recent activity"
@@ -529,21 +631,27 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
         </div>
 
         {recentItems.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+          <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
             No recent activity.
           </p>
         ) : (
           <>
             {/* Desktop table — hidden on mobile */}
-            <table className="hidden w-full text-sm md:table" aria-label="Recent activity list">
+            <table
+              className="hidden w-full text-sm md:table"
+              aria-label="Recent activity list"
+            >
               <tbody className="divide-y divide-[var(--border-default)]">
                 {recentItems.map((item, index) => (
                   <motion.tr
                     key={item.id}
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.4) }}
-                    className="hover:bg-[var(--bg-surface-hover)] transition-colors"
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(index * 0.04, 0.4),
+                    }}
+                    className="transition-colors hover:bg-[var(--bg-surface-hover)]"
                   >
                     <td
                       className="w-10 px-4 py-3 text-lg"
@@ -572,10 +680,16 @@ export function OperationalDashboard({ data, onNavigate }: OperationalDashboardP
                   key={item.id}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.4) }}
+                  transition={{
+                    duration: 0.2,
+                    delay: Math.min(index * 0.04, 0.4),
+                  }}
                   className="flex items-start gap-3 px-4 py-3"
                 >
-                  <span className="mt-0.5 shrink-0 text-lg" aria-hidden="true">
+                  <span
+                    className="mt-0.5 shrink-0 text-lg"
+                    aria-hidden="true"
+                  >
                     {item.icon}
                   </span>
                   <div className="min-w-0 flex-1">

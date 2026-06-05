@@ -1,304 +1,775 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import { useDropzone, type Accept } from 'react-dropzone';
+/**
+ * FileUploadZone — full-featured file upload component.
+ * Desktop: drag & drop + click to browse.
+ * Mobile: tap-to-browse full-width button + camera capture option.
+ *
+ * Features:
+ * - react-dropzone for drag/drop + click
+ * - Per-file upload progress via axios onUploadProgress
+ * - Retry on failure
+ * - Signed URL preview for images/PDFs/video
+ * - Type + size validation
+ * - Mobile camera capture (accept="image/*" capture="environment")
+ * - Full accessibility (ARIA labels, keyboard nav, live regions)
+ * - Framer Motion animations throughout
+ */
+
+import {
+  useCallback,
+  useId,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from 'react';
+import { useDropzone, type FileRejection, type Accept } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
-import { Upload, X, File, Image, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import axios, { type AxiosProgressEvent } from 'axios';
+import {
+  UploadCloud,
+  X,
+  FileText,
+  ImageIcon,
+  Film,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Camera,
+  Eye,
+} from 'lucide-react';
 import { cn } from '@shared/utils/cn';
-import { uploadFile } from '@shared/api/files.api';
-import type { FileUploadResponse } from '@shared/types';
 
-interface UploadingFile {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface UploadedFile {
+  /** Backend file key (S3/storage key) */
+  key: string;
+  /** Public or signed URL */
+  url: string;
+  /** Original filename */
+  filename: string;
+  /** MIME type */
+  mimeType: string;
+  /** File size in bytes */
+  size: number;
+}
+
+type FileStatus = 'idle' | 'uploading' | 'success' | 'error';
+
+interface ManagedFile {
+  /** Stable local ID */
   id: string;
   file: File;
+  status: FileStatus;
   progress: number;
-  status: 'uploading' | 'done' | 'error';
+  uploaded?: UploadedFile;
   error?: string;
-  response?: FileUploadResponse;
+  /** Object URL for local preview (revoked on remove) */
   previewUrl?: string;
 }
 
-interface FileUploadZoneProps {
-  onUpload: (files: FileUploadResponse[]) => void;
-  accept?: Accept;
-  maxSize?: number;
-  maxFiles?: number;
-  disabled?: boolean;
-  label?: string;
-  showPreview?: boolean;
+type Action =
+  | { type: 'ADD_FILES'; files: ManagedFile[] }
+  | { type: 'SET_UPLOADING'; id: string }
+  | { type: 'SET_PROGRESS'; id: string; progress: number }
+  | { type: 'SET_SUCCESS'; id: string; uploaded: UploadedFile }
+  | { type: 'SET_ERROR'; id: string; error: string }
+  | { type: 'REMOVE'; id: string }
+  | { type: 'RESET_FILE'; id: string };
+
+interface State {
+  files: ManagedFile[];
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+export interface FileUploadZoneProps {
+  /** Callback when a file is successfully uploaded */
+  onUpload?: (file: UploadedFile) => void;
+  /** Callback when a file is removed */
+  onRemove?: (key: string) => void;
+  /** Max file size in bytes (default: 10 MB) */
+  maxSize?: number;
+  /** Max number of files (default: 1) */
+  maxFiles?: number;
+  /** Accepted MIME types (react-dropzone Accept format) */
+  accept?: Accept;
+  /** Upload endpoint (default: /api/v1/files/upload) */
+  uploadUrl?: string;
+  /** Whether to show the mobile camera capture button */
+  enableCamera?: boolean;
+  /** Already-uploaded files to display as pre-filled state */
+  initialFiles?: UploadedFile[];
+  className?: string;
+  disabled?: boolean;
+  /** Custom aria label for the dropzone */
+  ariaLabel?: string;
+  children?: ReactNode;
 }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+const DEFAULT_UPLOAD_URL = '/api/v1/files/upload';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+function getFileIcon(
+  mimeType: string
+): React.ElementType {
+  if (mimeType.startsWith('image/')) return ImageIcon;
+  if (mimeType.startsWith('video/')) return Film;
+  return FileText;
+}
+
+function isPreviewable(mimeType: string): boolean {
+  return (
+    mimeType.startsWith('image/') ||
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('video/')
+  );
+}
+
+// ─── Reducer ──────────────────────────────────────────────────────────────────
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'ADD_FILES':
+      return { files: [...state.files, ...action.files] };
+
+    case 'SET_UPLOADING':
+      return {
+        files: state.files.map((f) =>
+          f.id === action.id ? { ...f, status: 'uploading', progress: 0 } : f
+        ),
+      };
+
+    case 'SET_PROGRESS':
+      return {
+        files: state.files.map((f) =>
+          f.id === action.id ? { ...f, progress: action.progress } : f
+        ),
+      };
+
+    case 'SET_SUCCESS':
+      return {
+        files: state.files.map((f) =>
+          f.id === action.id
+            ? { ...f, status: 'success', progress: 100, uploaded: action.uploaded }
+            : f
+        ),
+      };
+
+    case 'SET_ERROR':
+      return {
+        files: state.files.map((f) =>
+          f.id === action.id
+            ? { ...f, status: 'error', progress: 0, error: action.error }
+            : f
+        ),
+      };
+
+    case 'REMOVE': {
+      const target = state.files.find((f) => f.id === action.id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return { files: state.files.filter((f) => f.id !== action.id) };
+    }
+
+    case 'RESET_FILE':
+      return {
+        files: state.files.map((f) =>
+          f.id === action.id
+            ? { ...f, status: 'idle', progress: 0, error: undefined }
+            : f
+        ),
+      };
+
+    default:
+      return state;
+  }
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ProgressBar({ progress }: { progress: number }) {
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={progress}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className="h-1.5 w-full bg-[var(--bg-surface-hover)] rounded-full overflow-hidden"
+    >
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${progress}%` }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="h-full bg-[var(--brand-primary)] rounded-full"
+      />
+    </div>
+  );
+}
+
+function FilePreviewThumbnail({
+  file,
+  previewUrl,
+}: {
+  file: File;
+  previewUrl?: string;
+}) {
+  const Icon = getFileIcon(file.type);
+
+  if (previewUrl && file.type.startsWith('image/')) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={previewUrl}
+        alt={file.name}
+        className="w-10 h-10 rounded-lg object-cover shrink-0"
+        loading="lazy"
+      />
+    );
+  }
+
+  return (
+    <div className="w-10 h-10 rounded-lg bg-[var(--bg-surface-hover)] flex items-center justify-center shrink-0">
+      <Icon size={18} className="text-[var(--text-muted)]" aria-hidden="true" />
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function FileUploadZone({
   onUpload,
-  accept,
-  maxSize = 10 * 1024 * 1024,
+  onRemove,
+  maxSize = DEFAULT_MAX_SIZE,
   maxFiles = 1,
+  accept,
+  uploadUrl = DEFAULT_UPLOAD_URL,
+  enableCamera = true,
+  initialFiles = [],
+  className,
   disabled = false,
-  label,
-  showPreview = true,
+  ariaLabel,
+  children,
 }: FileUploadZoneProps) {
   const t = useTranslations('upload');
-  const [files, setFiles] = useState<UploadingFile[]>([]);
-  const [rejectionError, setRejectionError] = useState<string | null>(null);
+  const dropzoneId = useId();
+  const liveRegionId = useId();
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const processFile = useCallback(
-    async (uploadingFile: UploadingFile) => {
+  // Convert initialFiles to ManagedFiles
+  const initialManaged: ManagedFile[] = initialFiles.map((f) => ({
+    id: generateId(),
+    file: new File([], f.filename, { type: f.mimeType }),
+    status: 'success',
+    progress: 100,
+    uploaded: f,
+  }));
+
+  const [state, dispatch] = useReducer(reducer, { files: initialManaged });
+  const [rejectionError, setRejectionError] = useStateString('');
+
+  // ── Upload logic ──────────────────────────────────────────────────────────
+  const uploadFile = useCallback(
+    async (managed: ManagedFile) => {
+      dispatch({ type: 'SET_UPLOADING', id: managed.id });
+      setRejectionError('');
+
+      const formData = new FormData();
+      formData.append('file', managed.file);
+
       try {
-        const response = await uploadFile(uploadingFile.file, (progress: number) => {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === uploadingFile.id ? { ...f, progress } : f
-            )
-          );
+        const res = await axios.post<UploadedFile>(uploadUrl, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (event: AxiosProgressEvent) => {
+            const total = event.total ?? 1;
+            const pct = Math.round((event.loaded / total) * 100);
+            dispatch({ type: 'SET_PROGRESS', id: managed.id, progress: pct });
+          },
         });
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === uploadingFile.id
-              ? { ...f, status: 'done', progress: 100, response }
-              : f
-          )
-        );
-        // Notify parent with all completed uploads
-        setFiles((current) => {
-          const done = current
-            .filter((f) => f.status === 'done' && f.response)
-            .map((f) => f.response!);
-          if (done.length > 0) onUpload(done);
-          return current;
-        });
+
+        dispatch({ type: 'SET_SUCCESS', id: managed.id, uploaded: res.data });
+        onUpload?.(res.data);
       } catch (err) {
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === uploadingFile.id
-              ? { ...f, status: 'error', error: (err as Error).message }
-              : f
-          )
-        );
+        const message =
+          err instanceof Error ? err.message : t('uploadError');
+        dispatch({ type: 'SET_ERROR', id: managed.id, error: message });
       }
     },
-    [onUpload]
+    [uploadUrl, onUpload, t]
   );
 
+  // ── Dropzone ──────────────────────────────────────────────────────────────
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      setRejectionError(null);
-      const newFiles: UploadingFile[] = acceptedFiles.map((file) => ({
-        id: `${file.name}-${Date.now()}`,
+    (accepted: File[], rejections: FileRejection[]) => {
+      setRejectionError('');
+
+      if (rejections.length > 0) {
+        const first = rejections[0];
+        const reason = first?.errors[0]?.code ?? '';
+        if (reason === 'file-too-large') {
+          setRejectionError(t('fileTooLarge', { size: formatBytes(maxSize) }));
+        } else if (reason === 'too-many-files') {
+          setRejectionError(t('tooManyFiles', { max: maxFiles }));
+        } else if (reason === 'file-invalid-type') {
+          setRejectionError(t('invalidType'));
+        } else {
+          setRejectionError(t('uploadError'));
+        }
+        return;
+      }
+
+      const newFiles: ManagedFile[] = accepted.map((file) => ({
+        id: generateId(),
         file,
+        status: 'idle',
         progress: 0,
-        status: 'uploading' as const,
-        ...(file.type.startsWith('image/') ? { previewUrl: URL.createObjectURL(file) } : {}),
+        previewUrl: isPreviewable(file.type)
+          ? URL.createObjectURL(file)
+          : undefined,
       }));
-      setFiles((prev) => [...prev, ...newFiles]);
-      newFiles.forEach(processFile);
+
+      dispatch({ type: 'ADD_FILES', files: newFiles });
+
+      // Auto-start upload for each new file
+      newFiles.forEach((mf) => void uploadFile(mf));
     },
-    [processFile]
+    [maxSize, maxFiles, t, uploadFile]
   );
 
-  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
-    onDrop,
-    ...(accept !== undefined ? { accept } : {}),
-    maxSize,
-    maxFiles,
-    disabled,
-    onDropRejected: (rejections) => {
-      const reason = rejections[0]?.errors[0]?.code;
-      if (reason === 'file-too-large') setRejectionError(t('fileTooLarge', { size: formatBytes(maxSize) }));
-      else if (reason === 'file-invalid-type') setRejectionError(t('invalidType'));
-      else if (reason === 'too-many-files') setRejectionError(t('tooManyFiles', { max: maxFiles }));
-      else setRejectionError(t('uploadError'));
-    },
-  });
+  const canAddMore =
+    !disabled && state.files.length < maxFiles;
 
-  const removeFile = (id: string) => {
-    setFiles((prev) => {
-      const toRemove = prev.find((f) => f.id === id);
-      if (toRemove?.previewUrl) URL.revokeObjectURL(toRemove.previewUrl);
-      return prev.filter((f) => f.id !== id);
+  const { getRootProps, getInputProps, isDragActive, isDragReject } =
+    useDropzone({
+      onDrop,
+      accept,
+      maxSize,
+      maxFiles: maxFiles - state.files.length,
+      disabled: !canAddMore,
+      noClick: false,
+      noKeyboard: false,
     });
-  };
 
-  const retryFile = (uploadingFile: UploadingFile) => {
-    setFiles((prev) =>
-      prev.map((f) =>
-        f.id === uploadingFile.id ? { ...f, status: 'uploading' as const, progress: 0, error: undefined as never } : f
-      )
-    );
-    processFile({ ...uploadingFile, status: 'uploading', progress: 0 });
-  };
+  // ── Camera capture ────────────────────────────────────────────────────────
+  const handleCameraCapture = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const mf: ManagedFile = {
+        id: generateId(),
+        file,
+        status: 'idle',
+        progress: 0,
+        previewUrl: URL.createObjectURL(file),
+      };
+      dispatch({ type: 'ADD_FILES', files: [mf] });
+      void uploadFile(mf);
+      // Reset input so same file can be captured again
+      e.target.value = '';
+    },
+    [uploadFile]
+  );
 
-  const dropzoneProps = getRootProps();
+  // ── Remove handler ────────────────────────────────────────────────────────
+  const handleRemove = useCallback(
+    (managed: ManagedFile) => {
+      if (managed.uploaded?.key) {
+        onRemove?.(managed.uploaded.key);
+      }
+      dispatch({ type: 'REMOVE', id: managed.id });
+    },
+    [onRemove]
+  );
+
+  // ── Retry handler ─────────────────────────────────────────────────────────
+  const handleRetry = useCallback(
+    (managed: ManagedFile) => {
+      dispatch({ type: 'RESET_FILE', id: managed.id });
+      void uploadFile({ ...managed, status: 'idle', progress: 0 });
+    },
+    [uploadFile]
+  );
+
+  // ── Open preview ──────────────────────────────────────────────────────────
+  const handlePreview = useCallback((managed: ManagedFile) => {
+    const url = managed.uploaded?.url ?? managed.previewUrl;
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
+  // ── Dropzone style state ──────────────────────────────────────────────────
+  const dropzoneBorderClass = isDragReject
+    ? 'border-[var(--error-solid)] bg-[var(--error-bg)]'
+    : isDragActive
+      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
+      : canAddMore
+        ? 'border-[var(--border-default)] hover:border-[var(--border-focus)] hover:bg-[var(--bg-surface-hover)]'
+        : 'border-[var(--border-default)] opacity-50 cursor-not-allowed';
 
   return (
-    <div className="space-y-3">
-      {/* Drop zone */}
-      <motion.div
-        ref={(el) => {
-          // forward the ref from getRootProps if present
-          if (typeof dropzoneProps.ref === 'function') {
-            (dropzoneProps.ref as (el: HTMLDivElement | null) => void)(el);
+    <div className={cn('flex flex-col gap-3', className)}>
+      {/* ── Dropzone area ── */}
+      {canAddMore && (
+        <div
+          {...getRootProps()}
+          id={dropzoneId}
+          role="button"
+          tabIndex={disabled ? -1 : 0}
+          aria-label={
+            ariaLabel ??
+            t('dropzone')
           }
-        }}
-        onClick={dropzoneProps.onClick}
-        onKeyDown={dropzoneProps.onKeyDown}
-        onFocus={dropzoneProps.onFocus}
-        onBlur={dropzoneProps.onBlur}
-        onDragEnter={dropzoneProps.onDragEnter as React.DragEventHandler<HTMLDivElement>}
-        onDragOver={dropzoneProps.onDragOver as React.DragEventHandler<HTMLDivElement>}
-        onDragLeave={dropzoneProps.onDragLeave as React.DragEventHandler<HTMLDivElement>}
-        onDrop={dropzoneProps.onDrop as React.DragEventHandler<HTMLDivElement>}
-        tabIndex={dropzoneProps.tabIndex}
-        role={dropzoneProps.role}
-        aria-label={typeof dropzoneProps['aria-label'] === 'string' ? dropzoneProps['aria-label'] : (label ?? undefined)}
-        animate={{
-          borderColor: isDragActive
-            ? 'var(--color-accent)'
-            : isDragReject
-              ? 'var(--color-error)'
-              : 'var(--color-border)',
-          backgroundColor: isDragActive ? 'var(--color-accent-subtle)' : 'transparent',
-        }}
-        transition={{ duration: 0.15 }}
-        className={cn(
-          'relative border-2 border-dashed rounded-xl transition-colors cursor-pointer',
-          'hidden sm:flex flex-col items-center justify-center gap-3 py-10 px-6 text-center',
-          disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
-        )}
-      >
-        <input
-          {...getInputProps()}
-          aria-label={label ?? t('dropzone')}
-        />
-
-        <motion.div
-          animate={{ scale: isDragActive ? 1.1 : 1 }}
-          transition={{ duration: 0.15 }}
-          className="w-12 h-12 rounded-xl bg-[var(--color-accent-subtle)] flex items-center justify-center"
+          aria-describedby={liveRegionId}
+          aria-disabled={disabled}
+          className={cn(
+            'relative flex flex-col items-center justify-center gap-2',
+            'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer',
+            'transition-colors duration-[var(--transition-base)] outline-none',
+            'focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2',
+            // Mobile: larger tap area, full-width button feel
+            'min-h-[120px] sm:min-h-[160px]',
+            dropzoneBorderClass
+          )}
         >
-          <Upload size={22} className="text-[var(--color-accent)]" aria-hidden="true" />
-        </motion.div>
+          {/* Hidden file input (react-dropzone) */}
+          <input {...getInputProps()} aria-hidden="true" />
 
-        <div>
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">
-            {isDragActive ? t('dropNow') : t('dragOrClick')}
-          </p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            {t('maxSize', { size: formatBytes(maxSize) })}
-            {maxFiles > 1 && ` · ${t('maxFiles', { count: maxFiles })}`}
-          </p>
+          {/* Animated drag overlay */}
+          <AnimatePresence>
+            {isDragActive && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 rounded-xl flex items-center justify-center bg-[var(--brand-primary)]/5 backdrop-blur-sm pointer-events-none"
+                aria-hidden="true"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2 }}
+                >
+                  <UploadCloud
+                    size={40}
+                    className="text-[var(--brand-primary)]"
+                    aria-hidden="true"
+                  />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Default content */}
+          {!isDragActive && (
+            <>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.15 }}
+                className="w-12 h-12 rounded-xl bg-[var(--brand-primary)]/10 flex items-center justify-center"
+                aria-hidden="true"
+              >
+                <UploadCloud
+                  size={22}
+                  className="text-[var(--brand-primary)]"
+                  aria-hidden="true"
+                />
+              </motion.div>
+
+              {/* Desktop drag/click text — hidden on mobile */}
+              <div className="hidden sm:block">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {t('dragOrClick')}
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  {t('maxSize', { size: formatBytes(maxSize) })}
+                  {maxFiles > 1 && ` · ${t('maxFiles', { count: maxFiles })}`}
+                </p>
+              </div>
+
+              {/* Mobile: just a button label */}
+              <div className="sm:hidden">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {t('chooseFile')}
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  {t('maxSize', { size: formatBytes(maxSize) })}
+                </p>
+              </div>
+
+              {children}
+            </>
+          )}
+
+          {/* Drag-active text */}
+          {isDragActive && !isDragReject && (
+            <p className="text-sm font-semibold text-[var(--brand-primary)] relative z-10">
+              {t('dragActive')}
+            </p>
+          )}
+
+          {/* Drag-reject text */}
+          {isDragReject && (
+            <p className="text-sm font-semibold text-[var(--error-solid)]">
+              {t('invalidType')}
+            </p>
+          )}
         </div>
-      </motion.div>
+      )}
 
-      {/* Mobile: tap to browse + camera */}
-      <div className="sm:hidden">
-        <input
-          {...getInputProps()}
-          aria-label={label ?? t('chooseFile')}
-          // Camera capture for mobile images
-          capture={accept && Object.keys(accept).some((k) => k.startsWith('image/'))
-            ? 'environment'
-            : undefined}
-        />
-        <button
-          onClick={() => (document.querySelector('input[type="file"]') as HTMLInputElement)?.click()}
-          disabled={disabled}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-[var(--color-border)] text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-        >
-          <Upload size={16} aria-hidden="true" />
-          {label ?? t('chooseFile')}
-        </button>
-      </div>
+      {/* ── Mobile camera capture button ── */}
+      {enableCamera && canAddMore && (
+        <div className="sm:hidden">
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraCapture}
+            aria-hidden="true"
+            className="sr-only"
+            tabIndex={-1}
+          />
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.96 }}
+            onClick={() => cameraInputRef.current?.click()}
+            className={cn(
+              'w-full flex items-center justify-center gap-2',
+              'h-11 rounded-xl border border-[var(--border-default)]',
+              'bg-[var(--bg-surface)] text-sm font-medium text-[var(--text-secondary)]',
+              'hover:bg-[var(--bg-surface-hover)] transition-colors duration-[var(--transition-fast)]',
+              'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]'
+            )}
+            aria-label={t('camera')}
+          >
+            <Camera size={16} aria-hidden="true" />
+            {t('camera')}
+          </motion.button>
+        </div>
+      )}
 
-      {/* Rejection error */}
+      {/* ── Validation error ── */}
       <AnimatePresence>
         {rejectionError && (
-          <motion.p
+          <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
             role="alert"
-            className="flex items-center gap-1.5 text-xs text-[var(--color-error)]"
+            className="flex items-center gap-2 text-xs text-[var(--error-text)] bg-[var(--error-bg)] border border-[var(--error-border)] rounded-lg px-3 py-2"
           >
-            <AlertCircle size={12} aria-hidden="true" />
+            <AlertCircle size={13} aria-hidden="true" className="shrink-0" />
             {rejectionError}
-          </motion.p>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* File list */}
-      <AnimatePresence>
-        {files.map((f) => (
-          <motion.div
-            key={f.id}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="flex items-center gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-[var(--bg-card)]"
-          >
-            {/* Thumbnail / icon */}
-            <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--color-accent-subtle)] flex items-center justify-center shrink-0">
-              {showPreview && f.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={f.previewUrl} alt={f.file.name} className="w-full h-full object-cover" />
-              ) : f.file.type.startsWith('image/') ? (
-                <Image size={16} className="text-[var(--color-accent)]" aria-hidden="true" />
-              ) : (
-                <File size={16} className="text-[var(--color-accent)]" aria-hidden="true" />
-              )}
-            </div>
+      {/* ── File list ── */}
+      <AnimatePresence initial={false}>
+        {state.files.map((managed) => {
+          const Icon = getFileIcon(managed.file.type);
+          const isUploading = managed.status === 'uploading';
+          const isSuccess = managed.status === 'success';
+          const isError = managed.status === 'error';
+          const canPreview =
+            isSuccess && isPreviewable(managed.file.type);
 
-            {/* Info + progress */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                {f.file.name}
-              </p>
-              <p className="text-xs text-[var(--color-text-muted)]">{formatBytes(f.file.size)}</p>
-              {f.status === 'uploading' && (
-                <div className="mt-1.5 h-1 w-full rounded-full bg-[var(--color-skeleton)] overflow-hidden">
-                  <motion.div
-                    className="h-full bg-[var(--color-accent)] rounded-full"
-                    animate={{ width: `${f.progress}%` }}
-                    transition={{ duration: 0.2 }}
-                  />
-                </div>
+          return (
+            <motion.div
+              key={managed.id}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -20, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
+              className={cn(
+                'flex items-start gap-3 p-3 rounded-xl border',
+                'transition-colors duration-[var(--transition-fast)]',
+                isError
+                  ? 'border-[var(--error-border)] bg-[var(--error-bg)]'
+                  : isSuccess
+                    ? 'border-[var(--success-border)] bg-[var(--success-bg)]'
+                    : 'border-[var(--border-default)] bg-[var(--bg-surface)]'
               )}
-              {f.status === 'error' && (
-                <p className="text-xs text-[var(--color-error)] mt-0.5">{f.error}</p>
-              )}
-            </div>
+            >
+              {/* Thumbnail / icon */}
+              <FilePreviewThumbnail
+                file={managed.file}
+                previewUrl={managed.previewUrl}
+              />
 
-            {/* Status / actions */}
-            <div className="flex items-center gap-1 shrink-0">
-              {f.status === 'done' && (
-                <CheckCircle2 size={16} className="text-[var(--color-success)]" aria-label="Uploaded" />
-              )}
-              {f.status === 'error' && (
-                <button
-                  onClick={() => retryFile(f)}
-                  aria-label={t('retry')}
-                  className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+              {/* File info + progress */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-sm font-medium text-[var(--text-primary)] truncate"
+                  title={managed.file.name}
                 >
-                  <RefreshCw size={14} aria-hidden="true" />
-                </button>
-              )}
-              <button
-                onClick={() => removeFile(f.id)}
-                aria-label={t('remove')}
-                className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-              >
-                <X size={14} aria-hidden="true" />
-              </button>
-            </div>
-          </motion.div>
-        ))}
+                  {managed.file.name}
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  {formatBytes(managed.file.size)}
+                </p>
+
+                {/* Progress bar */}
+                {isUploading && (
+                  <div className="mt-2 space-y-1">
+                    <ProgressBar progress={managed.progress} />
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {t('progress', { progress: managed.progress })}
+                    </p>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {isError && managed.error && (
+                  <p
+                    role="alert"
+                    className="text-xs text-[var(--error-text)] mt-1"
+                  >
+                    {managed.error}
+                  </p>
+                )}
+              </div>
+
+              {/* Status icon + actions */}
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Success indicator */}
+                {isSuccess && (
+                  <CheckCircle2
+                    size={16}
+                    className="text-[var(--success-solid)]"
+                    aria-label="Uploaded"
+                    aria-hidden="true"
+                  />
+                )}
+
+                {/* Error indicator */}
+                {isError && (
+                  <AlertCircle
+                    size={16}
+                    className="text-[var(--error-solid)]"
+                    aria-label="Upload failed"
+                    aria-hidden="true"
+                  />
+                )}
+
+                {/* Preview button */}
+                {canPreview && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handlePreview(managed)}
+                    aria-label={t('preview')}
+                    className={cn(
+                      'p-1.5 rounded-lg text-[var(--text-muted)]',
+                      'hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+                      'transition-colors duration-[var(--transition-fast)]',
+                      'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]'
+                    )}
+                  >
+                    <Eye size={14} aria-hidden="true" />
+                  </motion.button>
+                )}
+
+                {/* Retry button */}
+                {isError && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleRetry(managed)}
+                    aria-label={t('retry')}
+                    className={cn(
+                      'p-1.5 rounded-lg text-[var(--error-text)]',
+                      'hover:bg-[var(--error-bg)]',
+                      'transition-colors duration-[var(--transition-fast)]',
+                      'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]'
+                    )}
+                  >
+                    <RefreshCw size={14} aria-hidden="true" />
+                  </motion.button>
+                )}
+
+                {/* Remove button */}
+                {!isUploading && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleRemove(managed)}
+                    aria-label={t('remove')}
+                    className={cn(
+                      'p-1.5 rounded-lg text-[var(--text-muted)]',
+                      'hover:text-[var(--error-solid)] hover:bg-[var(--error-bg)]',
+                      'transition-colors duration-[var(--transition-fast)]',
+                      'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]'
+                    )}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </motion.button>
+                )}
+
+                {/* Cancel upload (while uploading, only remove after done) */}
+                {isUploading && (
+                  <span
+                    className="p-1.5 opacity-40 cursor-not-allowed"
+                    aria-hidden="true"
+                  >
+                    <X size={14} />
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
+
+      {/* ── Screen reader live region ── */}
+      <div
+        id={liveRegionId}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {state.files.map((f) => {
+          if (f.status === 'uploading') {
+            return `${f.file.name}: ${t('progress', { progress: f.progress })}`;
+          }
+          if (f.status === 'success') {
+            return `${f.file.name}: ${t('uploaded')}`;
+          }
+          if (f.status === 'error') {
+            return `${f.file.name}: ${f.error ?? t('uploadError')}`;
+          }
+          return null;
+        })}
+      </div>
     </div>
   );
+}
+
+// ─── Tiny useState wrapper for string (avoids re-import) ──────────────────────
+
+function useStateString(
+  initial: string
+): [string, (v: string) => void] {
+  const [val, setVal] = useReducer(
+    (_: string, next: string) => next,
+    initial
+  );
+  return [val, setVal];
 }

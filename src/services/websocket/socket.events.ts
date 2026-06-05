@@ -1,31 +1,37 @@
+// ─── Socket Event Names ───────────────────────────────────────────────────────
+// Enum values MUST match the backend Socket.IO event strings exactly.
+// The prompt specifies dot-notation (e.g. 'notification.new'), so we use that.
+
 export enum SocketEvent {
-  // Notifications
-  NOTIFICATION_NEW = 'notification:new',
-  NOTIFICATION_READ = 'notification:read',
-  NOTIFICATION_ALL_READ = 'notification:all-read',
+  // ── Notifications ──────────────────────────────────────────────────────────
+  NOTIFICATION_NEW      = 'notification.new',
+  NOTIFICATION_READ     = 'notification.read',
+  NOTIFICATION_ALL_READ = 'notification.all_read',
 
-  // Chat
-  CHAT_MESSAGE = 'chat:message',
-  CHAT_TYPING = 'chat:typing',
-  CHAT_READ = 'chat:read',
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  CHAT_MESSAGE = 'chat.message',
+  CHAT_TYPING  = 'chat.typing',
+  CHAT_READ    = 'chat.read',
 
-  // Attendance
-  ATTENDANCE_UPDATED = 'attendance:updated',
+  // ── Attendance ─────────────────────────────────────────────────────────────
+  ATTENDANCE_UPDATED = 'attendance.updated',
 
-  // Homework
-  HOMEWORK_GRADED = 'homework:graded',
-  HOMEWORK_SUBMITTED = 'homework:submitted',
+  // ── Homework ───────────────────────────────────────────────────────────────
+  HOMEWORK_GRADED    = 'homework.graded',
+  HOMEWORK_SUBMITTED = 'homework.submitted',
 
-  // Payments
-  PAYMENT_RECEIVED = 'payment:received',
-  PAYMENT_OVERDUE = 'payment:overdue',
+  // ── Payments ───────────────────────────────────────────────────────────────
+  PAYMENT_RECEIVED = 'payment.received',
+  PAYMENT_OVERDUE  = 'payment.overdue',
 
-  // Schedule
-  SCHEDULE_UPDATED = 'schedule:updated',
+  // ── Schedule ───────────────────────────────────────────────────────────────
+  SCHEDULE_UPDATED = 'schedule.updated',
 
-  // Exams
-  EXAM_STARTED = 'exam:started',
+  // ── Exams ──────────────────────────────────────────────────────────────────
+  EXAM_STARTED = 'exam.started',
 }
+
+// ─── Payload Interfaces ───────────────────────────────────────────────────────
 
 export interface NotificationNewPayload {
   id: string;
@@ -51,9 +57,9 @@ export interface ChatMessagePayload {
   roomId: string;
   senderId: string;
   senderName: string;
-  senderAvatar?: string;
+  senderAvatar?: string | undefined;
   body: string;
-  attachments?: string[];
+  attachments?: string[] | undefined;
   createdAt: string;
 }
 
@@ -84,7 +90,7 @@ export interface HomeworkGradedPayload {
   submissionId: string;
   grade: number;
   maxScore: number;
-  feedback?: string;
+  feedback?: string | undefined;
   gradedAt: string;
 }
 
@@ -132,18 +138,28 @@ export interface ExamStartedPayload {
   startedAt: string;
 }
 
+// ─── Discriminated Payload Map ────────────────────────────────────────────────
+// Maps each SocketEvent to its payload type for type-safe event handling.
+
 export type SocketEventPayloadMap = {
-  [SocketEvent.NOTIFICATION_NEW]: NotificationNewPayload;
-  [SocketEvent.NOTIFICATION_READ]: NotificationReadPayload;
+  [SocketEvent.NOTIFICATION_NEW]:      NotificationNewPayload;
+  [SocketEvent.NOTIFICATION_READ]:     NotificationReadPayload;
   [SocketEvent.NOTIFICATION_ALL_READ]: NotificationAllReadPayload;
-  [SocketEvent.CHAT_MESSAGE]: ChatMessagePayload;
-  [SocketEvent.CHAT_TYPING]: ChatTypingPayload;
-  [SocketEvent.CHAT_READ]: ChatReadPayload;
-  [SocketEvent.ATTENDANCE_UPDATED]: AttendanceUpdatedPayload;
-  [SocketEvent.HOMEWORK_GRADED]: HomeworkGradedPayload;
-  [SocketEvent.HOMEWORK_SUBMITTED]: HomeworkSubmittedPayload;
-  [SocketEvent.PAYMENT_RECEIVED]: PaymentReceivedPayload;
-  [SocketEvent.PAYMENT_OVERDUE]: PaymentOverduePayload;
-  [SocketEvent.SCHEDULE_UPDATED]: ScheduleUpdatedPayload;
-  [SocketEvent.EXAM_STARTED]: ExamStartedPayload;
+  [SocketEvent.CHAT_MESSAGE]:          ChatMessagePayload;
+  [SocketEvent.CHAT_TYPING]:           ChatTypingPayload;
+  [SocketEvent.CHAT_READ]:             ChatReadPayload;
+  [SocketEvent.ATTENDANCE_UPDATED]:    AttendanceUpdatedPayload;
+  [SocketEvent.HOMEWORK_GRADED]:       HomeworkGradedPayload;
+  [SocketEvent.HOMEWORK_SUBMITTED]:    HomeworkSubmittedPayload;
+  [SocketEvent.PAYMENT_RECEIVED]:      PaymentReceivedPayload;
+  [SocketEvent.PAYMENT_OVERDUE]:       PaymentOverduePayload;
+  [SocketEvent.SCHEDULE_UPDATED]:      ScheduleUpdatedPayload;
+  [SocketEvent.EXAM_STARTED]:          ExamStartedPayload;
 };
+
+// ─── Type Helper ─────────────────────────────────────────────────────────────
+// Provides a typed handler signature for any socket event.
+
+export type SocketEventHandler<E extends SocketEvent> = (
+  payload: SocketEventPayloadMap[E],
+) => void;

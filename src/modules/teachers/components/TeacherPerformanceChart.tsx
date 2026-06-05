@@ -18,10 +18,9 @@ import { httpClient } from "@/services/api/axios.instance";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
 import { cn } from "@shared/lib/utils";
 import { TrendingUp, BarChart2, AlertTriangle } from "lucide-react";
-import type {
-  TeacherAnalyticsAttendanceTrendItem,
-  TeacherAnalyticsGradeTrendItem,
-} from "@generated/models";
+import { TeacherAnalyticsAttendanceTrendItem } from "@/generated/models/teacherAnalyticsAttendanceTrendItem";
+import { TeacherAnalyticsGradeTrendItem } from "@/generated/models/teacherAnalyticsGradeTrendItem";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

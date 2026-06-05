@@ -257,7 +257,10 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
               value={form.name}
               onChange={(e) => {
                 setForm((p) => ({ ...p, name: e.target.value }));
-                setErrors((p) => ({ ...p, name: undefined }));
+                setErrors((p) => {
+                  const { name: _removed, ...rest } = p;
+                  return rest;
+                });
               }}
               placeholder="Main Campus"
               aria-required="true"
@@ -299,7 +302,10 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
               value={form.address}
               onChange={(e) => {
                 setForm((p) => ({ ...p, address: e.target.value }));
-                setErrors((p) => ({ ...p, address: undefined }));
+                setErrors((p) => {
+                  const { address: _removed, ...rest } = p;
+                  return rest;
+                });
               }}
               placeholder="123 Education Street, Tashkent"
               rows={3}

@@ -5,6 +5,8 @@ import { axe, toHaveNoViolations } from 'jest-axe';
 // Correct import: barrel file re-exports from data-display/DataTable
 import { DataTable } from '@/shared/components/DataTable/DataTable';
 import type { ColumnDef } from '@/shared/components/DataTable/DataTable.types';
+import { PaginationMeta } from '@/generated/models';
+import { DataTableProps } from '@/shared/components/data-display/DataTable';
 
 expect.extend(toHaveNoViolations);
 
@@ -46,18 +48,31 @@ const testData: TestRow[] = [
   { id: '3', name: 'Charlie', age: 22, status: 'active'   },
 ];
 
+/** Helper: build a fully-typed PaginationMeta from partial input */
+function makePagination(
+  page: number,
+  limit: number,
+  total: number,
+): PaginationMeta {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
+  };
+}
+
 // DataTable uses `pagination` object + `rowKey` (required)
-const defaultProps = {
+const defaultProps: DataTableProps<TestRow> = {
   columns,
   data: testData,
   isLoading: false,
   error: null,
   rowKey: 'id' as keyof TestRow,
-  pagination: {
-    page: 1,
-    limit: 10,
-    total: 3,
-  },
+  pagination: makePagination(1, 10, 3),
   onPageChange: vi.fn(),
   onSearch: vi.fn(),
   onRowSelect: vi.fn(),
@@ -109,13 +124,13 @@ describe('DataTable', () => {
 
   describe('loading state', () => {
     it('shows skeleton rows when isLoading is true', () => {
-      render(<DataTable {...defaultProps} isLoading data={[]} />);
+      render(<DataTable {...defaultProps} isLoading={true} data={[]} />);
       // Skeleton elements are aria-hidden; verify real data is NOT shown
       expect(screen.queryByText('Alice')).not.toBeInTheDocument();
     });
 
     it('does not show data rows when isLoading is true', () => {
-      render(<DataTable {...defaultProps} isLoading data={[]} />);
+      render(<DataTable {...defaultProps} isLoading={true} data={[]} />);
       expect(screen.queryByText('Bob')).not.toBeInTheDocument();
     });
   });
@@ -227,7 +242,7 @@ describe('DataTable', () => {
         <DataTable
           {...defaultProps}
           onPageChange={onPageChange}
-          pagination={{ page: 1, limit: 1, total: 3 }}
+          pagination={makePagination(1, 1, 3)}
           data={[testData[0]!]}
         />
       );
@@ -242,7 +257,7 @@ describe('DataTable', () => {
       render(
         <DataTable
           {...defaultProps}
-          pagination={{ page: 1, limit: 10, total: 3 }}
+          pagination={makePagination(1, 10, 3)}
         />
       );
       // Page indicator may render "1" or "Page 1" or "1-3 of 3"

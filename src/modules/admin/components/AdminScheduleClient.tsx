@@ -300,7 +300,7 @@ export function AdminScheduleClient() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleCreateEvent = useCallback((_prefill: ScheduleEventForm) => {
+  const handleCreateEvent = useCallback(async (_form: ScheduleEventForm): Promise<void> => {
     setEditingEvent(null);
     setFormMode('create');
   }, []);
@@ -455,10 +455,10 @@ export function AdminScheduleClient() {
       >
         <ScheduleCalendar
           events={events}
-          canManage={true}
+          teachers={teacherOptions}
+          courses={courseOptions}
           onCreateEvent={handleCreateEvent}
-          onEditEvent={handleEditEvent}
-          onDeleteEvent={(id) => { void handleDeleteEvent(id); }}
+          onDeleteEvent={handleDeleteEvent}
         />
       </motion.div>
     </motion.div>

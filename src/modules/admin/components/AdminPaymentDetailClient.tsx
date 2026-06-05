@@ -212,7 +212,7 @@ export function AdminPaymentDetailClient({ invoiceId }: AdminPaymentDetailClient
       {/* ── Invoice detail ─────────────────────────────────────────────── */}
       <InvoiceDetail
         invoice={invoice}
-        canRefund={true}
+        canManage={true}
         onMarkPaid={() => { void handleMarkPaid(); }}
         onSendReminder={() => { void handleSendReminder(); }}
         onRefund={() => { void handleRefund(); }}

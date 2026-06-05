@@ -256,7 +256,7 @@ const NOTIFICATION_PREFS = [
   {
     key: 'attendanceLow',
     label: 'Low Attendance Warning',
-    description: 'Alert when a student's attendance drops below 70%',
+    description: "Alert when a student's attendance drops below 70%",
     defaultEnabled: false,
   },
   {

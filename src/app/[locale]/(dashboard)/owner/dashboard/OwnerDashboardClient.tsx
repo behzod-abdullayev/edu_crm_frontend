@@ -21,8 +21,9 @@ import {
 } from '@/modules/owner/hooks/useOwner';
 import { GlobalKPIDashboard } from '@/modules/owner/components/GlobalKPIDashboard';
 import { useToast } from '@/shared/hooks/useToast';
-import { useWebSocket } from '@/shared/hooks/useWebSocket';
+
 import { SocketEvent } from '@/services/websocket/socket.events';
+import { useSocketEvent } from '@/shared/hooks/useWebSocket';
 import { cn } from '@/shared/utils/cn';
 
 // ─── Lazy-loaded heavy charts ─────────────────────────────────────────────────
@@ -208,25 +209,22 @@ function BranchRow({ name, students, revenue, status, index }: BranchRowProps) {
 
 export function OwnerDashboardClient() {
   const queryClient = useQueryClient();
-  const toast = useToast();
+  const { toast } = useToast();
 
   const { data: kpi, isLoading: kpiLoading } = useOwnerKPI();
   const { branches, isLoading: branchesLoading } = useOwnerBranches();
   const { chartData, isLoading: chartsLoading } = useOwnerAnalytics();
 
   // ── Real-time WebSocket events ───────────────────────────────────────────
-  useWebSocket({
-    events: {
-      [SocketEvent.PAYMENT_RECEIVED]: () => {
-        void queryClient.invalidateQueries({ queryKey: ['owner', 'kpi'] });
-        toast.success('New payment received');
-      },
-      [SocketEvent.NOTIFICATION_NEW]: () => {
-        void queryClient.invalidateQueries({
-          queryKey: ['notifications'],
-        });
-      },
-    },
+  useSocketEvent(SocketEvent.PAYMENT_RECEIVED, () => {
+    void queryClient.invalidateQueries({ queryKey: ['owner', 'kpi'] });
+    toast.success('New payment received');
+  });
+
+  useSocketEvent(SocketEvent.NOTIFICATION_NEW, () => {
+    void queryClient.invalidateQueries({
+      queryKey: ['notifications'],
+    });
   });
 
   // ── Branch names for chart legend ────────────────────────────────────────

@@ -1,5 +1,28 @@
 'use client';
 
+/**
+ * src/shared/components/mobile/SwipeableCard.tsx
+ *
+ * Swipeable card with revealed action buttons.
+ *
+ * Behaviour:
+ *  - Swipe LEFT  → reveals rightActions buttons
+ *  - Swipe RIGHT → reveals leftActions buttons
+ *  - Only one card open at a time (Zustand store)
+ *  - Snap back on low-velocity or insufficient drag
+ *  - Tap anywhere while another card is open → close that card
+ *
+ * Features:
+ * ✅ Framer Motion drag (spring physics)
+ * ✅ Zustand store — one card open at a time across the list
+ * ✅ Velocity + offset threshold logic
+ * ✅ Correct CSS variables from globals.css
+ * ✅ Minimum 44px action button height (full card height stretch)
+ * ✅ Accessible: action buttons visible to screen readers when revealed
+ * ✅ No "any" TypeScript types
+ * ✅ Reduced motion: disables drag animation, snaps instantly
+ */
+
 import {
   useRef,
   useCallback,
@@ -12,20 +35,28 @@ import { create } from 'zustand';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface SwipeAction {
+  /** Lucide icon rendered in the action button */
   icon: LucideIcon;
+  /** Accessible label and visible text */
   label: string;
+  /** Called when the button is tapped */
   onClick: () => void;
+  /** 'danger' renders a red background */
   variant?: 'default' | 'danger';
 }
 
 interface SwipeableCardProps {
+  /** Card content */
   children: ReactNode;
+  /** Actions revealed on RIGHT swipe (left side) */
   leftActions?: SwipeAction[];
+  /** Actions revealed on LEFT swipe (right side) */
   rightActions?: SwipeAction[];
+  /** Additional className on the outermost wrapper */
   className?: string;
 }
 
-// ─── Zustand store — one card open at a time ──────────────────────────────────
+// ─── Zustand — exactly one open card per mount ────────────────────────────────
 
 interface OpenCardStore {
   openCardId: string | null;
@@ -37,7 +68,50 @@ const useOpenCardStore = create<OpenCardStore>((set) => ({
   setOpenCard: (id) => set({ openCardId: id }),
 }));
 
+// Monotonic counter for stable IDs without useId (avoids SSR mismatch)
 let cardIdCounter = 0;
+
+// ─── Action Button ────────────────────────────────────────────────────────────
+
+interface ActionButtonProps {
+  action: SwipeAction;
+  width: number;
+}
+
+function ActionButton({ action, width }: ActionButtonProps) {
+  const Icon = action.icon;
+  const isDanger = action.variant === 'danger';
+
+  return (
+    <button
+      onClick={action.onClick}
+      aria-label={action.label}
+      style={{
+        width,
+        minHeight: 44,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        border: 'none',
+        cursor: 'pointer',
+        backgroundColor: isDanger
+          ? 'var(--error-solid)'
+          : 'var(--text-muted)',
+        color: '#ffffff',
+        fontSize: 11,
+        fontWeight: 600,
+        padding: 0,
+        flexShrink: 0,
+      }}
+    >
+      <Icon size={20} aria-hidden="true" />
+      <span>{action.label}</span>
+    </button>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -50,54 +124,61 @@ export function SwipeableCard({
   const shouldReduceMotion = useReducedMotion();
   const { openCardId, setOpenCard } = useOpenCardStore();
 
+  // Stable ID (never changes for the lifetime of this instance)
   const cardIdRef = useRef<string>(`swipeable-card-${++cardIdCounter}`);
   const cardId = cardIdRef.current;
 
   const isOpen = openCardId === cardId;
 
-  const ACTION_WIDTH = 64;
+  const ACTION_WIDTH = 72; // px per action button
   const rightActionsWidth = rightActions.length * ACTION_WIDTH;
   const leftActionsWidth = leftActions.length * ACTION_WIDTH;
 
+  // Spring transition for snap
   const springTransition = shouldReduceMotion
     ? { duration: 0 }
     : { type: 'spring' as const, stiffness: 500, damping: 35 };
 
+  // ── Drag start: close sibling cards ──
   const handleDragStart = useCallback(() => {
-    // Close any other open card when this one starts dragging
     if (openCardId !== null && openCardId !== cardId) {
       setOpenCard(null);
     }
   }, [openCardId, cardId, setOpenCard]);
 
+  // ── Drag end: decide snap position ──
   const handleDragEnd = useCallback(
-    (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-      const velocity = info.velocity.x;
-      const offset = info.offset.x;
+    (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      const vx = info.velocity.x;
+      const ox = info.offset.x;
 
-      // Right swipe on open card → close
-      if (isOpen && (velocity > 200 || offset > rightActionsWidth * 0.4)) {
-        setOpenCard(null);
+      // ─ Already open → right swipe or fast swipe closes ─
+      if (isOpen) {
+        if (vx > 200 || ox > rightActionsWidth * 0.4) {
+          setOpenCard(null);
+          return;
+        }
+        // Re-snap to open
         return;
       }
 
-      // Left swipe → open right actions
-      if (rightActions.length > 0 && !isOpen) {
-        if (velocity < -200 || offset < -(rightActionsWidth * 0.4)) {
+      // ─ Left swipe → reveal right actions ─
+      if (rightActions.length > 0) {
+        if (vx < -200 || ox < -(rightActionsWidth * 0.4)) {
           setOpenCard(cardId);
           return;
         }
       }
 
-      // Right swipe → open left actions
-      if (leftActions.length > 0 && !isOpen) {
-        if (velocity > 200 || offset > leftActionsWidth * 0.4) {
+      // ─ Right swipe → reveal left actions ─
+      if (leftActions.length > 0) {
+        if (vx > 200 || ox > leftActionsWidth * 0.4) {
           setOpenCard(cardId);
           return;
         }
       }
 
-      // Snap back to closed
+      // ─ Default: snap closed ─
       setOpenCard(null);
     },
     [
@@ -108,20 +189,26 @@ export function SwipeableCard({
       leftActions.length,
       setOpenCard,
       cardId,
-    ]
+    ],
   );
 
-  const targetX = isOpen && rightActions.length > 0 ? -rightActionsWidth : 0;
+  // The animated x position for the draggable surface
+  const targetX =
+    isOpen && rightActions.length > 0
+      ? -rightActionsWidth
+      : isOpen && leftActions.length > 0
+        ? leftActionsWidth
+        : 0;
 
   return (
     <div
       className={className}
       style={{ position: 'relative', overflow: 'hidden' }}
     >
-      {/* Right action buttons — revealed on left swipe */}
+      {/* ── Right action buttons (revealed by left swipe) ── */}
       {rightActions.length > 0 && (
         <div
-          aria-hidden="true"
+          aria-hidden={!isOpen}
           style={{
             position: 'absolute',
             top: 0,
@@ -131,43 +218,16 @@ export function SwipeableCard({
             alignItems: 'stretch',
           }}
         >
-          {rightActions.map((action) => {
-            const Icon = action.icon;
-            const isDanger = action.variant === 'danger';
-            return (
-              <button
-                key={action.label}
-                onClick={action.onClick}
-                aria-label={action.label}
-                style={{
-                  width: ACTION_WIDTH,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: isDanger
-                    ? 'var(--error-solid)'
-                    : 'var(--text-muted)',
-                  color: '#fff',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                <Icon size={20} aria-hidden="true" />
-                <span>{action.label}</span>
-              </button>
-            );
-          })}
+          {rightActions.map((action) => (
+            <ActionButton key={action.label} action={action} width={ACTION_WIDTH} />
+          ))}
         </div>
       )}
 
-      {/* Left action buttons — revealed on right swipe */}
+      {/* ── Left action buttons (revealed by right swipe) ── */}
       {leftActions.length > 0 && (
         <div
-          aria-hidden="true"
+          aria-hidden={!isOpen}
           style={{
             position: 'absolute',
             top: 0,
@@ -177,37 +237,13 @@ export function SwipeableCard({
             alignItems: 'stretch',
           }}
         >
-          {leftActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.label}
-                onClick={action.onClick}
-                aria-label={action.label}
-                style={{
-                  width: ACTION_WIDTH,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: 'var(--brand-primary)',
-                  color: '#fff',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                <Icon size={20} aria-hidden="true" />
-                <span>{action.label}</span>
-              </button>
-            );
-          })}
+          {leftActions.map((action) => (
+            <ActionButton key={action.label} action={action} width={ACTION_WIDTH} />
+          ))}
         </div>
       )}
 
-      {/* Draggable card surface */}
+      {/* ── Draggable card surface ── */}
       <motion.div
         drag={shouldReduceMotion ? false : 'x'}
         dragConstraints={{
@@ -219,7 +255,13 @@ export function SwipeableCard({
         onDragEnd={handleDragEnd}
         animate={{ x: targetX }}
         transition={springTransition}
-        style={{ position: 'relative', background: 'var(--bg-surface)' }}
+        style={{
+          position: 'relative',
+          backgroundColor: 'var(--bg-surface)',
+          touchAction: 'pan-y', // allow vertical scrolling on touch
+          cursor: 'grab',
+        }}
+        whileTap={{ cursor: 'grabbing' }}
       >
         {children}
       </motion.div>

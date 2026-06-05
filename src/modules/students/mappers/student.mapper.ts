@@ -1,14 +1,19 @@
 /**
+ * @file src/modules/students/mappers/student.mapper.ts
+ *
  * Student module mapper — DTO ↔ UI form value transformations.
  *
- * ⚠️  All DTO types come from @generated/models (orval-generated).
- *     DO NOT write API types manually in this file.
+ * ⚠️  DTO types are imported from two sources:
+ *       • @generated/models — orval-generated types (StudentDto, UpdateStudentDto,
+ *         AttendanceDto). Do NOT write these types manually in this file.
+ *       • ../types/student.types — module-level UI types (StudentFormValues,
+ *         AttendanceRecord, StudentKpiData, ActivityFeedItem, UpcomingClass).
  *
  * Design rules (from the project prompt):
  *   - Pure functions only — no side effects, no API calls.
  *   - Fully typed — no `any`, no unsafe casts.
- *   - Under `exactOptionalPropertyTypes: true`, optional keys must be
- *     OMITTED entirely when absent, not set to `undefined`.
+ *   - Under `exactOptionalPropertyTypes: true`, optional keys must be OMITTED
+ *     entirely when absent, not set to `undefined`.
  *   - Unit-tested in src/__tests__/unit/mappers/student.mapper.test.ts.
  *     The four exported functions below must keep the same signatures.
  */
@@ -25,10 +30,12 @@ import type {
 // ─── StudentDto ↔ StudentFormValues ──────────────────────────────────────────
 
 /**
- * Maps an API StudentDto to the form value shape consumed by StudentProfileForm.
+ * Maps an API StudentDto (from GET /students/:id) to the form value shape
+ * consumed by StudentProfileForm.
  *
  * Converts all nullable / undefined fields to safe empty-string / null defaults
  * so React Hook Form never receives `undefined` for a controlled input.
+ * avatarKey is preserved as null when absent (signals "no avatar set").
  */
 export function mapStudentDtoToForm(dto: StudentDto): StudentFormValues {
   return {
@@ -50,8 +57,12 @@ export function mapStudentDtoToForm(dto: StudentDto): StudentFormValues {
  * Maps validated StudentFormValues back to the UpdateStudentDto shape required
  * by PATCH /students/:id.
  *
- * Optional fields are included only when they carry a non-empty value so the
- * backend treats absence as "no change" (PATCH semantics).
+ * Optional fields (phone, dateOfBirth, address, avatarKey) are included only
+ * when they carry a non-empty value so the backend treats absence as "no change"
+ * (PATCH semantics).
+ *
+ * avatarKey === null is intentionally excluded (not sent) to avoid accidentally
+ * clearing an avatar when the user has not changed that field.
  */
 export function mapStudentFormToDto(form: StudentFormValues): UpdateStudentDto {
   return {
@@ -64,7 +75,7 @@ export function mapStudentFormToDto(form: StudentFormValues): UpdateStudentDto {
     ...(form.address !== undefined && form.address.length > 0
       ? { address: form.address }
       : {}),
-    // avatarKey === null → remove avatar; undefined → don't touch
+    // avatarKey === null → omit (don't touch); truthy string → include
     ...(form.avatarKey !== null ? { avatarKey: form.avatarKey ?? undefined } : {}),
     languagePreference: form.languagePreference,
     themePreference: form.themePreference,
@@ -77,8 +88,12 @@ export function mapStudentFormToDto(form: StudentFormValues): UpdateStudentDto {
  * Normalises a raw AttendanceDto from GET /students/:id/attendance into the
  * AttendanceRecord shape used throughout the student attendance UI.
  *
- * The `status` field is cast at runtime here — this is the single place
- * that cast happens, keeping components free of type gymnastics.
+ * The `status` field is cast at runtime here — this is the single place where
+ * that cast occurs, keeping components free of type gymnastics.
+ *
+ * note is only included when it has a non-empty string value so the
+ * AttendanceRecord type (which marks note as optional) is satisfied under
+ * exactOptionalPropertyTypes.
  */
 export function mapAttendanceDto(dto: AttendanceDto): AttendanceRecord {
   return {
@@ -129,7 +144,8 @@ export function deriveTrendPercent(current: number, previous: number): number {
 
 /**
  * Creates a zero-initialised StudentKpiData placeholder — used while the real
- * data is loading so KPI cards can render skeletons without conditional logic.
+ * dashboard data is loading so KPI cards can render skeletons without
+ * conditional logic in the component.
  */
 export function createEmptyStudentKpi(): StudentKpiData {
   return {

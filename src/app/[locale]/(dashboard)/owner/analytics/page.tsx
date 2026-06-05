@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// ─── Lazily loaded recharts pieces ────────────────────────────────────────────
+// ─── Lazily loaded recharts container (heavy — SSR must be off) ───────────────
 
 const ResponsiveContainer = dynamic(
   () => import('recharts').then((m) => ({ default: m.ResponsiveContainer })),
@@ -57,38 +57,27 @@ const LineChart = dynamic(
   () => import('recharts').then((m) => ({ default: m.LineChart })),
   { ssr: false },
 );
-const Area = dynamic(
-  () => import('recharts').then((m) => ({ default: m.Area })),
-  { ssr: false },
-);
-const Bar = dynamic(
-  () => import('recharts').then((m) => ({ default: m.Bar })),
-  { ssr: false },
-);
-const Line = dynamic(
-  () => import('recharts').then((m) => ({ default: m.Line })),
-  { ssr: false },
-);
-const XAxis = dynamic(
-  () => import('recharts').then((m) => ({ default: m.XAxis })),
-  { ssr: false },
-);
-const YAxis = dynamic(
-  () => import('recharts').then((m) => ({ default: m.YAxis })),
-  { ssr: false },
-);
 const CartesianGrid = dynamic(
   () => import('recharts').then((m) => ({ default: m.CartesianGrid })),
   { ssr: false },
 );
-const Tooltip = dynamic(
-  () => import('recharts').then((m) => ({ default: m.Tooltip })),
-  { ssr: false },
-);
-const Legend = dynamic(
-  () => import('recharts').then((m) => ({ default: m.Legend })),
-  { ssr: false },
-);
+
+// ─── Recharts primitives — imported directly (not dynamic) ────────────────────
+// dynamic() wraps only default-exported components. Recharts primitives like
+// Area, Bar, Line, XAxis, YAxis, Tooltip, Legend are not default exports from
+// their own modules — they are named exports from 'recharts'. Wrapping them in
+// dynamic() causes TS2345 because the loader signature does not match
+// DynamicOptions<Props>. Import them statically; the chart container itself
+// is already lazy-loaded above, so SSR is handled at the container level.
+import {
+  Area,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
 // ─── Branch color palette ─────────────────────────────────────────────────────
 

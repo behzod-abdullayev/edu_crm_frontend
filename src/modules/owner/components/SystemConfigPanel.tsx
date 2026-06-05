@@ -1,58 +1,575 @@
 'use client';
 
 import { useState } from 'react';
-import { SystemConfig, SystemHealth, GlobalFeatureFlags } from '../types/owner.types';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { SystemConfig, SystemHealth, GlobalFeatureFlags } from '../types/owner.types';
 
-const FEATURE_FLAG_LABELS: Record<keyof GlobalFeatureFlags, string> = {
-  payments: 'Payments Module',
-  chat: 'Chat & Messaging',
-  certificates: 'Certificates',
-  exams: 'Exams & Quizzes',
-  analytics: 'Analytics Dashboard',
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface SystemConfigPanelProps {
+export interface SystemConfigPanelProps {
   config: SystemConfig;
   health: SystemHealth;
   apiVersion: string;
-  onSaveConfig: (config: SystemConfig) => Promise<void>;
-  onClearCache: () => Promise<void>;
+  onSaveConfig:    (config: SystemConfig) => Promise<void>;
+  onClearCache:    () => Promise<void>;
   onTriggerBackup: () => Promise<void>;
 }
 
-function HealthDot({ status }: { status: 'connected' | 'error' }) {
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const FEATURE_FLAG_LABELS: Record<keyof GlobalFeatureFlags, string> = {
+  payments:     'Payments Module',
+  chat:         'Chat & Messaging',
+  certificates: 'Certificates',
+  exams:        'Exams & Quizzes',
+  analytics:    'Analytics Dashboard',
+};
+
+const FEATURE_FLAG_DESCRIPTIONS: Record<keyof GlobalFeatureFlags, string> = {
+  payments:     'Billing, invoices, and debt management',
+  chat:         'Real-time messaging between users',
+  certificates: 'Issue and download completion certificates',
+  exams:        'Online exam and quiz engine',
+  analytics:    'Advanced analytics and reports',
+};
+
+// ─── Animation variants ───────────────────────────────────────────────────────
+
+const sectionVariants = {
+  hidden:  { opacity: 0, y: 14 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.07, duration: 0.28, ease: 'easeOut' },
+  }),
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface AnimatedToggleProps {
+  checked: boolean;
+  onChange: () => void;
+  id: string;
+  label: string;
+  danger?: boolean;
+}
+
+function AnimatedToggle({ checked, onChange, id, label, danger = false }: AnimatedToggleProps) {
   return (
-    <span
-      className={[
-        'inline-block h-2 w-2 rounded-full',
-        status === 'connected' ? 'bg-green-500' : 'bg-red-500',
-      ].join(' ')}
-      aria-hidden="true"
-    />
+    <motion.button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className="relative h-7 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2"
+      style={{
+        background: checked
+          ? danger
+            ? 'var(--error-solid)'
+            : 'var(--brand-primary)'
+          : 'var(--bg-surface-hover)',
+      }}
+      animate={{
+        background: checked
+          ? danger
+            ? 'var(--error-solid)'
+            : 'var(--brand-primary)'
+          : 'var(--bg-surface-hover)',
+      }}
+      transition={{ duration: 0.2 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <motion.span
+        className="absolute top-1.5 h-4 w-4 rounded-full bg-white shadow-sm"
+        animate={{ x: checked ? 26 : 4 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        aria-hidden="true"
+      />
+    </motion.button>
   );
 }
 
+interface SectionCardProps {
+  children: React.ReactNode;
+  index?: number;
+  className?: string;
+  danger?: boolean;
+}
+
+function SectionCard({ children, index = 0, className = '', danger = false }: SectionCardProps) {
+  return (
+    <motion.div
+      variants={sectionVariants}
+      initial="hidden"
+      animate="visible"
+      custom={index}
+      className={`rounded-xl border p-5 sm:p-6 ${className}`}
+      style={{
+        background:   'var(--bg-surface)',
+        borderColor:  danger ? 'var(--error-border)' : 'var(--border-default)',
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// ─── Maintenance Mode Section ─────────────────────────────────────────────────
+
+interface MaintenanceSectionProps {
+  isEnabled: boolean;
+  onToggle: () => void;
+}
+
+function MaintenanceSection({ isEnabled, onToggle }: MaintenanceSectionProps) {
+  return (
+    <motion.div
+      className="rounded-xl border p-5 sm:p-6 transition-colors duration-300"
+      style={{
+        background:  isEnabled ? 'var(--error-bg)'     : 'var(--bg-surface)',
+        borderColor: isEnabled ? 'var(--error-border)' : 'var(--border-default)',
+      }}
+      animate={{
+        borderColor: isEnabled ? 'var(--error-border)' : 'var(--border-default)',
+      }}
+      transition={{ duration: 0.25 }}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: isEnabled ? 'var(--error-text)' : 'var(--text-primary)' }}
+          >
+            Maintenance Mode
+          </h3>
+          <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {isEnabled
+              ? '⚠️ System is in maintenance mode — all users except owners are locked out'
+              : 'Enable to temporarily restrict all access for maintenance'}
+          </p>
+        </div>
+        <AnimatedToggle
+          checked={isEnabled}
+          onChange={onToggle}
+          id="maintenance-toggle"
+          label="Toggle maintenance mode"
+          danger
+        />
+      </div>
+
+      <AnimatePresence>
+        {isEnabled && (
+          <motion.div
+            className="mt-4 flex items-start gap-2 rounded-lg p-3"
+            style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <span aria-hidden="true" className="text-base leading-none mt-0.5">🔒</span>
+            <p className="text-xs" style={{ color: 'var(--error-text)' }}>
+              Students, teachers, and admins will see a maintenance page. Only owner accounts
+              can access the platform.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ─── Feature Flags Section ────────────────────────────────────────────────────
+
+interface FeatureFlagsSectionProps {
+  flags: GlobalFeatureFlags;
+  onToggle: (key: keyof GlobalFeatureFlags) => void;
+}
+
+function FeatureFlagsSection({ flags, onToggle }: FeatureFlagsSectionProps) {
+  return (
+    <SectionCard index={2}>
+      <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+        Global Feature Flags
+      </h3>
+      <p className="mt-0.5 mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+        These settings apply to all tenants and branches
+      </p>
+
+      <div className="space-y-3">
+        {(Object.keys(flags) as (keyof GlobalFeatureFlags)[]).map((key, i) => (
+          <motion.div
+            key={key}
+            className="flex items-center justify-between gap-4 rounded-lg p-3"
+            style={{
+              background:  'var(--bg-surface-secondary)',
+              borderColor: 'var(--border-default)',
+            }}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.04, duration: 0.22 }}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                {FEATURE_FLAG_LABELS[key]}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {FEATURE_FLAG_DESCRIPTIONS[key]}
+              </p>
+            </div>
+            <AnimatedToggle
+              checked={flags[key]}
+              onChange={() => onToggle(key)}
+              id={`flag-${key}`}
+              label={`Toggle ${FEATURE_FLAG_LABELS[key]}`}
+            />
+          </motion.div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─── SMTP Section ─────────────────────────────────────────────────────────────
+
+interface SmtpSectionProps {
+  host:     string;
+  port:     number;
+  user:     string;
+  secure:   boolean;
+  onChange: <K extends keyof SystemConfig['emailSmtp']>(
+    field: K,
+    value: SystemConfig['emailSmtp'][K],
+  ) => void;
+}
+
+function SmtpSection({ host, port, user, secure, onChange }: SmtpSectionProps) {
+  const inputClass =
+    'w-full rounded-lg border px-3 py-2.5 text-sm min-h-[44px] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)] focus:ring-offset-1';
+
+  return (
+    <SectionCard index={3}>
+      <h3 className="mb-4 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+        Email SMTP Configuration
+      </h3>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Host */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="smtp-host"
+            className="block text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            SMTP Host
+          </label>
+          <input
+            id="smtp-host"
+            type="text"
+            value={host}
+            onChange={(e) => onChange('host', e.target.value)}
+            placeholder="smtp.gmail.com"
+            className={inputClass}
+            style={{
+              background:  'var(--bg-surface-secondary)',
+              borderColor: 'var(--border-default)',
+              color:       'var(--text-primary)',
+            }}
+          />
+        </div>
+
+        {/* Port */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="smtp-port"
+            className="block text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Port
+          </label>
+          <input
+            id="smtp-port"
+            type="number"
+            inputMode="numeric"
+            value={port}
+            onChange={(e) => onChange('port', Number(e.target.value))}
+            placeholder="587"
+            className={inputClass}
+            style={{
+              background:  'var(--bg-surface-secondary)',
+              borderColor: 'var(--border-default)',
+              color:       'var(--text-primary)',
+            }}
+          />
+        </div>
+
+        {/* User */}
+        <div className="space-y-1.5 sm:col-span-2">
+          <label
+            htmlFor="smtp-user"
+            className="block text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            SMTP User (email)
+          </label>
+          <input
+            id="smtp-user"
+            type="email"
+            inputMode="email"
+            value={user}
+            onChange={(e) => onChange('user', e.target.value)}
+            placeholder="noreply@academy.com"
+            className={inputClass}
+            style={{
+              background:  'var(--bg-surface-secondary)',
+              borderColor: 'var(--border-default)',
+              color:       'var(--text-primary)',
+            }}
+          />
+        </div>
+
+        {/* SSL toggle */}
+        <div className="flex items-center gap-3 sm:col-span-2">
+          <AnimatedToggle
+            checked={secure}
+            onChange={() => onChange('secure', !secure)}
+            id="smtp-secure"
+            label="Toggle SSL/TLS"
+          />
+          <label
+            htmlFor="smtp-secure"
+            className="cursor-pointer text-sm"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Use SSL / TLS (recommended for port 465)
+          </label>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─── Action Bar ───────────────────────────────────────────────────────────────
+
+interface ActionBarProps {
+  isSaving:       boolean;
+  isClearingCache: boolean;
+  isBackingUp:    boolean;
+  savedAt:        Date | null;
+  onSave:         () => void;
+  onClearCache:   () => void;
+  onBackup:       () => void;
+}
+
+function ActionBar({
+  isSaving,
+  isClearingCache,
+  isBackingUp,
+  savedAt,
+  onSave,
+  onClearCache,
+  onBackup,
+}: ActionBarProps) {
+  return (
+    <motion.div
+      className="flex flex-wrap items-center gap-3 pt-2"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.35, duration: 0.25 }}
+    >
+      {/* Save */}
+      <motion.button
+        type="button"
+        onClick={onSave}
+        disabled={isSaving}
+        aria-label="Save configuration changes"
+        aria-busy={isSaving}
+        className="rounded-lg px-6 py-2.5 text-sm font-semibold min-h-[44px] text-white disabled:opacity-50"
+        style={{ background: 'var(--brand-primary)' }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.97 }}
+      >
+        {isSaving ? (
+          <span className="flex items-center gap-2">
+            <motion.span
+              className="inline-block h-4 w-4 rounded-full border-2 border-white border-t-transparent"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.75, repeat: Infinity, ease: 'linear' }}
+              aria-hidden="true"
+            />
+            Saving…
+          </span>
+        ) : (
+          'Save Configuration'
+        )}
+      </motion.button>
+
+      {/* Clear cache */}
+      <motion.button
+        type="button"
+        onClick={onClearCache}
+        disabled={isClearingCache}
+        aria-label="Clear application cache"
+        aria-busy={isClearingCache}
+        className="rounded-lg border px-4 py-2.5 text-sm font-medium min-h-[44px] disabled:opacity-50 transition-colors hover:bg-[var(--bg-surface-hover)]"
+        style={{
+          borderColor: 'var(--border-default)',
+          color:       'var(--text-primary)',
+          background:  'var(--bg-surface)',
+        }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.97 }}
+      >
+        {isClearingCache ? 'Clearing…' : 'Clear Cache'}
+      </motion.button>
+
+      {/* Backup */}
+      <motion.button
+        type="button"
+        onClick={onBackup}
+        disabled={isBackingUp}
+        aria-label="Trigger database backup"
+        aria-busy={isBackingUp}
+        className="rounded-lg border px-4 py-2.5 text-sm font-medium min-h-[44px] disabled:opacity-50 transition-colors hover:bg-[var(--bg-surface-hover)]"
+        style={{
+          borderColor: 'var(--border-default)',
+          color:       'var(--text-primary)',
+          background:  'var(--bg-surface)',
+        }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.97 }}
+      >
+        {isBackingUp ? 'Backing up…' : 'Trigger Backup'}
+      </motion.button>
+
+      {/* Save timestamp */}
+      <AnimatePresence>
+        {savedAt !== null && (
+          <motion.span
+            className="flex items-center gap-1.5 text-xs"
+            style={{ color: 'var(--success-text)' }}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true">✓</span>
+            Saved at {savedAt.toLocaleTimeString()}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+
+interface ConfirmMaintenanceProps {
+  onConfirm: () => void;
+  onCancel:  () => void;
+}
+
+function ConfirmMaintenanceDialog({ onConfirm, onCancel }: ConfirmMaintenanceProps) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      style={{ background: 'var(--bg-overlay)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="maintenance-confirm-title"
+      aria-describedby="maintenance-confirm-desc"
+    >
+      <motion.div
+        className="w-full max-w-md rounded-2xl border p-6 shadow-xl"
+        style={{
+          background:  'var(--bg-surface)',
+          borderColor: 'var(--error-border)',
+        }}
+        initial={{ scale: 0.95, y: 24 }}
+        animate={{ scale: 1,    y: 0  }}
+        exit={{ scale: 0.95,    y: 24 }}
+        transition={{ duration: 0.2 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Icon */}
+        <div
+          className="mb-4 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+          style={{ background: 'var(--error-bg)' }}
+          aria-hidden="true"
+        >
+          ⚠️
+        </div>
+
+        <h3
+          id="maintenance-confirm-title"
+          className="mb-2 text-lg font-semibold"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          Enable Maintenance Mode?
+        </h3>
+        <p
+          id="maintenance-confirm-desc"
+          className="mb-6 text-sm"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          This will immediately lock out all users except owners. Students, teachers, and admins
+          will see a maintenance page until you disable this mode.
+        </p>
+
+        <div className="flex gap-3">
+          <motion.button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-lg py-2.5 text-sm font-semibold min-h-[44px] text-white"
+            style={{ background: 'var(--error-solid)' }}
+            whileTap={{ scale: 0.97 }}
+          >
+            Enable Maintenance
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-lg border py-2.5 text-sm font-medium min-h-[44px] transition-colors hover:bg-[var(--bg-surface-hover)]"
+            style={{
+              borderColor: 'var(--border-default)',
+              color:       'var(--text-primary)',
+            }}
+            whileTap={{ scale: 0.97 }}
+          >
+            Cancel
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export function SystemConfigPanel({
   config,
-  health,
-  apiVersion,
+  health: _health,
+  apiVersion: _apiVersion,
   onSaveConfig,
   onClearCache,
   onTriggerBackup,
 }: SystemConfigPanelProps) {
-  const [local, setLocal] = useState<SystemConfig>(config);
-  const [confirmMaintenance, setConfirmMaintenance] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isClearingCache, setIsClearingCache] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [local,               setLocal]               = useState<SystemConfig>(config);
+  const [confirmMaintenance,  setConfirmMaintenance]  = useState(false);
+  const [isSaving,            setIsSaving]            = useState(false);
+  const [isClearingCache,     setIsClearingCache]     = useState(false);
+  const [isBackingUp,         setIsBackingUp]         = useState(false);
+  const [savedAt,             setSavedAt]             = useState<Date | null>(null);
 
-  const toggleFeature = (key: keyof GlobalFeatureFlags) => {
-    setLocal((prev) => ({
-      ...prev,
-      featureFlags: { ...prev.featureFlags, [key]: !prev.featureFlags[key] },
-    }));
-  };
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleMaintenanceToggle = () => {
     if (!local.maintenanceMode) {
@@ -65,6 +582,23 @@ export function SystemConfigPanel({
   const confirmEnableMaintenance = () => {
     setLocal((prev) => ({ ...prev, maintenanceMode: true }));
     setConfirmMaintenance(false);
+  };
+
+  const toggleFeatureFlag = (key: keyof GlobalFeatureFlags) => {
+    setLocal((prev) => ({
+      ...prev,
+      featureFlags: { ...prev.featureFlags, [key]: !prev.featureFlags[key] },
+    }));
+  };
+
+  const handleSmtpChange = <K extends keyof SystemConfig['emailSmtp']>(
+    field: K,
+    value: SystemConfig['emailSmtp'][K],
+  ) => {
+    setLocal((prev) => ({
+      ...prev,
+      emailSmtp: { ...prev.emailSmtp, [field]: value },
+    }));
   };
 
   const handleSave = async () => {
@@ -95,253 +629,51 @@ export function SystemConfigPanel({
     }
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-6">
-      {/* System Health */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-4 text-sm font-semibold text-foreground">System Health</h3>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              label: 'API Status',
-              value: health.status,
-              ok: health.status === 'healthy',
-            },
-            {
-              label: 'Database',
-              value: health.dbStatus,
-              ok: health.dbStatus === 'connected',
-            },
-            {
-              label: 'Cache',
-              value: health.cacheStatus,
-              ok: health.cacheStatus === 'connected',
-            },
-            {
-              label: 'Uptime',
-              value: `${Math.floor(health.uptime / 3600)}h ${Math.floor((health.uptime % 3600) / 60)}m`,
-              ok: true,
-            },
-          ].map((item) => (
-            <div key={item.label} className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-              <div className="mt-1.5 flex items-center gap-2">
-                <HealthDot status={item.ok ? 'connected' : 'error'} />
-                <span className="text-sm font-medium capitalize text-foreground">
-                  {item.value}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          API Version: <span className="font-mono">{apiVersion}</span>
-        </p>
-      </div>
+    <div className="space-y-5">
+      {/* 1. Maintenance Mode */}
+      <MaintenanceSection
+        isEnabled={local.maintenanceMode}
+        onToggle={handleMaintenanceToggle}
+      />
 
-      {/* Maintenance Mode */}
-      <div
-        className={[
-          'rounded-xl border p-6 transition-colors',
-          local.maintenanceMode
-            ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
-            : 'border-border bg-card',
-        ].join(' ')}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Maintenance Mode</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {local.maintenanceMode
-                ? '⚠️ System is in maintenance mode — all users except owners are locked out'
-                : 'Enable to temporarily restrict all access for maintenance'}
-            </p>
-          </div>
-          <button
-            onClick={handleMaintenanceToggle}
-            className={[
-              'relative h-7 w-14 rounded-full transition-colors',
-              local.maintenanceMode ? 'bg-red-600' : 'bg-muted',
-            ].join(' ')}
-            type="button"
-            role="switch"
-            aria-checked={local.maintenanceMode}
-          >
-            <span
-              className={[
-                'absolute top-1.5 h-4 w-4 rounded-full bg-white shadow transition-transform',
-                local.maintenanceMode ? 'translate-x-8' : 'translate-x-1',
-              ].join(' ')}
-            />
-          </button>
-        </div>
-      </div>
+      {/* 2. Feature Flags */}
+      <FeatureFlagsSection
+        flags={local.featureFlags}
+        onToggle={toggleFeatureFlag}
+      />
 
-      {/* Feature Flags */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-1 text-sm font-semibold text-foreground">Global Feature Flags</h3>
-        <p className="mb-4 text-xs text-muted-foreground">
-          These settings apply to all tenants/branches
-        </p>
-        <div className="space-y-3">
-          {(Object.keys(local.featureFlags) as (keyof GlobalFeatureFlags)[]).map((key) => (
-            <div key={key} className="flex items-center justify-between">
-              <span className="text-sm text-foreground">{FEATURE_FLAG_LABELS[key]}</span>
-              <button
-                onClick={() => toggleFeature(key)}
-                className={[
-                  'relative h-6 w-11 rounded-full transition-colors',
-                  local.featureFlags[key] ? 'bg-primary' : 'bg-muted',
-                ].join(' ')}
-                type="button"
-                role="switch"
-                aria-checked={local.featureFlags[key]}
-              >
-                <span
-                  className={[
-                    'absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform',
-                    local.featureFlags[key] ? 'translate-x-5' : 'translate-x-1',
-                  ].join(' ')}
-                />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* 3. SMTP */}
+      <SmtpSection
+        host={local.emailSmtp.host}
+        port={local.emailSmtp.port}
+        user={local.emailSmtp.user}
+        secure={local.emailSmtp.secure}
+        onChange={handleSmtpChange}
+      />
 
-      {/* SMTP Config */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-4 text-sm font-semibold text-foreground">Email SMTP</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">SMTP Host</label>
-            <input
-              type="text"
-              value={local.emailSmtp.host}
-              onChange={(e) =>
-                setLocal((p) => ({ ...p, emailSmtp: { ...p.emailSmtp, host: e.target.value } }))
-              }
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="smtp.gmail.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Port</label>
-            <input
-              type="number"
-              value={local.emailSmtp.port}
-              onChange={(e) =>
-                setLocal((p) => ({ ...p, emailSmtp: { ...p.emailSmtp, port: Number(e.target.value) } }))
-              }
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="587"
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">SMTP User</label>
-            <input
-              type="email"
-              value={local.emailSmtp.user}
-              onChange={(e) =>
-                setLocal((p) => ({ ...p, emailSmtp: { ...p.emailSmtp, user: e.target.value } }))
-              }
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="noreply@academy.com"
-            />
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2">
-            <button
-              onClick={() =>
-                setLocal((p) => ({ ...p, emailSmtp: { ...p.emailSmtp, secure: !p.emailSmtp.secure } }))
-              }
-              className={[
-                'relative h-6 w-11 rounded-full transition-colors',
-                local.emailSmtp.secure ? 'bg-primary' : 'bg-muted',
-              ].join(' ')}
-              type="button"
-              role="switch"
-              aria-checked={local.emailSmtp.secure}
-            >
-              <span className={[
-                'absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform',
-                local.emailSmtp.secure ? 'translate-x-5' : 'translate-x-1',
-              ].join(' ')} />
-            </button>
-            <span className="text-sm text-foreground">Use SSL/TLS</span>
-          </div>
-        </div>
-      </div>
+      {/* 4. Action bar */}
+      <ActionBar
+        isSaving={isSaving}
+        isClearingCache={isClearingCache}
+        isBackingUp={isBackingUp}
+        savedAt={savedAt}
+        onSave={handleSave}
+        onClearCache={handleClearCache}
+        onBackup={handleBackup}
+      />
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          type="button"
-        >
-          {isSaving ? 'Saving…' : 'Save Configuration'}
-        </button>
-        <button
-          onClick={handleClearCache}
-          disabled={isClearingCache}
-          className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
-          type="button"
-        >
-          {isClearingCache ? 'Clearing…' : 'Clear Cache'}
-        </button>
-        <button
-          onClick={handleBackup}
-          disabled={isBackingUp}
-          className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
-          type="button"
-        >
-          {isBackingUp ? 'Backing up…' : 'Trigger Backup'}
-        </button>
-        {savedAt && (
-          <span className="flex items-center text-xs text-muted-foreground">
-            Saved at {savedAt.toLocaleTimeString()}
-          </span>
+      {/* Confirmation dialog */}
+      <AnimatePresence>
+        {confirmMaintenance && (
+          <ConfirmMaintenanceDialog
+            onConfirm={confirmEnableMaintenance}
+            onCancel={() => setConfirmMaintenance(false)}
+          />
         )}
-      </div>
-
-      {/* Maintenance Confirm Dialog */}
-      {confirmMaintenance && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Enable maintenance mode"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-red-300 bg-card p-6 shadow-xl dark:border-red-800">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50">
-              <svg className="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h3 className="mb-2 text-lg font-semibold text-foreground">Enable Maintenance Mode?</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              This will immediately lock out all users except owners. Students, teachers, and admins will see a maintenance page until you disable this mode.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={confirmEnableMaintenance}
-                className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700"
-                type="button"
-              >
-                Enable Maintenance
-              </button>
-              <button
-                onClick={() => setConfirmMaintenance(false)}
-                className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-foreground hover:bg-muted"
-                type="button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </AnimatePresence>
     </div>
   );
 }

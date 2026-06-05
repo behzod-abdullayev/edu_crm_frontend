@@ -109,7 +109,7 @@ interface CourseListProps {
 }
 
 export function CourseList({ className }: CourseListProps) {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const userId = user?.id;
 
   const [search, setSearch] = useState('');
@@ -120,7 +120,7 @@ export function CourseList({ className }: CourseListProps) {
     page: 1,
     pageSize: 50,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    status,
+    ...(status !== undefined ? { status } : {}),
   };
 
   const { data, isLoading, isFetching } = useStudentCourses(

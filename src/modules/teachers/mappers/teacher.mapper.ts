@@ -1,14 +1,21 @@
 /**
+ * @file src/modules/teachers/mappers/teacher.mapper.ts
+ *
  * Teacher module mapper — DTO ↔ UI form value transformations.
  *
- * ⚠️  All DTO types come from @generated/models (orval-generated).
- *     DO NOT write API types manually in this file.
+ * ⚠️  DTO types are imported from two sources:
+ *       • @generated/models — orval-generated types (TeacherDto, UpdateTeacherDto,
+ *         AttendanceEntryDto). Do NOT write these types manually in this file.
+ *       • ../types/teacher.types — module-level UI types (TeacherFormValues,
+ *         AttendanceMarkEntry, TeacherKpiData, ChatConversation).
+ *       • @shared/types/attendance — AttendanceStatus union type shared between
+ *         the student and teacher modules.
  *
  * Design rules (from the project prompt):
  *   - Pure functions only — no side effects, no API calls.
  *   - Fully typed — no `any`, no unsafe casts.
  *   - Under `exactOptionalPropertyTypes: true`, optional keys must be OMITTED
- *     when absent, not set to `undefined`.
+ *     entirely when absent, not set to `undefined`.
  *   - Unit-tested in src/__tests__/unit/mappers/teacher.mapper.test.ts.
  *     The three exported functions below must keep the same signatures.
  */
@@ -34,6 +41,7 @@ import type { AttendanceStatus } from '@shared/types/attendance';
  *
  * Converts all nullable / undefined fields to safe empty-string / null defaults
  * so React Hook Form never receives `undefined` for a controlled input.
+ * avatarKey is preserved as null when absent (signals "no avatar set").
  */
 export function mapTeacherDtoToForm(dto: TeacherDto): TeacherFormValues {
   return {
@@ -55,10 +63,13 @@ export function mapTeacherDtoToForm(dto: TeacherDto): TeacherFormValues {
  * Maps validated TeacherFormValues back to the UpdateTeacherDto shape required
  * by PATCH /teachers/:id.
  *
- * Optional fields are included only when they carry a non-empty value so the
- * backend treats absence as "no change" (PATCH semantics).
- * avatarKey === null signals "remove avatar" (sent as explicit undefined to
- * clear via the API); omitting it entirely means "don't touch".
+ * Optional fields (phone, bio, qualifications, avatarKey) are included only
+ * when they carry a non-empty value so the backend treats absence as "no change"
+ * (PATCH semantics).
+ *
+ * avatarKey === null is intentionally excluded (not sent) to avoid accidentally
+ * clearing an avatar when the user has not changed that field. Pass an explicit
+ * null in a separate "remove avatar" action if needed.
  */
 export function mapTeacherFormToDto(form: TeacherFormValues): UpdateTeacherDto {
   return {
@@ -69,7 +80,7 @@ export function mapTeacherFormToDto(form: TeacherFormValues): UpdateTeacherDto {
     ...(form.qualifications !== undefined && form.qualifications.length > 0
       ? { qualifications: form.qualifications }
       : {}),
-    // avatarKey === null → remove avatar; undefined → don't touch
+    // avatarKey === null → omit (don't touch); truthy string → include
     ...(form.avatarKey !== null ? { avatarKey: form.avatarKey ?? undefined } : {}),
     languagePreference: form.languagePreference,
     themePreference: form.themePreference,
@@ -85,6 +96,10 @@ export function mapTeacherFormToDto(form: TeacherFormValues): UpdateTeacherDto {
  *
  * The `status` field is cast at runtime here — this is the single place where
  * that cast occurs, keeping components free of type gymnastics.
+ *
+ * avatarUrl and note are only included when they carry a non-empty string value
+ * so the AttendanceMarkEntry type (which marks both as optional) is satisfied
+ * under exactOptionalPropertyTypes.
  */
 export function mapAttendanceEntryDto(dto: AttendanceEntryDto): AttendanceMarkEntry {
   return {
@@ -104,7 +119,8 @@ export function mapAttendanceEntryDto(dto: AttendanceEntryDto): AttendanceMarkEn
 
 /**
  * Creates a zero-initialised TeacherKpiData placeholder — used while the real
- * dashboard data is loading so KPI cards can render without conditional logic.
+ * dashboard data is loading so KPI cards can render skeletons without
+ * conditional logic in the component.
  */
 export function createEmptyTeacherKpi(): TeacherKpiData {
   return {
@@ -162,7 +178,8 @@ export function getTeacherInitials(firstName: string, lastName: string): string 
 
 /**
  * Sorts ChatConversation[] by lastMessageAt descending (most recent first).
- * Conversations with no messages are placed at the end.
+ * Conversations with no messages (lastMessageAt is undefined or null)
+ * are placed at the end of the list.
  * Returns a new array — does NOT mutate the input.
  */
 export function sortConversationsByRecency(
@@ -183,6 +200,7 @@ export function sortConversationsByRecency(
 
 /**
  * Counts the total number of unread messages across all conversations.
+ * Returns 0 when the array is empty.
  */
 export function getTotalUnreadCount(conversations: ChatConversation[]): number {
   return conversations.reduce((acc, c) => acc + c.unreadCount, 0);

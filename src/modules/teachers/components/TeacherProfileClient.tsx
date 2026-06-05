@@ -21,14 +21,25 @@ type TabId = (typeof TABS)[number]['id'];
 
 const panelVariants = {
   hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
-  exit:   { opacity: 0, y: -8, transition: { duration: 0.15, ease: 'easeIn' } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: 'easeOut' },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.15, ease: 'easeIn' },
+  },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TeacherProfileClient() {
-  const { data: user } = useCurrentUser();
+  // ✅ FIX: use `user` (UserProfile | undefined), NOT `data` (any).
+  // The hook exposes both: `data: any` (raw query result) and
+  // `user: UserProfile | undefined` (typed). Always use the typed field.
+  const { user } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
   return (
@@ -77,11 +88,13 @@ export function TeacherProfileClient() {
               <Icon
                 size={14}
                 aria-hidden="true"
-                className={isActive ? 'text-[var(--brand-primary)]' : 'text-[var(--text-muted)]'}
+                className={
+                  isActive ? 'text-[var(--brand-primary)]' : 'text-[var(--text-muted)]'
+                }
               />
               {label}
 
-              {/* Animated active indicator */}
+              {/* Animated active underline indicator */}
               {isActive && (
                 <motion.span
                   layoutId="teacher-profile-tab-indicator"

@@ -596,9 +596,16 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
     [handleOpenAssignRole, reduced],
   );
 
-  // Pagination for DataTable (must be PaginationMeta shape from @shared/types)
+  // Pagination for DataTable — must satisfy PaginationMeta fully
   const pagination = meta
-    ? { page: meta.page, limit: meta.limit, total: meta.total }
+    ? {
+        page: meta.page,
+        limit: meta.limit,
+        total: meta.total,
+        totalPages: meta.totalPages ?? Math.ceil(meta.total / meta.limit),
+        hasNextPage: meta.hasNextPage ?? meta.page < (meta.totalPages ?? Math.ceil(meta.total / meta.limit)),
+        hasPrevPage: meta.hasPrevPage ?? meta.page > 1,
+      }
     : undefined;
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -844,9 +851,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           isLoading={isLoading}
           error={error instanceof Error ? error : null}
           {...(pagination !== undefined ? { pagination } : {})}
-          onPageChange={setPage}
+          onPageChange={(p: number) => setPage(p)}
           rowKey="id"
-          stickyHeader
           emptyState={{
             title: 'No users found',
             description:
