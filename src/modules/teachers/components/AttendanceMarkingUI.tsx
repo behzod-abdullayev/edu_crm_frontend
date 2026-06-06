@@ -235,7 +235,7 @@ function StudentRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function AttendanceMarkingUI() {
-  const { data: currentUser } = useCurrentUser();
+  const { user: currentUser } = useCurrentUser();
   const teacherId = currentUser?.id ?? '';
 
   const [groupId, setGroupId] = useState('');

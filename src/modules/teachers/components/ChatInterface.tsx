@@ -325,7 +325,7 @@ function SelectConversationPrompt() {
 // ─── Main ChatInterface ───────────────────────────────────────────────────────
 
 export function ChatInterface() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
 

@@ -280,7 +280,7 @@ function PlansTab({
       <EmptyState
         title={t('noPlans')}
         description={t('noPlansDesc')}
-        action={canManage ? { label: t('createPlan'), onClick: onCreatePlan } : undefined}
+        {...(canManage && onCreatePlan ? { action: { label: t('createPlan'), onClick: onCreatePlan } } : {})}
       />
     );
   }

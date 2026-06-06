@@ -57,9 +57,9 @@ function getAttendanceBarClass(rate: number): string {
 
 const STATUS_BADGE_VARIANT: Record<
   string,
-  'active' | 'warning' | 'error' | 'outline'
+  'success' | 'warning' | 'error' | 'outline'
 > = {
-  active: 'active',
+  active: 'success',
   inactive: 'error',
   suspended: 'warning',
   graduated: 'outline',

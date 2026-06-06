@@ -93,7 +93,8 @@
     "notAvailable": "Недоступно",
     "comingSoon": "Скоро",
     "beta": "Бета",
-    "new_badge": "Новый"
+    "new_badge": "Новый",
+    "skipToContent": "Перейти к основному контенту"
   },
   "auth": {
     "login": "Войти",
@@ -120,7 +121,13 @@
     "passwordChanged": "Пароль успешно изменён",
     "weakPassword": "Пароль слишком слабый",
     "strongPassword": "Надёжный пароль",
-    "passwordHint": "Не менее 8 символов, включая буквы и цифры"
+    "passwordHint": "Не менее 8 символов, включая буквы и цифры",
+    "signingIn": "Вход...",
+    "token": "Токен",
+    "emailRequired": "Электронная почта обязательна",
+    "emailInvalid": "Неверный адрес электронной почты",
+    "passwordRequired": "Пароль обязателен",
+    "passwordTooShort": "Пароль должен содержать не менее 6 символов"
   },
   "nav": {
     "dashboard": "Главная",

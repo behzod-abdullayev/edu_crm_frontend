@@ -93,7 +93,8 @@
     "notAvailable": "Not available",
     "comingSoon": "Coming soon",
     "beta": "Beta",
-    "new_badge": "New"
+    "new_badge": "New",
+    "skipToContent": "Skip to main content"
   },
   "auth": {
     "login": "Login",
@@ -120,7 +121,13 @@
     "passwordChanged": "Password changed successfully",
     "weakPassword": "Password is too weak",
     "strongPassword": "Strong password",
-    "passwordHint": "At least 8 characters, including one letter and one number"
+    "passwordHint": "At least 8 characters, including one letter and one number",
+    "signingIn": "Signing in...",
+    "token": "Token",
+    "emailRequired": "Email is required",
+    "emailInvalid": "Invalid email address",
+    "passwordRequired": "Password is required",
+    "passwordTooShort": "Password must be at least 6 characters"
   },
   "nav": {
     "dashboard": "Dashboard",

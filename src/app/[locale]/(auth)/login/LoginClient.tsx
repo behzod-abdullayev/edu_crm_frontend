@@ -2,26 +2,14 @@
 
 /**
  * LoginClient — Client Component
- * All interactive login logic lives here so the parent Server Component
- * can remain a pure RSC and export generateMetadata() correctly.
  *
- * Features:
- *  - React Hook Form + Zod validation
- *  - Framer Motion animations (prefers-reduced-motion aware)
- *  - Backend field-level error mapping (setError per field)
- *  - Zustand auth store integration (setUser + setTokens)
- *  - Role-based dashboard redirect after login
- *  - Language switcher (next-intl locale switch)
- *  - Accessible: ARIA roles, focus management, keyboard submit
- *  - Dark/light mode via CSS variables (no inline colors)
- *  - Zero hardcoded strings — all from translation files
- *
- * TS FIXES applied (exactOptionalPropertyTypes: true):
- *  1. LoginClientProps.redirectTo / initialError — changed to required with
- *     explicit `| undefined` so `string | undefined` satisfies the strict type.
- *  2. Framer Motion `variants` / `whileTap` / `whileHover` props —
- *     narrowed with explicit non-undefined types via conditional spread.
- *  3. setError() call — messages[0] guarded to always be `string`.
+ * Tuzatilgan muammolar:
+ * 1. Login dan keyin panel ochilmasligi:
+ *    - setUser() chaqirilganda isAuthenticated=true bo'ladi
+ *    - router.replace() locale prefix bilan to'g'ri ishlaydi
+ *    - Cookie-based auth to'g'ri ishlaydi
+ * 2. Tarjima kalitlari to'g'rilandi (passwordTooShort)
+ * 3. Redirect loop oldini olish
  */
 
 import { Suspense, useState, useId } from 'react';
@@ -39,7 +27,7 @@ import {
 import { Eye, EyeOff, Loader2, GraduationCap } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAuthStore } from '@/store/auth.store';
-import { authApi } from '@/services/api/auth.api';
+import type { UserRole, UserStatus } from '@/shared/types';
 import { parseApiError } from '@/shared/utils/api-error';
 import { cn } from '@/shared/utils/cn';
 
@@ -64,20 +52,19 @@ const LOCALE_LABELS: Record<string, string> = {
 const loginSchema = z.object({
   email: z
     .string()
-    .min(1, 'auth.emailRequired')
-    .email('auth.emailInvalid'),
+    .min(1, 'emailRequired')
+    .email('emailInvalid'),
   password: z
     .string()
-    .min(1, 'auth.passwordRequired')
-    .min(6, 'auth.passwordTooShort'),
+    .min(1, 'passwordRequired')
+    .min(6, 'passwordTooShort'),
   rememberMe: z.boolean().optional().default(false),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-// ─── Animation helpers ────────────────────────────────────────────────────────
+// ─── Animation variants ───────────────────────────────────────────────────────
 
-/** Card entrance animation variants */
 const CARD_VARIANTS: Variants = {
   hidden:  { opacity: 0, scale: 0.96, y: 16 },
   visible: {
@@ -88,7 +75,6 @@ const CARD_VARIANTS: Variants = {
   },
 };
 
-/** Logo icon bounce variants */
 const LOGO_VARIANTS: Variants = {
   hidden:  { scale: 0.7, opacity: 0 },
   visible: {
@@ -98,7 +84,6 @@ const LOGO_VARIANTS: Variants = {
   },
 };
 
-/** Stagger field variants */
 const FIELD_VARIANTS: Variants = {
   hidden:  { opacity: 0, y: 8 },
   visible: (i: number) => ({
@@ -108,31 +93,40 @@ const FIELD_VARIANTS: Variants = {
   }),
 };
 
-/** Framer Motion target for whileTap */
 const BUTTON_WHILE_TAP: TargetAndTransition  = { scale: 0.9  };
 const SUBMIT_WHILE_TAP: TargetAndTransition  = { scale: 0.97 };
 const SUBMIT_WHILE_HOVER: TargetAndTransition = { scale: 1.01 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-/**
- * exactOptionalPropertyTypes: true  ← tsconfig is set this way.
- *
- * With that flag, an optional property `foo?: string` means the key may be
- * absent, but if it IS present it MUST be `string` (not `string | undefined`).
- *
- * To allow the caller to pass `undefined` explicitly (which Next.js searchParams
- * does when a param is not in the URL) we use `foo: string | undefined` instead
- * of `foo?: string`.  That way the type is always present in the object but
- * its value may be undefined — satisfying both callers and strict TS.
- */
 export interface LoginClientProps {
   redirectTo:   string | undefined;
   initialError: string | undefined;
   locale:       string;
 }
 
-// ─── Inner form (uses useSearchParams — must be inside Suspense) ──────────────
+// ─── API response ─────────────────────────────────────────────────────────────
+
+interface LoginApiResponse {
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    status: string;
+    tenantId: string;
+    profilePictureUrl: string | null;
+    phone: string | null;
+    preferredLanguage: string;
+    twoFactorEnabled: boolean;
+    permissions: string[];
+    [key: string]: unknown;
+  };
+  token: string;
+}
+
+// ─── Inner form ───────────────────────────────────────────────────────────────
 
 function LoginForm({
   redirectTo,
@@ -169,48 +163,105 @@ function LoginForm({
   async function onSubmit(values: LoginFormValues) {
     setServerError(null);
     try {
-      const result = await authApi.login({
-        email:    values.email,
-        password: values.password,
+      const res = await fetch('/api/auth/login', {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'include', // Cookie ni olish uchun muhim
+        body:        JSON.stringify({
+          email:      values.email,
+          password:   values.password,
+          rememberMe: values.rememberMe,
+        }),
       });
 
-      setTokens({
-        accessToken:  result.accessToken,
-        refreshToken: result.refreshToken,
-        expiresIn:    values.rememberMe ? 604_800 : 900,
-      });
-      setUser(result.user);
-
-      const redirect =
-        redirectTo ??
-        searchParams?.get('redirect') ??
-        ROLE_DASHBOARD[result.user.role] ??
-        '/';
-
-      const safePath =
-        redirect.startsWith('/') && !redirect.startsWith('//')
-          ? redirect
-          : ROLE_DASHBOARD[result.user.role] ?? '/';
-
-      router.replace(`/${currentLocale}${safePath}`);
-    } catch (err: unknown) {
-      const parsed = parseApiError(err);
-
-      if (parsed.errors) {
-        Object.entries(parsed.errors).forEach(([field, messages]) => {
-          if (field === 'email' || field === 'password') {
-            // Guard: messages[0] might be undefined at runtime
-            const msg = messages[0];
-            if (msg !== undefined) {
-              // exactOptionalPropertyTypes: message must be `string` not
-              // `string | undefined`, so we only call setError when we have one.
-              setError(field, { message: msg });
-            }
+      if (!res.ok) {
+        let errMsg = t('invalidCredentials');
+        try {
+          const errData = await res.json() as {
+            message?: string;
+            errors?: Record<string, string[]>;
+          };
+          if (errData.errors) {
+            Object.entries(errData.errors).forEach(([field, messages]) => {
+              if (field === 'email' || field === 'password') {
+                const msg = messages[0];
+                if (msg !== undefined) setError(field, { message: msg });
+              }
+            });
+            return;
           }
-        });
+          if (typeof errData.message === 'string') errMsg = errData.message;
+        } catch {
+          // JSON parse xatosi — default xabar
+        }
+        setServerError(errMsg);
         return;
       }
 
+      // Muvaffaqiyatli login
+      const data = await res.json() as LoginApiResponse;
+
+      // ── MUHIM: avval setUser, keyin setTokens ──
+      // setUser isAuthenticated = true qiladi
+      // setTokens esa user mavjudligini tekshiradi
+
+      const avatarSpread =
+        data.user.profilePictureUrl !== null
+          ? { avatarUrl: data.user.profilePictureUrl }
+          : {};
+
+      // 1. Avval user ni set qilish — isAuthenticated = true bo'ladi
+      setUser({
+        id:                data.user.id,
+        email:             data.user.email,
+        firstName:         data.user.firstName,
+        lastName:          data.user.lastName,
+        role:              data.user.role as UserRole,
+        status:            data.user.status as UserStatus,
+        permissions:       data.user.permissions,
+        tenantId:          data.user.tenantId,
+        profilePictureUrl: data.user.profilePictureUrl,
+        phone:             data.user.phone,
+        preferredLanguage: data.user.preferredLanguage,
+        twoFactorEnabled:  data.user.twoFactorEnabled,
+        isActive:          data.user.status === 'active',
+        ...avatarSpread,
+      });
+
+      // 2. Token ni set qilish (cookie-based da bo'sh string bo'lishi mumkin)
+      setTokens({
+        accessToken:  data.token,
+        refreshToken: '',     // HTTP-only cookie da — JS ga ochiq emas
+        expiresIn:    values.rememberMe ? 604_800 : 900,
+      });
+
+      // 3. Redirect manzilini aniqlash
+      const redirectParam =
+        redirectTo ??
+        searchParams?.get('redirect') ??
+        null;
+
+      // 4. Role asosida default yo'l
+      const defaultPath = ROLE_DASHBOARD[data.user.role] ?? '/student/dashboard';
+
+      // 5. Redirect manzilin xavfsizligi tekshirish
+      const targetPath =
+        redirectParam &&
+        redirectParam.startsWith('/') &&
+        !redirectParam.startsWith('//')
+          ? redirectParam
+          : defaultPath;
+
+      // 6. Locale prefix bilan to'liq URL yaratish
+      // /uz/admin/dashboard ko'rinishida
+      const finalUrl = `/${currentLocale}${targetPath}`;
+
+      // Kichik delay — state yangilanishi uchun
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      router.replace(finalUrl);
+    } catch (err: unknown) {
+      const parsed = parseApiError(err);
       setServerError(parsed.message ?? t('invalidCredentials'));
     }
   }
@@ -221,15 +272,7 @@ function LoginForm({
     router.replace(`/${locale}${path}${window.location.search}`);
   }
 
-  // ── Reduced-motion aware variant helpers ──────────────────────────────────
-  //
-  // With exactOptionalPropertyTypes, passing `variants={undefined}` to a
-  // Framer Motion element that declares `variants: Variants` (not
-  // `Variants | undefined`) is a TS error.
-  //
-  // Fix: use conditional spreads so the `variants` prop is either fully
-  // present (with the real value) or completely absent from the object.
-  // Same pattern for whileTap / whileHover.
+  // ── Motion props ──────────────────────────────────────────────────────────
 
   const cardMotionProps = shouldReduceMotion
     ? { initial: false as const, animate: 'visible' as const }
@@ -247,25 +290,21 @@ function LoginForm({
         animate:  'visible' as const,
       };
 
-  /** Returns spread-safe motion props for stagger fields */
   function fieldMotionProps(index: number) {
     return shouldReduceMotion
       ? { initial: false as const, animate: 'visible' as const }
       : {
-          custom:  index,
+          custom:   index,
           variants: FIELD_VARIANTS,
-          initial: 'hidden' as const,
-          animate: 'visible' as const,
+          initial:  'hidden' as const,
+          animate:  'visible' as const,
         };
   }
 
-  const togglePasswordMotionProps = shouldReduceMotion
-    ? {}
-    : { whileTap: BUTTON_WHILE_TAP };
+  const togglePasswordMotionProps = shouldReduceMotion ? {} : { whileTap: BUTTON_WHILE_TAP };
+  const submitMotionProps = shouldReduceMotion ? {} : { whileHover: SUBMIT_WHILE_HOVER, whileTap: SUBMIT_WHILE_TAP };
 
-  const submitMotionProps = shouldReduceMotion
-    ? {}
-    : { whileHover: SUBMIT_WHILE_HOVER, whileTap: SUBMIT_WHILE_TAP };
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -289,11 +328,11 @@ function LoginForm({
             {...logoMotionProps}
             aria-hidden="true"
             className={cn(
-              'mb-4 flex h-13 w-13 items-center justify-center rounded-2xl',
+              'mb-4 flex h-14 w-14 items-center justify-center rounded-2xl',
               'bg-[var(--brand-primary)] text-white shadow-lg',
             )}
           >
-            <GraduationCap size={26} strokeWidth={2} />
+            <GraduationCap size={28} strokeWidth={2} />
           </motion.div>
 
           <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-[var(--text-primary)]">
@@ -304,7 +343,7 @@ function LoginForm({
           </p>
         </div>
 
-        {/* ── Server error alert ── */}
+        {/* ── Server error ── */}
         <AnimatedError show={!!serverError} id={errorId}>
           {serverError ?? ''}
         </AnimatedError>
@@ -352,7 +391,10 @@ function LoginForm({
                 role="alert"
                 className="mt-1.5 text-[12px] font-medium text-[var(--error-solid)]"
               >
-                {errors.email.message}
+                {/* Zod message kalitini t() orqali tarjima qilish */}
+                {t(errors.email.message as Parameters<typeof t>[0], {
+                  fallback: errors.email.message,
+                })}
               </p>
             )}
           </motion.div>
@@ -403,7 +445,7 @@ function LoginForm({
                 type="button"
                 {...togglePasswordMotionProps}
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"}
                 aria-controls={passwordId}
                 aria-pressed={showPassword}
                 className={cn(
@@ -425,7 +467,9 @@ function LoginForm({
                 role="alert"
                 className="mt-1.5 text-[12px] font-medium text-[var(--error-solid)]"
               >
-                {errors.password.message}
+                {t(errors.password.message as Parameters<typeof t>[0], {
+                  fallback: errors.password.message,
+                })}
               </p>
             )}
           </motion.div>
@@ -485,14 +529,14 @@ function LoginForm({
         transition={{ delay: 0.35 }}
         className="mt-5 flex gap-2"
         role="navigation"
-        aria-label="Language selection"
+        aria-label="Til tanlash"
       >
         {LOCALES.map((locale) => (
           <button
             key={locale}
             type="button"
             onClick={() => switchLocale(locale)}
-            aria-label={`Switch to ${locale.toUpperCase()}`}
+            aria-label={`${locale.toUpperCase()} tiliga o'tish`}
             aria-current={currentLocale === locale ? 'true' : undefined}
             className={cn(
               'min-h-[36px] rounded-md px-3 py-1.5 text-[13px] font-medium',
@@ -543,7 +587,7 @@ function AnimatedError({
   );
 }
 
-// ─── Public export — page.tsx imports this ────────────────────────────────────
+// ─── Public export ─────────────────────────────────────────────────────────────
 
 export function LoginClient({ redirectTo, initialError }: LoginClientProps) {
   return (

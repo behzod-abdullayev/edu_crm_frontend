@@ -719,7 +719,7 @@ export function InvoiceList({
                   <EmptyState
                     title={t('noInvoices')}
                     description={t('noInvoicesDesc')}
-                    action={canManage ? { label: t('createInvoice'), onClick: onCreateInvoice } : undefined}
+                    {...(canManage && onCreateInvoice ? { action: { label: t('createInvoice'), onClick: onCreateInvoice } } : {})}
                   />
                 </td>
               </tr>
@@ -849,7 +849,7 @@ export function InvoiceList({
               <EmptyState
                 title={t('noInvoices')}
                 description={t('noInvoicesDesc')}
-                action={canManage ? { label: t('createInvoice'), onClick: onCreateInvoice } : undefined}
+                {...(canManage && onCreateInvoice ? { action: { label: t('createInvoice'), onClick: onCreateInvoice } } : {})}
               />
             ) : (
               <div className="divide-y divide-[var(--border-default)]">

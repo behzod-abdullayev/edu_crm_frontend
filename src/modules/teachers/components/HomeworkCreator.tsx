@@ -94,7 +94,7 @@ const schema = z.object({
 // ─── Field error ──────────────────────────────────────────────────────────────
 
 interface FieldErrorProps {
-  message?: string;
+  message: string | undefined;
 }
 
 function FieldError({ message }: FieldErrorProps) {
@@ -269,7 +269,7 @@ interface HomeworkCreatorProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function HomeworkCreator({ onSuccess }: HomeworkCreatorProps) {
-  const { data: currentUser } = useCurrentUser();
+  const { user: currentUser } = useCurrentUser();
   const teacherId = currentUser?.id ?? '';
   const router = useRouter();
 

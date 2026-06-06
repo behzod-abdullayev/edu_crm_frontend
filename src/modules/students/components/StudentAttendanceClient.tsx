@@ -5,7 +5,7 @@ import { useStudentAttendance } from "../hooks/useStudentAttendance";
 import { AttendanceCalendar } from "./AttendanceCalendar";
 
 export function StudentAttendanceClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);

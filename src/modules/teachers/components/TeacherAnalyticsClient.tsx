@@ -52,7 +52,7 @@ function defaultDateFrom(): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TeacherAnalyticsClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const teacherId = user?.id ?? "";
 
   const { data: groups, isLoading: groupsLoading, refetch: refetchGroups } = useTeacherGroups(

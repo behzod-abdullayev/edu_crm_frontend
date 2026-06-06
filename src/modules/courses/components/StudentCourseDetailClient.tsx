@@ -180,7 +180,7 @@ interface StudentCourseDetailClientProps {
 export function StudentCourseDetailClient({
   courseId,
 }: StudentCourseDetailClientProps) {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [activeLesson, setActiveLesson] = useState<LessonItem | null>(null);

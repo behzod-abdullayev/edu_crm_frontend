@@ -149,7 +149,7 @@ function HomeworkMobileCard({ hw }: { hw: HomeworkDto }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StudentHomeworkClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<TabType>("pending");
   const [page, setPage] = useState(1);

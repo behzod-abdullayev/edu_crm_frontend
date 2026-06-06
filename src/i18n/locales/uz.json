@@ -93,7 +93,8 @@
     "notAvailable": "Mavjud emas",
     "comingSoon": "Tez orada",
     "beta": "Beta",
-    "new_badge": "Yangi"
+    "new_badge": "Yangi",
+    "skipToContent": "Asosiy kontentga o'tish"
   },
   "auth": {
     "login": "Kirish",
@@ -120,7 +121,13 @@
     "passwordChanged": "Parol muvaffaqiyatli o'zgartirildi",
     "weakPassword": "Parol juda zaif",
     "strongPassword": "Kuchli parol",
-    "passwordHint": "Kamida 8 ta belgi, bir harfli va bir raqamli bo'lishi kerak"
+    "passwordHint": "Kamida 8 ta belgi, bir harfli va bir raqamli bo'lishi kerak",
+    "signingIn": "Kirish...",
+    "token": "Token",
+    "emailRequired": "Elektron pochta kiritilishi shart",
+    "emailInvalid": "Noto'g'ri elektron pochta manzili",
+    "passwordRequired": "Parol kiritilishi shart",
+    "passwordTooShort": "Parol kamida 6 ta belgidan iborat bo'lishi kerak"
   },
   "nav": {
     "dashboard": "Bosh sahifa",

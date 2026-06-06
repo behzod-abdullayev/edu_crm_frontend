@@ -22,8 +22,16 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import type { Homework } from "@generated/models";
-import { HomeworkStatus } from "@generated/models";
+import type { HomeworkDto } from "@generated/models";
+
+// ─── Homework type alias & status enum ───────────────────────────────────────
+type Homework = HomeworkDto & { status: "published" | "draft" | "closed"; submissionCount?: number };
+
+const HomeworkStatus = {
+  published: "published",
+  draft: "draft",
+  closed: "closed",
+} as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,7 +69,7 @@ function HomeworkStatusBadge({ status }: { status: Homework["status"] }) {
     },
   };
 
-  const config = map[status] ?? map[HomeworkStatus.draft];
+  const config = map[status] ?? map[HomeworkStatus.draft]!;
 
   return (
     <span
@@ -252,7 +260,7 @@ function MobileHomeworkCard({ hw }: { hw: Homework }) {
 const COLS = ["Title", "Group", "Due Date", "Submissions", "Status", ""];
 
 export function TeacherHomeworkClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -265,7 +273,7 @@ export function TeacherHomeworkClient() {
     { page, pageSize: PAGE_SIZE }
   );
 
-  const rows = data?.data ?? [];
+  const rows = (data?.data ?? []) as Homework[];
   const totalPages = data?.totalPages ?? 1;
 
   const handleRefresh = useCallback(async () => {

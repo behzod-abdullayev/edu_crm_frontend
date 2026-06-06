@@ -35,7 +35,7 @@ const PAGE_SIZE = 20;
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StudentNotificationsClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);

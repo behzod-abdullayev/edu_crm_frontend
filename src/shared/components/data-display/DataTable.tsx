@@ -101,7 +101,7 @@ export interface DataTableProps<T extends Record<string, unknown>> {
   /** Whether to stick the header while scrolling (default: true) */
   stickyHeader?: boolean;
   /** Initial sort column key */
-  defaultSortBy?: string;
+  defaultSortBy?: string | null;
   /** Initial sort order */
   defaultSortOrder?: SortOrder;
   /** Debounce delay in ms for the search input (default: 300) */
@@ -795,9 +795,15 @@ export function DataTable<T extends Record<string, unknown>>({
                   >
                     <EmptyStateView
                       title={emptyState?.title ?? t('noData')}
-                      description={emptyState?.description}
-                      icon={emptyState?.icon}
-                      action={emptyState?.action}
+                      {...(emptyState?.description !== undefined
+                        ? { description: emptyState.description }
+                        : {})}
+                      {...(emptyState?.icon !== undefined
+                        ? { icon: emptyState.icon }
+                        : {})}
+                      {...(emptyState?.action !== undefined
+                        ? { action: emptyState.action }
+                        : {})}
                     />
                   </td>
                 </tr>

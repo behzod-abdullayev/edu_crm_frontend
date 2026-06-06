@@ -327,11 +327,11 @@ export function EnrollmentManager({
         onCancel={handleUnenrollCancel}
         onConfirm={handleUnenrollConfirm}
         title="Unenroll Student"
-        description={
-          unenrollTarget
-            ? `Remove ${unenrollTarget.studentName} from this course? Their progress will be permanently lost.`
-            : undefined
-        }
+        {...(unenrollTarget
+          ? {
+              description: `Remove ${unenrollTarget.studentName} from this course? Their progress will be permanently lost.`,
+            }
+          : {})}
         confirmLabel="Unenroll"
         variant="destructive"
         isLoading={unenrollMutation.isPending}

@@ -217,7 +217,7 @@ function MobileList({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StudentScheduleClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
 

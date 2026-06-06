@@ -7,7 +7,7 @@
 
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { OwnerHRClient } from './OwnerHRClient';
 
 type PageProps = {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'owner' });
   return {
-    title: t('hr', { fallback: 'HR — Owner — EduCRM' }),
+    title: t('hr.title'),
     robots: { index: false, follow: false },
   };
 }
@@ -103,7 +103,6 @@ function HRSkeleton() {
 
 export default async function OwnerHRPage({ params }: PageProps) {
   const { locale } = await params;
-  const { setRequestLocale } = await import('next-intl/server');
   setRequestLocale(locale);
 
   return (

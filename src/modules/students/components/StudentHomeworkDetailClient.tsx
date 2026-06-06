@@ -55,7 +55,7 @@ function HomeworkDetailSkeleton() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StudentHomeworkDetailClient({ homeworkId }: Props) {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
 
   const { data: hw, isLoading } = useQuery<HomeworkDetailDto>({
     queryKey: ["homework", homeworkId],

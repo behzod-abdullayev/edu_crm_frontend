@@ -12,7 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  type TooltipProps,
 } from "recharts";
 import { httpClient } from "@/services/api/axios.instance";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
@@ -89,8 +88,11 @@ function ChartSkeleton({ height }: { height: number }) {
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 
-interface CustomTooltipProps extends TooltipProps<number, string> {
-  unit?: string;
+interface CustomTooltipProps {
+  active: boolean | undefined;
+  payload: { value: number | undefined }[] | undefined;
+  label: string | undefined;
+  unit: string | undefined;
   chartType: "bar" | "area";
 }
 
@@ -206,7 +208,10 @@ function BarChartView({ data, height, isMobile }: BarChartViewProps) {
         <Tooltip
           content={(props) => (
             <CustomTooltip
-              {...props}
+              active={props.active}
+              payload={props.payload as { value: number | undefined }[] | undefined}
+              label={props.label as string | undefined}
+              unit={undefined}
               chartType="bar"
             />
           )}
@@ -292,7 +297,9 @@ function AreaChartView({ data, height, isMobile }: AreaChartViewProps) {
         <Tooltip
           content={(props) => (
             <CustomTooltip
-              {...props}
+              active={props.active}
+              payload={props.payload as { value: number | undefined }[] | undefined}
+              label={props.label as string | undefined}
               unit="%"
               chartType="area"
             />

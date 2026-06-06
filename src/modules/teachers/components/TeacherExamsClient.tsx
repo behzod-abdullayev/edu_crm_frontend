@@ -34,7 +34,7 @@ import {
 import type { ExamDto } from "@generated/models";
 
 // ─── Status badge variant mapping ─────────────────────────────────────────────
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+type BadgeVariant = "default" | "warning" | "destructive" | "outline";
 
 function getStatusVariant(status: ExamDto["status"]): BadgeVariant {
   switch (status) {
@@ -43,7 +43,7 @@ function getStatusVariant(status: ExamDto["status"]): BadgeVariant {
     case "completed":
       return "default";
     case "cancelled":
-      return "secondary";
+      return "warning";
     default:
       return "outline";
   }
@@ -145,7 +145,7 @@ const rowVariants = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function TeacherExamsClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const teacherId = user?.id ?? "";
   const isMobile = useIsMobile();
   const examEnabled = useFeatureFlag("examEngine");

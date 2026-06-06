@@ -12,7 +12,13 @@ export default getRequestConfig(async ({ requestLocale }) => {
     notFound();
   }
 
-  const messages = (await import(`./locales/${locale}.json`)) as AbstractIntlMessages;
+  // ✅ FIX 3: Dynamic import() JSON faylni { default: {...} } ko'rinishida qaytaradi
+  // Oldin: `(await import(...)) as AbstractIntlMessages` — bu noto'g'ri edi!
+  // Endi: `.default` dan foydalanamiz, yoki fallback sifatida modulni o'zini ishlatamiz
+  const messagesModule = (await import(`./locales/${locale}.json`)) as {
+    default: AbstractIntlMessages;
+  } & AbstractIntlMessages;
+  const messages = (messagesModule.default ?? messagesModule) as AbstractIntlMessages;
 
   return {
     locale,

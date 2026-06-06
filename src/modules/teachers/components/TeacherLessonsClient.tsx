@@ -24,8 +24,18 @@ import {
   ChevronRight,
   Upload,
 } from "lucide-react";
-import type { Lesson } from "@generated/models";
-import { LessonType } from "@generated/models";
+import type { LessonDto } from "@generated/models";
+
+// ─── Lesson type alias & enum ─────────────────────────────────────────────────
+type Lesson = LessonDto & { isPublished?: boolean };
+
+const LessonType = {
+  video: "video",
+  text: "text",
+  quiz: "quiz",
+  file: "file",
+  live: "live",
+} as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -297,7 +307,7 @@ const COLS = ["Title", "Type", "Duration", "Status", "Uploaded"];
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function TeacherLessonsClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);

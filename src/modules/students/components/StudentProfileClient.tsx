@@ -14,7 +14,7 @@ type Tab = (typeof TABS)[number];
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StudentProfileClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const [tab, setTab] = useState<Tab>("Profile");
 
   return (

@@ -96,7 +96,7 @@ export function LessonViewer({
   onComplete,
   className,
 }: LessonViewerProps) {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

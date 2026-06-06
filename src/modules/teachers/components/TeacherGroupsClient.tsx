@@ -17,7 +17,7 @@ import {
   RefreshCw,
   FolderOpen,
 } from "lucide-react";
-import type { Group } from "@generated/models";
+import type { GroupDto } from "@generated/models";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -88,11 +88,11 @@ function MobileGroupCardSkeleton() {
 // ─── Stats Bar ────────────────────────────────────────────────────────────────
 
 interface StatsBarProps {
-  groups: Group[];
+  groups: GroupDto[];
 }
 
 function StatsBar({ groups }: StatsBarProps) {
-  const activeCount = groups.filter((g) => g.isActive !== false).length;
+  const activeCount = groups.filter((g) => g.status === "active").length;
   const totalStudents = groups.reduce((sum, g) => sum + (g.studentCount ?? 0), 0);
 
   return (
@@ -141,7 +141,7 @@ const itemVariants = {
 };
 
 export function TeacherGroupsClient() {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusOption>("active");
@@ -316,7 +316,7 @@ export function TeacherGroupsClient() {
             role="list"
             aria-label={`${status} groups`}
           >
-            {(groups ?? []).map((group: Group) => (
+            {(groups ?? []).map((group: GroupDto) => (
               <motion.div key={group.id} variants={itemVariants} role="listitem">
                 <GroupDashboard group={group} />
               </motion.div>

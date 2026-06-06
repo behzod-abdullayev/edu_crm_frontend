@@ -18,8 +18,16 @@ import {
   Clock,
   BookOpen,
 } from "lucide-react";
-import type { HomeworkDetail } from "@generated/models";
-import { HomeworkStatus } from "@generated/models";
+import type { HomeworkDetailDto } from "@generated/models";
+
+// ─── Type alias & status enum ─────────────────────────────────────────────────
+type HomeworkDetail = HomeworkDetailDto & { status: "published" | "draft" | "closed"; maxScore?: number };
+
+const HomeworkStatus = {
+  published: "published",
+  draft: "draft",
+  closed: "closed",
+} as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,7 +66,7 @@ function HwStatusBadge({ status }: { status: HomeworkDetail["status"] }) {
     },
   };
 
-  const config = map[status] ?? map[HomeworkStatus.draft];
+  const config = map[status] ?? map[HomeworkStatus.draft]!;
 
   return (
     <span
@@ -260,7 +268,7 @@ export function TeacherHomeworkDetailClient({
   // ── Derived values ─────────────────────────────────────────────────────────
   const submissionsCount = hw.submissions?.length ?? 0;
   const gradedCount =
-    hw.submissions?.filter((s) => s.status === "graded").length ?? 0;
+    hw.submissions?.filter((s: { status: string }) => s.status === "graded").length ?? 0;
   const overdueFlag = hw.dueDate && isOverdue(hw.dueDate);
 
   return (
@@ -378,7 +386,7 @@ export function TeacherHomeworkDetailClient({
             <BookOpen className="w-4 h-4 text-[var(--brand-primary)]" aria-hidden="true" />
             Submissions
             {submissionsCount > 0 && (
-              <Badge variant="secondary" className="tabular-nums">
+              <Badge variant="outline" className="tabular-nums">
                 {submissionsCount}
               </Badge>
             )}

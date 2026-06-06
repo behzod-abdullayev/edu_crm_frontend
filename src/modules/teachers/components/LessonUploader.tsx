@@ -22,7 +22,7 @@ import { useLessonUpload, useTeacherGroups } from "@/modules/teachers/hooks/useT
 import { useCurrentUser } from "@shared/hooks/useCurrentUser";
 import { mapApiErrorsToForm } from "@shared/utils/api-error";
 import type { LessonUploadFormValues } from "../types/teacher.types";
-import type { FileUploadResponse } from "@shared/types";
+import type { UploadedFile } from "@shared/components/forms/FileUploadZone";
 import { Link2, Upload, Loader2 } from "lucide-react";
 
 // ─── Lazy-load rich-text editor to avoid heavy SSR bundle ────────────────────
@@ -83,7 +83,7 @@ function GroupSelectSkeleton() {
 
 export function LessonUploader() {
   const router = useRouter();
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const teacherId = user?.id ?? "";
 
   const { data: groups, isLoading: groupsLoading } = useTeacherGroups(teacherId);
@@ -116,8 +116,8 @@ export function LessonUploader() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleFileUpload = (files: FileUploadResponse[]) => {
-    const key = files[0]?.url ?? "";
+  const handleFileUpload = (file: UploadedFile) => {
+    const key = file.url ?? "";
     setValue("fileKey", key, { shouldDirty: true, shouldValidate: true });
     if (key) clearErrors("videoUrl");
   };
@@ -364,7 +364,6 @@ export function LessonUploader() {
                   "video/webm": [".webm"],
                   "video/quicktime": [".mov"],
                 }}
-                label="Drag & drop a video or PDF, or tap to browse"
               />
               <AnimatePresence initial={false}>
                 {errors.videoUrl && (

@@ -7,7 +7,7 @@
 
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { OwnerSystemClient } from './OwnerSystemClient';
 
 type PageProps = {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'owner' });
   return {
-    title: t('system', { fallback: 'System — Owner — EduCRM' }),
+    title: t('system.title'),
     robots: { index: false, follow: false },
   };
 }
@@ -98,7 +98,6 @@ function SystemSkeleton() {
 
 export default async function OwnerSystemPage({ params }: PageProps) {
   const { locale } = await params;
-  const { setRequestLocale } = await import('next-intl/server');
   setRequestLocale(locale);
 
   return (

@@ -66,7 +66,7 @@ const schema = z.object({
 // ─── Field error message ──────────────────────────────────────────────────────
 
 interface FieldErrorProps {
-  message?: string;
+  message: string | undefined;
 }
 
 function FieldError({ message }: FieldErrorProps) {
@@ -88,7 +88,7 @@ function FieldError({ message }: FieldErrorProps) {
 // ─── Question set badge ───────────────────────────────────────────────────────
 
 interface QuestionSetBadgeProps {
-  count?: number;
+  count: number | undefined;
 }
 
 function QuestionSetBadge({ count }: QuestionSetBadgeProps) {
@@ -110,7 +110,7 @@ interface ExamCreatorProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ExamCreator({ onSuccess, onCancel }: ExamCreatorProps) {
-  const { data: user } = useCurrentUser();
+  const { user } = useCurrentUser();
   const teacherId = user?.id ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();

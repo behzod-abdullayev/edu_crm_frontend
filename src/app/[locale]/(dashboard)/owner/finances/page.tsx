@@ -7,7 +7,7 @@
 
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { OwnerFinancesClient } from './OwnerFinancesClient';
 
 type PageProps = {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'owner' });
   return {
-    title: t('finances', { fallback: 'Finances — Owner — EduCRM' }),
+    title: t('finances.title'),
     robots: { index: false, follow: false },
   };
 }
@@ -102,7 +102,6 @@ function FinancesSkeleton() {
 
 export default async function OwnerFinancesPage({ params }: PageProps) {
   const { locale } = await params;
-  const { setRequestLocale } = await import('next-intl/server');
   setRequestLocale(locale);
 
   return (

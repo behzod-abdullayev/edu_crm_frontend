@@ -97,23 +97,20 @@ _instance.interceptors.response.use(
 
       originalRequest._retry = true;
       isRefreshing = true;
-      const refreshToken = authStore.refreshToken;
 
-      if (!refreshToken) {
-        authStore.clearAuth();
-        processQueue(error, null);
-        isRefreshing = false;
-        if (typeof window !== 'undefined') window.location.href = '/login';
-        return Promise.reject(mapToApiError(error));
-      }
-
+      // ✅ FIX 4: Eski kod Zustand dagi refreshToken ni ishlatardi (cookie-based
+      // login dan keyin bu bo'sh bo'ladi). Endi /api/auth/refresh Next.js route
+      // ga murojaat qilamiz — u HTTP-only refresh_token cookie ni o'zi o'qiydi.
       try {
         const { data } = await axios.post<{
           accessToken: string;
-          refreshToken: string;
-          expiresIn: number;
-        }>(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/refresh`, { refreshToken });
-        authStore.setTokens(data);
+        }>('/api/auth/refresh');  // Body yo'q — cookie avtomatik uzatiladi
+
+        authStore.setTokens({
+          accessToken: data.accessToken,
+          refreshToken: '',  // refresh_token HTTP-only cookie da saqlanadi
+          expiresIn: 900,
+        });
         processQueue(null, data.accessToken);
         if (originalRequest.headers)
           originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`;
@@ -121,6 +118,7 @@ _instance.interceptors.response.use(
       } catch (refreshError: unknown) {
         processQueue(refreshError, null);
         authStore.clearAuth();
+        isRefreshing = false;
         if (typeof window !== 'undefined') window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
@@ -142,7 +140,6 @@ _instance.interceptors.response.use(
 );
 
 // ── Orval mutator — bu funksiya orval tomonidan chaqiriladi ─────────────────
-// Orval (config: AxiosRequestConfig) => Promise<T> ko'rinishidagi funksiya kutadi
 export const axiosInstance = <T>(config: AxiosRequestConfig): Promise<T> =>
   _instance(config).then((res) => res.data as T);
 

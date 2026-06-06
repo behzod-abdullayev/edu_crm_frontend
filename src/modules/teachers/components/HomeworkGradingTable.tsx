@@ -44,9 +44,9 @@ type SortDir = "asc" | "desc";
 function StatusBadge({ status }: { status: HomeworkSubmissionDto["status"] }) {
   const map: Record<
     HomeworkSubmissionDto["status"],
-    { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+    { label: string; variant: "default" | "warning" | "destructive" | "outline" }
   > = {
-    pending: { label: "Pending", variant: "secondary" },
+    pending: { label: "Pending", variant: "warning" },
     graded: { label: "Graded", variant: "default" },
     late: { label: "Late", variant: "destructive" },
   };

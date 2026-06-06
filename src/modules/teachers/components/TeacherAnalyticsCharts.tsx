@@ -19,8 +19,17 @@ import {
 } from "recharts";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
 import { useTeacherAnalytics } from "@/modules/teachers/hooks/useTeacher";
-import type { TeacherAnalytics } from "@generated/models";
+import type { TeacherAnalytics as TeacherAnalyticsBase } from "@/services/api/teachers.api";
 import { cn } from "@shared/lib/utils";
+
+// ─── Extended analytics type ──────────────────────────────────────────────────
+// Adds optional fields that may be returned at runtime but are not in the base type.
+interface TeacherAnalytics extends TeacherAnalyticsBase {
+  totalGroups?: number;
+  homeworkSubmitted?: number;
+  attendanceTrend?: { date: string; rate: number }[];
+  gradeTrend?: { date: string; avg: number }[];
+}
 import { Users, BookOpen, ClipboardList, TrendingUp } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -318,10 +327,11 @@ export default function TeacherAnalyticsCharts({
 }: TeacherAnalyticsChartsProps) {
   const isMobile = useIsMobile();
 
-  const { data: raw, isLoading } = useTeacherAnalytics(teacherId, {
+  const { data: rawBase, isLoading } = useTeacherAnalytics(teacherId, {
     from: dateFrom,
     to: dateTo,
   });
+  const raw: TeacherAnalytics | undefined = rawBase as TeacherAnalytics | undefined;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
 
@@ -390,7 +400,7 @@ export default function TeacherAnalyticsCharts({
         <StatPill
           icon={TrendingUp}
           label="Avg Grade"
-          value={raw.avgGrade !== undefined ? Math.round(raw.avgGrade) : undefined}
+          value={raw.averageGrade !== undefined ? Math.round(raw.averageGrade) : undefined}
           color="#8b5cf6"
         />
       </div>

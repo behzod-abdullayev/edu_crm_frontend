@@ -7,7 +7,7 @@
 
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { OwnerRolesClient } from './OwnerRolesClient';
 
 type PageProps = {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'owner' });
   return {
-    title: t('roles', { fallback: 'Roles & Permissions — Owner — EduCRM' }),
+    title: t('roles.title'),
     robots: { index: false, follow: false },
   };
 }
@@ -129,7 +129,6 @@ function RolesSkeleton() {
 
 export default async function OwnerRolesPage({ params }: PageProps) {
   const { locale } = await params;
-  const { setRequestLocale } = await import('next-intl/server');
   setRequestLocale(locale);
 
   return (

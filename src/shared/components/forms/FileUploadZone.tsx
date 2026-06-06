@@ -189,11 +189,11 @@ function reducer(state: State, action: Action): State {
 
     case 'RESET_FILE':
       return {
-        files: state.files.map((f) =>
-          f.id === action.id
-            ? { ...f, status: 'idle', progress: 0, error: undefined }
-            : f
-        ),
+        files: state.files.map((f): ManagedFile => {
+          if (f.id !== action.id) return f;
+          const { error: _err, ...rest } = f;
+          return { ...rest, status: 'idle', progress: 0 };
+        }),
       };
 
     default:
@@ -333,15 +333,20 @@ export function FileUploadZone({
         return;
       }
 
-      const newFiles: ManagedFile[] = accepted.map((file) => ({
-        id: generateId(),
-        file,
-        status: 'idle',
-        progress: 0,
-        previewUrl: isPreviewable(file.type)
+      const newFiles: ManagedFile[] = accepted.map((file) => {
+        const preview = isPreviewable(file.type)
           ? URL.createObjectURL(file)
-          : undefined,
-      }));
+          : undefined;
+        const base = {
+          id: generateId(),
+          file,
+          status: 'idle' as const,
+          progress: 0,
+        };
+        return preview !== undefined
+          ? { ...base, previewUrl: preview }
+          : base;
+      });
 
       dispatch({ type: 'ADD_FILES', files: newFiles });
 
@@ -357,7 +362,7 @@ export function FileUploadZone({
   const { getRootProps, getInputProps, isDragActive, isDragReject } =
     useDropzone({
       onDrop,
-      accept,
+      ...(accept !== undefined ? { accept } : {}),
       maxSize,
       maxFiles: maxFiles - state.files.length,
       disabled: !canAddMore,
@@ -610,7 +615,9 @@ export function FileUploadZone({
               {/* Thumbnail / icon */}
               <FilePreviewThumbnail
                 file={managed.file}
-                previewUrl={managed.previewUrl}
+                {...(managed.previewUrl !== undefined
+                  ? { previewUrl: managed.previewUrl }
+                  : {})}
               />
 
               {/* File info + progress */}

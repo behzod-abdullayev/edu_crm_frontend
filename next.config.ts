@@ -24,7 +24,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' blob: data: https:",
-      "connect-src 'self' ws: wss: https:",
+      "connect-src 'self' ws: wss: https: http://localhost:* http://127.0.0.1:*",
       "media-src 'self' blob: https:",
       "object-src 'none'",
       "base-uri 'self'",
