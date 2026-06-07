@@ -1,11 +1,26 @@
 'use client';
 
+/**
+ * src/shared/components/navigation/LanguageSwitcher.tsx
+ *
+ * FIX: Replaced all wrong CSS variable names:
+ *   --color-text-secondary  → --text-secondary
+ *   --color-ring            → --border-focus
+ *   --color-border          → --border-default
+ *   --color-accent          → --brand-primary
+ *   --color-accent-subtle   → (inline opacity or --info-bg)
+ *
+ * FIX: Use next/navigation's useRouter for locale-aware routing.
+ *      The path replacement approach is correct; ensured it handles
+ *      both `/uz/owner/...` and root paths properly.
+ */
+
 import { motion } from 'framer-motion';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, usePathname } from 'next/navigation';
 import { ChevronDown, Check } from 'lucide-react';
-import { cn } from '@shared/utils/cn';
+import { cn } from '@/shared/utils/cn';
 
 interface LocaleOption {
   code: string;
@@ -28,9 +43,13 @@ export function LanguageSwitcher() {
   const currentLocale = (LOCALES.find((l) => l.code === locale) ?? LOCALES[0]) as LocaleOption;
 
   const handleChange = (code: string) => {
-    // Replace locale segment in path and reload
+    if (code === locale) return;
+    // Pathname format: /uz/owner/dashboard → replace first segment
     const segments = pathname.split('/');
-    segments[1] = code;
+    // segments[0] is '' (empty before first slash), segments[1] is locale
+    if (segments.length >= 2) {
+      segments[1] = code;
+    }
     router.push(segments.join('/'));
   };
 
@@ -39,10 +58,17 @@ export function LanguageSwitcher() {
       <DropdownMenu.Trigger asChild>
         <button
           aria-label={t('switchLanguage')}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:bg-[var(--bg-sidebar-item-hover)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+          className={cn(
+            'flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm',
+            'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]',
+            'transition-colors outline-none',
+            'focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+          )}
         >
           <span aria-hidden="true">{currentLocale.flag}</span>
-          <span className="hidden sm:inline font-medium">{currentLocale.code.toUpperCase()}</span>
+          <span className="hidden sm:inline font-medium">
+            {currentLocale.code.toUpperCase()}
+          </span>
           <ChevronDown size={12} aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
@@ -54,27 +80,40 @@ export function LanguageSwitcher() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="z-50 min-w-40 bg-[var(--bg-surface)] border border-[var(--color-border)] rounded-xl shadow-xl overflow-hidden outline-none p-1"
+            className={cn(
+              'z-50 min-w-40',
+              'bg-[var(--bg-surface)] border border-[var(--border-default)]',
+              'rounded-xl shadow-[var(--shadow-xl)] overflow-hidden outline-none p-1',
+            )}
           >
-            {LOCALES.map((loc) => (
-              <DropdownMenu.Item key={loc.code} asChild>
-                <button
-                  onClick={() => handleChange(loc.code)}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
-                    locale === loc.code
-                      ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
-                      : 'text-[var(--color-text-primary)] hover:bg-[var(--bg-sidebar-item-hover)]'
-                  )}
-                >
-                  <span aria-hidden="true">{loc.flag}</span>
-                  <span className="flex-1 text-left">{loc.label}</span>
-                  {locale === loc.code && (
-                    <Check size={13} className="text-[var(--color-accent)]" aria-label="selected" />
-                  )}
-                </button>
-              </DropdownMenu.Item>
-            ))}
+            {LOCALES.map((loc) => {
+              const isSelected = locale === loc.code;
+              return (
+                <DropdownMenu.Item key={loc.code} asChild>
+                  <button
+                    onClick={() => handleChange(loc.code)}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg',
+                      'transition-colors cursor-pointer outline-none',
+                      'focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+                      isSelected
+                        ? 'text-[var(--brand-primary)] bg-[var(--info-bg)] font-semibold'
+                        : 'text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+                    )}
+                  >
+                    <span aria-hidden="true">{loc.flag}</span>
+                    <span className="flex-1 text-left">{loc.label}</span>
+                    {isSelected && (
+                      <Check
+                        size={13}
+                        className="text-[var(--brand-primary)]"
+                        aria-label="selected"
+                      />
+                    )}
+                  </button>
+                </DropdownMenu.Item>
+              );
+            })}
           </motion.div>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

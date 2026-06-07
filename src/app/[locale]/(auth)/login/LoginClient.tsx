@@ -3,13 +3,8 @@
 /**
  * LoginClient — Client Component
  *
- * Tuzatilgan muammolar:
- * 1. Login dan keyin panel ochilmasligi:
- *    - setUser() chaqirilganda isAuthenticated=true bo'ladi
- *    - router.replace() locale prefix bilan to'g'ri ishlaydi
- *    - Cookie-based auth to'g'ri ishlaydi
- * 2. Tarjima kalitlari to'g'rilandi (passwordTooShort)
- * 3. Redirect loop oldini olish
+ * FIX TS2305: UserStatus ni @/shared/types dan emas,
+ * @/services/api/auth.api dan import qilish kerak — u shu yerda ta'riflangan.
  */
 
 import { Suspense, useState, useId } from 'react';
@@ -27,7 +22,8 @@ import {
 import { Eye, EyeOff, Loader2, GraduationCap } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAuthStore } from '@/store/auth.store';
-import type { UserRole, UserStatus } from '@/shared/types';
+// FIX: UserStatus faqat auth.api da mavjud — @/shared/types da yo'q
+import type { UserRole, UserStatus } from '@/services/api/auth.api';
 import { parseApiError } from '@/shared/utils/api-error';
 import { cn } from '@/shared/utils/cn';
 
@@ -166,7 +162,7 @@ function LoginForm({
       const res = await fetch('/api/auth/login', {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include', // Cookie ni olish uchun muhim
+        credentials: 'include',
         body:        JSON.stringify({
           email:      values.email,
           password:   values.password,
@@ -198,19 +194,13 @@ function LoginForm({
         return;
       }
 
-      // Muvaffaqiyatli login
       const data = await res.json() as LoginApiResponse;
-
-      // ── MUHIM: avval setUser, keyin setTokens ──
-      // setUser isAuthenticated = true qiladi
-      // setTokens esa user mavjudligini tekshiradi
 
       const avatarSpread =
         data.user.profilePictureUrl !== null
           ? { avatarUrl: data.user.profilePictureUrl }
           : {};
 
-      // 1. Avval user ni set qilish — isAuthenticated = true bo'ladi
       setUser({
         id:                data.user.id,
         email:             data.user.email,
@@ -228,23 +218,19 @@ function LoginForm({
         ...avatarSpread,
       });
 
-      // 2. Token ni set qilish (cookie-based da bo'sh string bo'lishi mumkin)
       setTokens({
         accessToken:  data.token,
-        refreshToken: '',     // HTTP-only cookie da — JS ga ochiq emas
+        refreshToken: '',
         expiresIn:    values.rememberMe ? 604_800 : 900,
       });
 
-      // 3. Redirect manzilini aniqlash
       const redirectParam =
         redirectTo ??
         searchParams?.get('redirect') ??
         null;
 
-      // 4. Role asosida default yo'l
       const defaultPath = ROLE_DASHBOARD[data.user.role] ?? '/student/dashboard';
 
-      // 5. Redirect manzilin xavfsizligi tekshirish
       const targetPath =
         redirectParam &&
         redirectParam.startsWith('/') &&
@@ -252,11 +238,8 @@ function LoginForm({
           ? redirectParam
           : defaultPath;
 
-      // 6. Locale prefix bilan to'liq URL yaratish
-      // /uz/admin/dashboard ko'rinishida
       const finalUrl = `/${currentLocale}${targetPath}`;
 
-      // Kichik delay — state yangilanishi uchun
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       router.replace(finalUrl);
@@ -391,7 +374,6 @@ function LoginForm({
                 role="alert"
                 className="mt-1.5 text-[12px] font-medium text-[var(--error-solid)]"
               >
-                {/* Zod message kalitini t() orqali tarjima qilish */}
                 {t(errors.email.message as Parameters<typeof t>[0], {
                   fallback: errors.email.message,
                 })}

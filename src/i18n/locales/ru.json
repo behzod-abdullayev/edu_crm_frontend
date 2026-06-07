@@ -94,7 +94,10 @@
     "comingSoon": "Скоро",
     "beta": "Бета",
     "new_badge": "Новый",
-    "skipToContent": "Перейти к основному контенту"
+    "skipToContent": "Перейти к основному контенту",
+    "viewProfile": "Просмотр профиля",
+    "mainNavigation": "Главная навигация",
+    "logout": "Выйти"
   },
   "auth": {
     "login": "Войти",
@@ -646,7 +649,20 @@
     "payments": "Платежи",
     "typeToSearch": "Введите для поиска...",
     "searching": "Поиск...",
-    "clearRecent": "Очистить историю"
+    "clearRecent": "Очистить историю",
+    "inputPlaceholder": "Поиск...",
+    "navigate": "навигация",
+    "select": "выбрать",
+    "close": "закрыть",
+    "openSearch": "Открыть поиск",
+    "searchLabel": "Глобальный поиск",
+    "groups": {
+      "students": "Студенты",
+      "teachers": "Учителя",
+      "courses": "Курсы",
+      "payments": "Платежи",
+      "other": "Другое"
+    }
   },
   "upload": {
     "dragDrop": "Перетащите файлы сюда",
@@ -778,7 +794,8 @@
     "language": "Язык",
     "switchRole": "Сменить роль",
     "helpCenter": "Центр помощи",
-    "keyboardShortcuts": "Горячие клавиши"
+    "keyboardShortcuts": "Горячие клавиши",
+    "openMenu": "Открыть меню пользователя"
   },
   "profile": {
     "title": "Профиль",

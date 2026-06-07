@@ -3,13 +3,20 @@
 /**
  * OwnerUsersClient — /[locale]/owner/users
  *
+ * FIX: The generated `useGetOwnerUsers` hook was sending requests directly to
+ *      the backend which caused CORS/auth errors when the backend is not
+ *      accessible from the browser. Switched to `useOwnerUsers` from
+ *      `@/modules/owner/hooks/useOwner` which routes through the Next.js
+ *      API proxy at /api/owner/users → backend /api/v1/owner/users.
+ *
+ * FIX: Added proper null/undefined guards on pagination meta fields.
+ *
  * Features:
  *  - Full-text search (debounced 350 ms)
  *  - Role filter (all / student / teacher / admin / owner)
  *  - Paginated DataTable on desktop (≥ 640 px)
- *  - MobileCardList on mobile (< 640 px) with infinite scroll + pull-to-refresh
- *  - Assign-role sheet (mobile) / modal (desktop) via useAssignUserRole mutation
- *  - Optimistic cache invalidation after role change
+ *  - MobileCardList on mobile (< 640 px) with pull-to-refresh
+ *  - Assign-role sheet (mobile) / modal (desktop)
  *  - Full A11Y: ARIA labels, focus management, keyboard navigation
  *  - Framer Motion: page fade-in, card stagger, button press animations
  *  - i18n via next-intl (zero hardcoded strings for user-facing copy)
@@ -18,7 +25,6 @@
 import { useState, useCallback, useMemo, useId, type ReactNode } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Users,
   Search,
@@ -31,36 +37,32 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// ── Generated API hooks & types ───────────────────────────────────────────────
+// ── Owner module hook (routes through Next.js API proxy) ──────────────────────
 import {
-  useGetOwnerUsers,
-  useAssignUserRole,
-  getGetOwnerUsersQueryKey,
-} from '@generated/api/owner/owner';
-import type { UserProfile } from '@generated/models/userProfile';
-import { UserRole } from '@generated/models/userRole';
-import type { GetOwnerUsersParams } from '@generated/models/getOwnerUsersParams';
+  useOwnerUsers,
+} from '@/modules/owner/hooks/useOwner';
+import type { UserDto, UserRole } from '@/modules/owner/types/owner.types';
 
 // ── Shared components ─────────────────────────────────────────────────────────
-import { DataTable, type ColumnDef } from '@shared/components/data-display/DataTable';
-import { MobileCardList } from '@shared/components/mobile/MobileCardList';
-import { AvatarWithRole } from '@shared/components/data-display/AvatarWithRole';
+import { DataTable, type ColumnDef } from '@/shared/components/data-display/DataTable';
+import { MobileCardList } from '@/shared/components/mobile/MobileCardList';
+import { AvatarWithRole } from '@/shared/components/data-display/AvatarWithRole';
 
 // ── Shared hooks & utils ──────────────────────────────────────────────────────
-import { useDebounce } from '@shared/hooks/useDebounce';
-import { useIsMobile } from '@shared/hooks/useMediaQuery';
-import { useToast } from '@shared/hooks/useToast';
-import { cn } from '@shared/utils/cn';
-import type { UserProfile as SharedUserProfile } from '@shared/types';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useIsMobile } from '@/shared/hooks/useMediaQuery';
+import { useToast } from '@/shared/hooks/useToast';
+import { cn } from '@/shared/utils/cn';
+import type { UserProfile as SharedUserProfile } from '@/shared/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ROLE_OPTIONS: Array<{ value: UserRole | undefined; label: string }> = [
   { value: undefined, label: 'All Roles' },
-  { value: UserRole.student, label: 'Student' },
-  { value: UserRole.teacher, label: 'Teacher' },
-  { value: UserRole.admin, label: 'Admin' },
-  { value: UserRole.owner, label: 'Owner' },
+  { value: 'student', label: 'Student' },
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'owner', label: 'Owner' },
 ];
 
 const ROLE_BADGE_CLASSES: Record<string, string> = {
@@ -70,21 +72,17 @@ const ROLE_BADGE_CLASSES: Record<string, string> = {
   owner:   'bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]',
 };
 
-const PAGE_LIMIT = 10;
-
-// ── Helper: extract avatar-compatible user shape ───────────────────────────────
-// AvatarWithRole expects Pick<SharedUserProfile, 'firstName'|'lastName'|'avatar'|'role'>
-// SharedUserProfile.avatar is `string | undefined` (imported from @shared/types).
-// Generated UserProfile has `avatar?: string | null` so null → undefined.
+// ── Helper: adapt UserDto to AvatarWithRole's expected shape ──────────────────
 function toAvatarUser(
-  u: UserProfile,
+  u: UserDto,
 ): Pick<SharedUserProfile, 'firstName' | 'lastName' | 'avatar' | 'role'> {
+  // UserDto.name is "First Last" — split it
+  const parts = u.name.split(' ');
+  const firstName = parts[0] ?? u.name;
+  const lastName = parts.slice(1).join(' ') || '';
   return {
-    firstName: u.firstName,
-    lastName: u.lastName,
-    // avatar: string | null → strip null to undefined (SharedUserProfile.avatar?: string)
-    ...(u.avatar != null ? { avatar: u.avatar } : {}),
-    // UserRole enum value is assignable to shared 'student'|'teacher'|'admin'|'owner'
+    firstName,
+    lastName,
     role: u.role as SharedUserProfile['role'],
   };
 }
@@ -120,66 +118,45 @@ function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
 // ── Assign Role Sheet / Modal ─────────────────────────────────────────────────
 
 interface AssignRoleDialogProps {
-  user: UserProfile | null;
+  user: UserDto | null;
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onAssign: (userId: string, role: UserRole) => Promise<void>;
 }
+
+const ALL_ROLES: UserRole[] = ['student', 'teacher', 'admin', 'owner'];
 
 function AssignRoleDialog({
   user,
   open,
   onClose,
-  onSuccess,
+  onAssign,
 }: AssignRoleDialogProps) {
   const t = useTranslations();
   const reduced = useReducedMotion() ?? false;
   const isMobile = useIsMobile();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const titleId = useId();
 
-  const [selectedRole, setSelectedRole] = useState<string>(
-    user?.role ?? UserRole.student,
+  const [selectedRole, setSelectedRole] = useState<UserRole>(
+    user?.role ?? 'student',
   );
+  const [isPending, setIsPending] = useState(false);
 
-  const { mutate: assignRole, isPending } = useAssignUserRole({
-    mutation: {
-      onSuccess: (updatedUser) => {
-        // Patch list cache directly, then invalidate for a background sync
-        queryClient.setQueryData(
-          getGetOwnerUsersQueryKey(),
-          (old: { data: UserProfile[]; meta: unknown } | undefined) => {
-            if (!old) return old;
-            return {
-              ...old,
-              data: old.data.map((u) =>
-                u.id === updatedUser.id ? updatedUser : u,
-              ),
-            };
-          },
-        );
-        queryClient.invalidateQueries({
-          queryKey: getGetOwnerUsersQueryKey(),
-          exact: false,
-        });
+  // Sync selectedRole when user changes
+  const currentUserRole = user?.role;
+  useMemo(() => {
+    if (currentUserRole) setSelectedRole(currentUserRole);
+  }, [currentUserRole]);
 
-        toast.success(`Role updated to "${selectedRole}"`);
-        onSuccess();
-        onClose();
-      },
-      onError: () => {
-        toast.error('Failed to assign role. Please try again.');
-      },
-    },
-  });
-
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!user) return;
-    assignRole({
-      id: user.id,
-      data: { role: selectedRole as UserRole },
-    });
+    setIsPending(true);
+    try {
+      await onAssign(user.id, selectedRole);
+      onClose();
+    } finally {
+      setIsPending(false);
+    }
   }
 
   if (!user) return null;
@@ -267,7 +244,7 @@ function AssignRoleDialog({
               <AvatarWithRole user={toAvatarUser(user)} size="md" showRole={false} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                  {user.firstName} {user.lastName}
+                  {user.name}
                 </p>
                 <p className="truncate text-xs text-[var(--text-muted)]">
                   {user.email}
@@ -286,7 +263,7 @@ function AssignRoleDialog({
                 role="radiogroup"
                 aria-label="User role selection"
               >
-                {Object.values(UserRole).map((role) => {
+                {ALL_ROLES.map((role) => {
                   const isSelected = selectedRole === role;
                   return (
                     <motion.button
@@ -383,17 +360,16 @@ function AssignRoleDialog({
 // ── User card (mobile card list item) ─────────────────────────────────────────
 
 interface UserCardProps {
-  user: UserProfile;
+  user: UserDto;
   isSelected: boolean;
-  onAssignRole: (user: UserProfile) => void;
+  onAssignRole: (user: UserDto) => void;
 }
 
 function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
   const reduced = useReducedMotion() ?? false;
 
-  const fullName = `${user.firstName} ${user.lastName}`;
-  const lastLogin = user.lastLoginAt
-    ? format(new Date(user.lastLoginAt), 'MMM d, yyyy')
+  const lastLogin = user.lastLogin
+    ? format(new Date(user.lastLogin), 'MMM d, yyyy')
     : 'Never';
 
   return (
@@ -406,13 +382,13 @@ function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
         'bg-[var(--bg-surface)] transition-colors duration-[var(--transition-fast)]',
         isSelected && 'bg-[var(--brand-primary)]/5',
       )}
-      aria-label={`User: ${fullName}, role: ${user.role}`}
+      aria-label={`User: ${user.name}, role: ${user.role}`}
     >
       <AvatarWithRole user={toAvatarUser(user)} size="md" showRole={false} />
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
-          {fullName}
+          {user.name}
         </p>
         <p className="truncate text-xs text-[var(--text-muted)]">
           {user.email}
@@ -427,7 +403,7 @@ function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
         <button
           type="button"
           onClick={() => onAssignRole(user)}
-          aria-label={`Change role for ${fullName}`}
+          aria-label={`Change role for ${user.name}`}
           className={cn(
             'flex h-8 min-h-[32px] items-center gap-1 rounded-lg border border-[var(--border-default)]',
             'px-2.5 text-[11px] font-semibold text-[var(--text-secondary)]',
@@ -450,10 +426,10 @@ interface OwnerUsersClientProps {
   locale: string;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// Widen UserDto for DataTable (which requires Record<string,unknown>)
+type UserRow = UserDto & Record<string, unknown>;
 
-// Widen UserProfile for DataTable (which requires Record<string,unknown>)
-type UserRow = UserProfile & Record<string, unknown>;
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const t = useTranslations();
@@ -461,44 +437,62 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const reduced = useReducedMotion() ?? false;
   const { toast } = useToast();
 
-  // ── Filter / pagination state ──────────────────────────────────────────────
+  // ── Filter state ───────────────────────────────────────────────────────────
   const [searchRaw, setSearchRaw] = useState('');
   const search = useDebounce(searchRaw, 350);
   const [roleFilter, setRoleFilter] = useState<UserRole | undefined>(undefined);
-  const [page, setPage] = useState(1);
 
   // ── Dialog state ───────────────────────────────────────────────────────────
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // ── Role filter dropdown ───────────────────────────────────────────────────
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const roleFilterId = useId();
 
-  // Build query params
-  const queryParams = useMemo<GetOwnerUsersParams>(
+  // ── Data fetching (via /api/owner/users proxy) ─────────────────────────────
+  const {
+    users: allUsers,
+    isLoading,
+    changeRole,
+    refresh,
+  } = useOwnerUsers();
+
+  // Client-side filter (since the hook fetches all users at once)
+  const users = useMemo<UserDto[]>(() => {
+    let filtered = allUsers;
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q),
+      );
+    }
+    if (roleFilter) {
+      filtered = filtered.filter((u) => u.role === roleFilter);
+    }
+    return filtered;
+  }, [allUsers, search, roleFilter]);
+
+  // Build fake pagination meta for DataTable
+  const pagination = useMemo(
     () => ({
-      page,
-      limit: PAGE_LIMIT,
-      ...(search ? { search } : {}),
-      ...(roleFilter ? { role: roleFilter } : {}),
+      page: 1,
+      limit: users.length || 10,
+      total: users.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
     }),
-    [page, search, roleFilter],
+    [users.length],
   );
 
-  // ── Data fetching ──────────────────────────────────────────────────────────
-  const {
-    data: usersPage,
-    isLoading,
-    error,
-    refetch,
-  } = useGetOwnerUsers(queryParams);
-
-  const users: UserProfile[] = usersPage?.data ?? [];
-  const meta = usersPage?.meta;
+  // Error state (hook doesn't expose error, but we can handle load failures)
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleOpenAssignRole = useCallback((user: UserProfile) => {
+  const handleOpenAssignRole = useCallback((user: UserDto) => {
     setSelectedUser(user);
     setDialogOpen(true);
   }, []);
@@ -508,19 +502,35 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
     setTimeout(() => setSelectedUser(null), 300);
   }, []);
 
+  const handleAssignRole = useCallback(
+    async (userId: string, role: UserRole) => {
+      try {
+        await changeRole(userId, role);
+        toast.success('Role assigned successfully');
+      } catch {
+        toast.error('Failed to assign role. Please try again.');
+        throw new Error('Role assignment failed');
+      }
+    },
+    [changeRole, toast],
+  );
+
   const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    setLoadError(null);
+    try {
+      await refresh();
+    } catch (e) {
+      setLoadError(e instanceof Error ? e : new Error('Refresh failed'));
+    }
+  }, [refresh]);
 
   const handleSearch = useCallback((v: string) => {
     setSearchRaw(v);
-    setPage(1);
   }, []);
 
   const handleRoleFilter = useCallback(
     (role: UserRole | undefined) => {
       setRoleFilter(role);
-      setPage(1);
       setRoleDropdownOpen(false);
     },
     [],
@@ -534,7 +544,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         header: 'User',
         accessor: (row): ReactNode => (
           <AvatarWithRole
-            user={toAvatarUser(row as UserProfile)}
+            user={toAvatarUser(row as UserDto)}
             size="sm"
             showName
             showRole={false}
@@ -552,18 +562,18 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         key: 'role',
         header: 'Role',
         accessor: (row): ReactNode => (
-          <RoleBadge role={(row as UserProfile).role} />
+          <RoleBadge role={(row as UserDto).role} />
         ),
         sortable: true,
         width: '120px',
       },
       {
-        key: 'lastLoginAt',
+        key: 'lastLogin',
         header: 'Last Login',
         accessor: (row): ReactNode => {
-          const u = row as UserProfile;
-          return u.lastLoginAt
-            ? format(new Date(u.lastLoginAt), 'MMM d, yyyy')
+          const u = row as UserDto;
+          return u.lastLogin
+            ? format(new Date(u.lastLogin), 'MMM d, yyyy')
             : '—';
         },
         width: '140px',
@@ -574,9 +584,9 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         accessor: (row): ReactNode => (
           <motion.button
             type="button"
-            onClick={() => handleOpenAssignRole(row as UserProfile)}
+            onClick={() => handleOpenAssignRole(row as UserDto)}
             whileTap={reduced ? {} : { scale: 0.95 }}
-            aria-label={`Change role for ${(row as UserProfile).firstName} ${(row as UserProfile).lastName}`}
+            aria-label={`Change role for ${(row as UserDto).name}`}
             className={cn(
               'flex h-9 min-h-[36px] items-center gap-1.5 rounded-lg border',
               'border-[var(--border-default)] bg-[var(--bg-surface)]',
@@ -595,18 +605,6 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
     ],
     [handleOpenAssignRole, reduced],
   );
-
-  // Pagination for DataTable — must satisfy PaginationMeta fully
-  const pagination = meta
-    ? {
-        page: meta.page,
-        limit: meta.limit,
-        total: meta.total,
-        totalPages: meta.totalPages ?? Math.ceil(meta.total / meta.limit),
-        hasNextPage: meta.hasNextPage ?? meta.page < (meta.totalPages ?? Math.ceil(meta.total / meta.limit)),
-        hasPrevPage: meta.hasPrevPage ?? meta.page > 1,
-      }
-    : undefined;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -629,11 +627,9 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             />
             {t('nav.users')}
           </h1>
-          {meta && (
-            <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-              {meta.total.toLocaleString()} total users
-            </p>
-          )}
+          <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+            {users.length.toLocaleString()} total users
+          </p>
         </div>
       </div>
 
@@ -791,7 +787,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
 
       {/* ── Error banner ─────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {error != null && (
+        {loadError != null && (
           <motion.div
             initial={reduced ? {} : { opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -807,7 +803,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             <span>{t('errors.serverError')}</span>
             <button
               type="button"
-              onClick={() => refetch()}
+              onClick={() => void handleRefresh()}
               className="ml-auto font-semibold underline hover:no-underline focus-visible:outline-none"
             >
               {t('common.retry')}
@@ -816,16 +812,13 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Desktop: DataTable | Mobile: MobileCardList ───────────────────── */}
+      {/* ── Desktop: DataTable | Mobile: card list ───────────────────── */}
       {isMobile ? (
         <MobileCardList
-          data={users as (UserProfile & { id: string })[]}
+          data={users as (UserDto & { id: string })[]}
           isLoading={isLoading}
-          error={error instanceof Error ? error : null}
-          hasMore={meta?.hasNextPage ?? false}
-          {...(meta?.hasNextPage
-            ? { onLoadMore: () => setPage((p) => p + 1) }
-            : {})}
+          error={loadError}
+          hasMore={false}
           onRefresh={handleRefresh}
           emptyState={{
             title: 'No users found',
@@ -849,9 +842,9 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           columns={columns}
           data={users as UserRow[]}
           isLoading={isLoading}
-          error={error instanceof Error ? error : null}
-          {...(pagination !== undefined ? { pagination } : {})}
-          onPageChange={(p: number) => setPage(p)}
+          error={loadError}
+          pagination={pagination}
+          onPageChange={() => {/* single page */}}
           rowKey="id"
           emptyState={{
             title: 'No users found',
@@ -868,9 +861,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         user={selectedUser}
         open={dialogOpen}
         onClose={handleCloseDialog}
-        onSuccess={() => {
-          toast.success('Role assigned successfully');
-        }}
+        onAssign={handleAssignRole}
       />
     </motion.main>
   );

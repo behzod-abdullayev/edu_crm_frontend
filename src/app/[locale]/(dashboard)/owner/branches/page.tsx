@@ -8,7 +8,6 @@
  * search, status filter, desktop table + mobile card list.
  */
 
-import type { Metadata } from 'next';
 import { useState, useCallback, useMemo, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -41,10 +40,6 @@ import type { BranchDto, BranchForm } from '@modules/owner/types/owner.types';
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
-export const metadata: Metadata = {
-  title: 'Branches | Owner — EduCRM',
-  robots: { index: false, follow: false },
-};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

@@ -94,7 +94,10 @@
     "comingSoon": "Tez orada",
     "beta": "Beta",
     "new_badge": "Yangi",
-    "skipToContent": "Asosiy kontentga o'tish"
+    "skipToContent": "Asosiy kontentga o'tish",
+    "viewProfile": "Profilni ko'rish",
+    "mainNavigation": "Asosiy navigatsiya",
+    "logout": "Chiqish"
   },
   "auth": {
     "login": "Kirish",
@@ -646,7 +649,20 @@
     "payments": "To'lovlar",
     "typeToSearch": "Qidirish uchun yozing...",
     "searching": "Qidirilmoqda...",
-    "clearRecent": "So'nggi qidiruvlarni tozalash"
+    "clearRecent": "So'nggi qidiruvlarni tozalash",
+    "inputPlaceholder": "Qidirish...",
+    "navigate": "navigatsiya",
+    "select": "tanlash",
+    "close": "yopish",
+    "openSearch": "Qidiruvni ochish",
+    "searchLabel": "Global qidiruv",
+    "groups": {
+      "students": "O'quvchilar",
+      "teachers": "O'qituvchilar",
+      "courses": "Kurslar",
+      "payments": "To'lovlar",
+      "other": "Boshqa"
+    }
   },
   "upload": {
     "dragDrop": "Fayllarni bu yerga tashlang",
@@ -778,7 +794,8 @@
     "language": "Til",
     "switchRole": "Rolni almashtirish",
     "helpCenter": "Yordam markazi",
-    "keyboardShortcuts": "Klaviatura yorliqlari"
+    "keyboardShortcuts": "Klaviatura yorliqlari",
+    "openMenu": "Menyuni ochish"
   },
   "profile": {
     "title": "Profil",

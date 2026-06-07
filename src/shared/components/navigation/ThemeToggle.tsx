@@ -1,11 +1,19 @@
 'use client';
 
+/**
+ * src/shared/components/navigation/ThemeToggle.tsx
+ *
+ * FIX: Replaced wrong CSS variable names:
+ *   --color-text-secondary → --text-secondary
+ *   --color-ring           → --border-focus
+ */
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import { useUIStore } from '@/store/ui.store';
-import { cn } from '@shared/utils/cn';
+import { cn } from '@/shared/utils/cn';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -37,9 +45,10 @@ export function ThemeToggle() {
       aria-label={t('switchTo', { mode: next ? t(next.labelKey) : '' })}
       whileTap={{ scale: 0.9 }}
       className={cn(
-        'relative p-2 rounded-lg text-[var(--color-text-secondary)]',
-        'hover:bg-[var(--bg-sidebar-item-hover)] transition-colors',
-        'outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]'
+        'relative p-2 rounded-lg',
+        'text-[var(--text-secondary)]',
+        'hover:bg-[var(--bg-surface-hover)] transition-colors',
+        'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
       )}
     >
       <AnimatePresence mode="wait">

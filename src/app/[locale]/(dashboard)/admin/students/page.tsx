@@ -8,7 +8,6 @@
  * Mobile   → card list with swipe actions, pull-to-refresh, infinite scroll
  */
 
-import type { Metadata } from 'next';
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -41,10 +40,6 @@ import type { StudentDto } from '@modules/admin/types/admin.types';
 
 // ─── Metadata ────────────────────────────────────────────────────────────────
 
-export const metadata: Metadata = {
-  title: 'Students | Admin — EduCRM',
-  robots: { index: false, follow: false },
-};
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 

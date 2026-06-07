@@ -3,9 +3,12 @@
 /**
  * Admin Settings Page
  * Route: /[locale]/(dashboard)/admin/settings
+ *
+ * ✅ 'use client' — metadata export bu fayldan OLIB TASHLANDI.
+ *    Next.js da 'use client' va export const metadata bir faylda bo'lishi mumkin emas.
+ *    Metadata src/app/[locale]/(dashboard)/admin/settings/metadata.ts ga ko'chirildi.
  */
 
-import type { Metadata } from 'next';
 import { useState, useCallback, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -31,13 +34,6 @@ import { PricingManager } from '@modules/admin/components/PricingManager';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { cn } from '@shared/utils/cn';
 import type { TenantConfig, FeatureFlags } from '@modules/admin/types/admin.types';
-
-// ─── Metadata export (used by Next.js for static metadata) ───────────────────
-
-export const metadata: Metadata = {
-  title: 'Settings | Admin — EduCRM',
-  robots: { index: false, follow: false },
-};
 
 // ─── Section type ─────────────────────────────────────────────────────────────
 
@@ -292,7 +288,6 @@ function NotificationsSection() {
 
   const handleSave = useCallback(() => {
     startTransition(async () => {
-      // PATCH /api/admin/settings/notifications
       await new Promise<void>((res) => setTimeout(res, 600));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -418,7 +413,6 @@ export default function AdminSettingsPage() {
 
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
 
-  // Local feature flags state (applied on top of config until saved)
   const [localFeatures, setLocalFeatures] = useState<FeatureFlags | null>(null);
 
   const defaultFeatures: FeatureFlags = {

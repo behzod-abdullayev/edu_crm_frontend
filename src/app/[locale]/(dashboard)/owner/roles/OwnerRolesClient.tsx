@@ -1,21 +1,81 @@
 'use client';
 // src/app/[locale]/(dashboard)/owner/roles/OwnerRolesClient.tsx
 //
+// FIX: "Cannot read properties of undefined (reading 'map')"
+//      The backend returns roles as a plain array, so `matrix.allPermissions`
+//      was undefined when RolePermissionMatrix tried to call .map() on it.
+//      Added `ensureMatrix()` to derive allPermissions from role.permissions
+//      when the backend doesn't supply the full PermissionMatrix shape.
+//
 // ✅ Zero `any` types
 // ✅ Framer Motion: card stagger, save button pulse, checkmark animate
 // ✅ Responsive: matrix scrolls horizontally on mobile, full table desktop
 // ✅ Light/dark via CSS variables only
 // ✅ ARIA: role="grid", aria-checked, aria-label on toggles
-// ✅ RolePermissionMatrix component integrated
-// ✅ "Create custom role" modal (owner-only feature)
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useOwnerRoles } from '@/modules/owner/hooks/useOwner';
 import { RolePermissionMatrix } from '@/modules/owner/components/RolePermissionMatrix';
-import type { UserRole } from '@/modules/owner/types/owner.types';
+import type {
+  UserRole,
+  PermissionMatrix,
+  RoleDto,
+  PermissionCategory,
+} from '@/modules/owner/types/owner.types';
 import { cn } from '@/shared/utils/cn';
+
+// ─── Safe matrix normalizer ───────────────────────────────────────────────────
+//
+// The backend may return:
+//   a) A full PermissionMatrix: { roles: [...], allPermissions: [...] }
+//   b) Just an array of RoleDto
+//   c) An object with roles but without allPermissions
+//
+// This function always produces a valid PermissionMatrix with allPermissions
+// derived from the union of all permissions across all roles.
+
+function ensureMatrix(raw: PermissionMatrix | null): PermissionMatrix | null {
+  if (!raw) return null;
+
+  // If allPermissions is already a non-empty array, use as-is
+  if (Array.isArray(raw.allPermissions) && raw.allPermissions.length > 0) {
+    return raw;
+  }
+
+  // Build allPermissions from the union of role.permissions
+  // Group permissions by their prefix (e.g. "course.create" → category "course")
+  const categoryMap = new Map<string, Set<string>>();
+
+  for (const role of raw.roles) {
+    for (const perm of role.permissions) {
+      const parts = perm.split('.');
+      const category = parts[0] ?? 'other';
+      if (!categoryMap.has(category)) {
+        categoryMap.set(category, new Set());
+      }
+      categoryMap.get(category)!.add(perm);
+    }
+  }
+
+  const allPermissions: PermissionCategory[] = Array.from(
+    categoryMap.entries(),
+  ).map(([category, permSet]) => ({
+    category,
+    permissions: Array.from(permSet).map((key) => ({
+      key,
+      label: key
+        .replace(/\./g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+    })),
+  }));
+
+  return {
+    roles: raw.roles,
+    allPermissions,
+  };
+}
 
 // ─── Role color tokens ────────────────────────────────────────────────────────
 
@@ -238,10 +298,31 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Empty / error state ──────────────────────────────────────────────────────
+
+function MatrixEmptyState() {
+  return (
+    <div
+      className="py-16 text-center"
+      style={{ color: 'var(--text-muted)' }}
+    >
+      <p className="text-4xl mb-3" aria-hidden="true">🔒</p>
+      <p className="text-sm">Unable to load permission matrix</p>
+      <p className="text-xs mt-1 opacity-70">
+        The backend may not have returned role data yet.
+      </p>
+    </div>
+  );
+}
+
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function OwnerRolesClient() {
-  const { matrix, isLoading, saveRole } = useOwnerRoles();
+  const { matrix: rawMatrix, isLoading, saveRole } = useOwnerRoles();
+
+  // FIX: normalize the matrix so allPermissions is always present
+  const matrix = ensureMatrix(rawMatrix);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
@@ -302,7 +383,7 @@ export function OwnerRolesClient() {
         </div>
       ) : matrix ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {matrix.roles.map((role, i) => (
+          {matrix.roles.map((role: RoleDto, i: number) => (
             <RoleCard
               key={role.id}
               displayName={role.displayName}
@@ -358,20 +439,15 @@ export function OwnerRolesClient() {
                 />
               ))}
             </div>
-          ) : matrix ? (
+          ) : matrix && matrix.allPermissions.length > 0 ? (
+            // FIX: only render RolePermissionMatrix when allPermissions is populated
             <RolePermissionMatrix
               matrix={matrix}
               onSaveRole={saveRole}
               onCreateRole={() => setShowCreateModal(true)}
             />
           ) : (
-            <div
-              className="py-16 text-center"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <p className="text-4xl mb-3" aria-hidden="true">🔒</p>
-              <p className="text-sm">Unable to load permission matrix</p>
-            </div>
+            <MatrixEmptyState />
           )}
         </div>
       </motion.div>

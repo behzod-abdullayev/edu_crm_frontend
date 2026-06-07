@@ -4,12 +4,19 @@
  * Owner Analytics Page
  * Route: /[locale]/(dashboard)/owner/analytics
  *
- * Full global analytics dashboard: MRR/ARR KPIs, global revenue trend,
- * branch comparison, user growth, enrollment trends — with date range
- * filters and CSV export.
+ * Muammo: Backend GET /api/v1/owner/analytics/global → GlobalAnalyticsDto qaytaradi:
+ *   { revenueByMonth: [{month, amount}], studentGrowth: [{month, count}],
+ *     branchComparison: [], userGrowth: [] }
+ *
+ * Oldingi kod MultiTenantChartData formatini kutardi:
+ *   { globalRevenue: [{month, revenue}], userGrowth: [{month, count}],
+ *     enrollmentTrends: [{month, count}], branchComparison: [] }
+ *
+ * useOwnerAnalytics hook endi mapper orqali to'g'ri konvertatsiya qiladi.
+ * Bu sahifada qo'shimcha himoya: optional chaining va nullish coalescing
+ * bilan barcha slice() chaqiruvlari xavfsiz.
  */
 
-import type { Metadata } from 'next';
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
@@ -28,56 +35,34 @@ import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
 import { cn } from '@shared/utils/cn';
 import { formatNumber } from '@shared/utils/format';
-import type {
-  MultiTenantChartData,
-} from '@modules/owner/types/owner.types';
 
-// ─── Metadata ─────────────────────────────────────────────────────────────────
-
-export const metadata: Metadata = {
-  title: 'Analytics | Owner — EduCRM',
-  robots: { index: false, follow: false },
-};
-
-// ─── Lazily loaded recharts container (heavy — SSR must be off) ───────────────
+// ─── Lazily loaded recharts container ────────────────────────────────────────
 
 const ResponsiveContainer = dynamic(
   () => import('recharts').then((m) => ({ default: m.ResponsiveContainer })),
-  { ssr: false, loading: () => <div className="h-full w-full animate-pulse rounded-lg bg-[var(--bg-surface-hover)]" /> },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full animate-pulse rounded-lg bg-[var(--bg-surface-hover)]" />
+    ),
+  },
 );
-const AreaChart = dynamic(
-  () => import('recharts').then((m) => ({ default: m.AreaChart })),
-  { ssr: false },
-);
-const BarChart = dynamic(
-  () => import('recharts').then((m) => ({ default: m.BarChart })),
-  { ssr: false },
-);
-const LineChart = dynamic(
-  () => import('recharts').then((m) => ({ default: m.LineChart })),
-  { ssr: false },
-);
+const AreaChart = dynamic(() => import('recharts').then((m) => ({ default: m.AreaChart })), {
+  ssr: false,
+});
+const BarChart = dynamic(() => import('recharts').then((m) => ({ default: m.BarChart })), {
+  ssr: false,
+});
+const LineChart = dynamic(() => import('recharts').then((m) => ({ default: m.LineChart })), {
+  ssr: false,
+});
 const CartesianGrid = dynamic(
   () => import('recharts').then((m) => ({ default: m.CartesianGrid })),
   { ssr: false },
 );
 
-// ─── Recharts primitives — imported directly (not dynamic) ────────────────────
-// dynamic() wraps only default-exported components. Recharts primitives like
-// Area, Bar, Line, XAxis, YAxis, Tooltip, Legend are not default exports from
-// their own modules — they are named exports from 'recharts'. Wrapping them in
-// dynamic() causes TS2345 because the loader signature does not match
-// DynamicOptions<Props>. Import them statically; the chart container itself
-// is already lazy-loaded above, so SSR is handled at the container level.
-import {
-  Area,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from 'recharts';
+// Recharts primitives — named exports from 'recharts', imported directly
+import { Area, Bar, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 // ─── Branch color palette ─────────────────────────────────────────────────────
 
@@ -90,7 +75,7 @@ const CHART_COLORS = [
   'var(--brand-secondary)',
 ];
 
-// ─── Custom recharts tooltip ──────────────────────────────────────────────────
+// ─── Custom tooltip ───────────────────────────────────────────────────────────
 
 interface TooltipPayloadItem {
   name: string;
@@ -120,7 +105,8 @@ function CustomTooltip({ active, payload, label, prefix = '' }: CustomTooltipPro
           />
           <span className="text-[var(--text-muted)]">{item.name}:</span>
           <span className="font-medium text-[var(--text-primary)]">
-            {prefix}{formatNumber(item.value)}
+            {prefix}
+            {formatNumber(item.value)}
           </span>
         </div>
       ))}
@@ -163,6 +149,7 @@ function DateRangePicker({
       {OPTIONS.map((opt) => (
         <button
           key={opt.value}
+          type="button"
           onClick={() => onChange(opt.value)}
           aria-pressed={value === opt.value}
           className={cn(
@@ -243,7 +230,8 @@ function KPICard({
         {label}
       </p>
       <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)] xl:text-3xl">
-        {prefix}{formatNumber(value)}
+        {prefix}
+        {formatNumber(value)}
       </p>
     </motion.div>
   );
@@ -483,16 +471,18 @@ export default function OwnerAnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange>('30d');
 
   // Derive unique branch names for bar chart series keys
+  // Safe: optional chaining prevents crashes when chartData is null
   const branchList = useMemo<string[]>(() => {
     const first = chartData?.branchComparison?.[0];
     if (!first) return [];
     return Object.keys(first).filter((k) => k !== 'period');
   }, [chartData]);
 
-  // Slice data by date range
+  // Slice data by date range — all with safe fallback to []
   const revenueData = useMemo(() => {
     const all = chartData?.globalRevenue ?? [];
-    const count = dateRange === '7d' ? 7 : dateRange === '30d' ? 12 : dateRange === '90d' ? 12 : 12;
+    const count =
+      dateRange === '7d' ? 7 : dateRange === '30d' ? 12 : dateRange === '90d' ? 12 : 12;
     return all.slice(-count);
   }, [chartData, dateRange]);
 
@@ -511,8 +501,9 @@ export default function OwnerAnalyticsPage() {
   }, [chartData]);
 
   const handleExport = () => {
-    if (!chartData?.globalRevenue?.length) return;
-    const rows = chartData.globalRevenue.map((d) => `${d.month},${d.revenue}`);
+    const globalRevenue = chartData?.globalRevenue ?? [];
+    if (!globalRevenue.length) return;
+    const rows = globalRevenue.map((d) => `${d.month},${d.revenue}`);
     const csv = ['Month,Revenue', ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -551,6 +542,7 @@ export default function OwnerAnalyticsPage() {
           <div className="flex items-center gap-2">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <motion.button
+              type="button"
               whileTap={{ scale: 0.96 }}
               onClick={handleExport}
               disabled={chartLoading || !chartData}
@@ -656,7 +648,8 @@ export default function OwnerAnalyticsPage() {
               ) : (
                 <SimpleBarDisplay
                   title="User Growth"
-                  data={chartData.userGrowth.slice(-4).map((d) => ({
+                  // Safe: optional chaining + nullish coalescing prevents crash
+                  data={(chartData.userGrowth ?? []).slice(-4).map((d) => ({
                     label: d.month,
                     value: d.count,
                   }))}
@@ -670,7 +663,8 @@ export default function OwnerAnalyticsPage() {
             ) : (
               <SimpleBarDisplay
                 title="Enrollment Trends"
-                data={chartData.enrollmentTrends.slice(-4).map((d) => ({
+                // Safe: optional chaining + nullish coalescing prevents crash
+                data={(chartData.enrollmentTrends ?? []).slice(-4).map((d) => ({
                   label: d.month,
                   value: d.count,
                 }))}

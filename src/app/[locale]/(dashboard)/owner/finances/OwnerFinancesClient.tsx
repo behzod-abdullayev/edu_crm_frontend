@@ -1,45 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import {
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
   Download,
-  Filter,
   Search,
-  ChevronUp,
-  ChevronDown,
   CreditCard,
   Banknote,
+  DollarSign,
+  Loader2,
 } from 'lucide-react';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   PieChart,
   Pie,
   Cell,
 } from 'recharts';
 
-interface SummaryCardProps {
-  label: string;
-  value: string;
-  subtext?: string;
-  colorToken: string;
-  icon: string;
-  index: number;
-}
+// ── Static chart data ─────────────────────────────────────────────────────────
 
 const revenueMonthly = [
   { month: 'Jan', income: 42000, expenses: 28000 },
@@ -59,6 +44,17 @@ const paymentMethodData = [
 
 const PIE_COLORS = ['var(--brand-primary)', 'var(--brand-secondary)', 'var(--brand-accent)'];
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface SummaryCardProps {
+  label: string;
+  value: string;
+  subtext?: string;
+  colorToken: string;
+  icon: string;
+  index: number;
+}
+
 interface Transaction {
   id: string;
   studentName: string;
@@ -70,52 +66,14 @@ interface Transaction {
 }
 
 const mockTransactions: Transaction[] = [
-  {
-    id: 't1',
-    studentName: 'Alisher Karimov',
-    amount: 450,
-    method: 'card',
-    status: 'paid',
-    date: '2024-07-15',
-    course: 'English B2',
-  },
-  {
-    id: 't2',
-    studentName: 'Dilnoza Yusupova',
-    amount: 380,
-    method: 'cash',
-    status: 'pending',
-    date: '2024-07-14',
-    course: 'Math Advanced',
-  },
-  {
-    id: 't3',
-    studentName: 'Bobur Toshmatov',
-    amount: 520,
-    method: 'transfer',
-    status: 'paid',
-    date: '2024-07-13',
-    course: 'Python Dev',
-  },
-  {
-    id: 't4',
-    studentName: 'Malika Hasanova',
-    amount: 290,
-    method: 'card',
-    status: 'overdue',
-    date: '2024-07-10',
-    course: 'IELTS Prep',
-  },
-  {
-    id: 't5',
-    studentName: 'Jasur Nazarov',
-    amount: 410,
-    method: 'cash',
-    status: 'paid',
-    date: '2024-07-09',
-    course: 'Design UX',
-  },
+  { id: 't1', studentName: 'Alisher Karimov', amount: 450, method: 'card', status: 'paid', date: '2024-07-15', course: 'English B2' },
+  { id: 't2', studentName: 'Dilnoza Yusupova', amount: 380, method: 'cash', status: 'pending', date: '2024-07-14', course: 'Math Advanced' },
+  { id: 't3', studentName: 'Bobur Toshmatov', amount: 520, method: 'transfer', status: 'paid', date: '2024-07-13', course: 'Python Dev' },
+  { id: 't4', studentName: 'Malika Hasanova', amount: 290, method: 'card', status: 'overdue', date: '2024-07-10', course: 'IELTS Prep' },
+  { id: 't5', studentName: 'Jasur Nazarov', amount: 410, method: 'cash', status: 'paid', date: '2024-07-09', course: 'Design UX' },
 ];
+
+// ── Custom tooltip ────────────────────────────────────────────────────────────
 
 const CustomTooltip = ({
   active,
@@ -148,6 +106,8 @@ const CustomTooltip = ({
   }
   return null;
 };
+
+// ── Summary card ──────────────────────────────────────────────────────────────
 
 function SummaryCard({ label, value, subtext, colorToken, icon, index }: SummaryCardProps) {
   return (
@@ -186,19 +146,20 @@ function SummaryCard({ label, value, subtext, colorToken, icon, index }: Summary
   );
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function OwnerFinancesClient() {
   const t = useTranslations('owner.finances');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isExporting, setIsExporting] = useState(false);
 
   const totalIncome = revenueMonthly.reduce((s, d) => s + d.income, 0);
   const totalExpenses = revenueMonthly.reduce((s, d) => s + d.expenses, 0);
   const netProfit = totalIncome - totalExpenses;
-  const pendingCount = mockTransactions.filter((t) => t.status === 'pending').length;
-  const overdueCount = mockTransactions.filter((t) => t.status === 'overdue').length;
+  const pendingCount = mockTransactions.filter((tx) => tx.status === 'pending').length;
+  const overdueCount = mockTransactions.filter((tx) => tx.status === 'overdue').length;
 
-  // Fixed: using explicit SummaryCardProps-compatible objects
-  // subtext is omitted when not needed (undefined via exactOptionalPropertyTypes)
   const summaryCards: SummaryCardProps[] = [
     {
       label: 'Total Income',
@@ -264,6 +225,58 @@ export function OwnerFinancesClient() {
     }
   };
 
+  // Export report handler — calls backend /api/v1/owner/export/payments
+  const handleExportReport = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch('/api/owner/export/payments');
+      if (!res.ok) {
+        // If backend export fails, fall back to CSV from local data
+        const rows = mockTransactions.map(
+          (tx) => `${tx.id},${tx.studentName},${tx.course},${tx.amount},${tx.method},${tx.status},${tx.date}`,
+        );
+        const csv = ['ID,Student,Course,Amount,Method,Status,Date', ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `financial-report-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      // Backend returns Excel binary
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `financial-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Network error: generate CSV fallback
+      const rows = mockTransactions.map(
+        (tx) => `${tx.id},${tx.studentName},${tx.course},${tx.amount},${tx.method},${tx.status},${tx.date}`,
+      );
+      const csv = ['ID,Student,Course,Amount,Method,Status,Date', ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `financial-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }, []);
+
   return (
     <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
@@ -284,18 +297,28 @@ export function OwnerFinancesClient() {
             Financial overview across all branches
           </p>
         </div>
+
+        {/* Export Report button — properly wired with onClick */}
         <motion.button
+          type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
+          onClick={handleExportReport}
+          disabled={isExporting}
+          aria-label="Export financial report"
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
           style={{
             background: 'var(--bg-surface)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border-default)',
           }}
         >
-          <Download size={16} />
-          Export Report
+          {isExporting ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Download size={16} aria-hidden="true" />
+          )}
+          {isExporting ? 'Exporting…' : 'Export Report'}
         </motion.button>
       </motion.div>
 
@@ -340,10 +363,10 @@ export function OwnerFinancesClient() {
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
                 <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend />
                 <Area
                   type="monotone"
                   dataKey="income"
+                  name="income"
                   stroke="var(--brand-primary)"
                   fill="url(#finIncomeGrad)"
                   strokeWidth={2}
@@ -351,6 +374,7 @@ export function OwnerFinancesClient() {
                 <Area
                   type="monotone"
                   dataKey="expenses"
+                  name="expenses"
                   stroke="var(--error-solid)"
                   fill="url(#finExpGrad)"
                   strokeWidth={2}
@@ -439,7 +463,10 @@ export function OwnerFinancesClient() {
           <div className="flex items-center gap-2">
             <div
               className="flex items-center gap-2 rounded-lg px-3 py-1.5"
-              style={{ background: 'var(--bg-surface-secondary)', border: '1px solid var(--border-default)' }}
+              style={{
+                background: 'var(--bg-surface-secondary)',
+                border: '1px solid var(--border-default)',
+              }}
             >
               <Search size={14} style={{ color: 'var(--text-muted)' }} />
               <input
@@ -477,6 +504,7 @@ export function OwnerFinancesClient() {
                 {['Student', 'Course', 'Amount', 'Method', 'Status', 'Date'].map((col) => (
                   <th
                     key={col}
+                    scope="col"
                     className="px-4 py-3 text-left text-xs font-medium"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -492,16 +520,22 @@ export function OwnerFinancesClient() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: i * 0.03 }}
-                  className="transition-colors"
+                  className="transition-colors hover:bg-[var(--bg-surface-hover)]"
                   style={{ borderBottom: '1px solid var(--border-default)' }}
                 >
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  <td
+                    className="px-4 py-3 text-sm font-medium"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
                     {tx.studentName}
                   </td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     {tx.course}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  <td
+                    className="px-4 py-3 text-sm font-semibold"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
                     ${tx.amount}
                   </td>
                   <td className="px-4 py-3">

@@ -94,7 +94,10 @@
     "comingSoon": "Coming soon",
     "beta": "Beta",
     "new_badge": "New",
-    "skipToContent": "Skip to main content"
+    "skipToContent": "Skip to main content",
+    "viewProfile": "View Profile",
+    "mainNavigation": "Main navigation",
+    "logout": "Log out"
   },
   "auth": {
     "login": "Login",
@@ -646,7 +649,20 @@
     "payments": "Payments",
     "typeToSearch": "Type to search...",
     "searching": "Searching...",
-    "clearRecent": "Clear recent searches"
+    "clearRecent": "Clear recent searches",
+    "inputPlaceholder": "Search...",
+    "navigate": "navigate",
+    "select": "select",
+    "close": "close",
+    "openSearch": "Open search",
+    "searchLabel": "Global search",
+    "groups": {
+      "students": "Students",
+      "teachers": "Teachers",
+      "courses": "Courses",
+      "payments": "Payments",
+      "other": "Other"
+    }
   },
   "upload": {
     "dragDrop": "Drag & drop files here",
@@ -778,7 +794,8 @@
     "language": "Language",
     "switchRole": "Switch role",
     "helpCenter": "Help center",
-    "keyboardShortcuts": "Keyboard shortcuts"
+    "keyboardShortcuts": "Keyboard shortcuts",
+    "openMenu": "Open user menu"
   },
   "profile": {
     "title": "Profile",

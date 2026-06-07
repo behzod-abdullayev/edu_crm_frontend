@@ -3,25 +3,22 @@
 /**
  * src/app/[locale]/(dashboard)/layout.tsx
  *
- * Root dashboard layout for the i18n-aware route tree ([locale]/(dashboard)/…).
- *
- * Responsibilities:
- *  - Auth guard   — redirect to /[locale]/login when unauthenticated
- *  - Responsive layout selection:
- *      Mobile  (<640px)  → MobileLayout  (bottom nav, no sidebar)
+ * Dashboard route group uchun layout.
+ * Vazifasi:
+ *  - Auth guard   — token yo'q bo'lsa /[locale]/login ga redirect
+ *  - Responsive layout:
+ *      Mobile  (<640px)  → MobileLayout  (bottom nav, sidebar yo'q)
  *      Tablet  (640–1023px) → TabletLayout  (72px collapsed sidebar)
  *      Desktop (≥1024px) → DesktopLayout (260px full / collapsible sidebar)
  *  - Animated page transitions (Framer Motion)
  *  - Persistent offline banner
  *  - Root ErrorBoundary
  *  - Skip-to-content link (A11Y)
- *  - SSR hydration guard (avoids mismatch on first render)
+ *  - SSR hydration guard (hydration mismatch oldini olish)
  *
  * ✅ Zero `any` types.
  * ✅ Zero hardcoded strings — all labels from next-intl.
  * ✅ All colours via CSS variables.
- * ✅ All inline styles only where Tailwind cannot express the value
- *    (env() safe-area insets, CSS var calc()).
  */
 
 import {
@@ -93,12 +90,12 @@ function OfflineBanner() {
 
   useEffect(() => {
     setIsOffline(!navigator.onLine);
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline  = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
+    window.addEventListener('online',  handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
-      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('online',  handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
@@ -117,7 +114,7 @@ function OfflineBanner() {
           style={{ top: 'env(safe-area-inset-top, 0px)' }}
         >
           <div className="bg-[var(--warning-solid)] text-white text-center py-2 px-4 text-[13px] font-semibold">
-            You&apos;re offline — changes may not be saved.
+            Internet aloqasi yo&apos;q — o&apos;zgarishlar saqlanmasligi mumkin.
           </div>
         </motion.div>
       )}
@@ -144,7 +141,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     if (process.env.NODE_ENV === 'development') {
-      // Surface in dev without polluting production logs.
       void Promise.resolve().then(() => {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
@@ -171,10 +167,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
             ⚠️
           </div>
           <p className="text-lg font-bold text-[var(--text-primary)] m-0">
-            Something went wrong
+            Xatolik yuz berdi
           </p>
           <p className="text-sm text-[var(--text-muted)] m-0 max-w-[360px]">
-            {this.state.error?.message ?? 'An unexpected error occurred.'}
+            {this.state.error?.message ?? 'Kutilmagan xato.'}
           </p>
           <motion.button
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -188,12 +184,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
               focus-visible:ring-offset-2
             "
           >
-            Try again
+            Qayta urinib ko&apos;ring
           </motion.button>
         </motion.div>
       );
     }
-
     return this.props.children;
   }
 }
@@ -263,10 +258,8 @@ interface TabletLayoutProps {
 function TabletLayout({ role, children, onToggle }: TabletLayoutProps) {
   return (
     <div className="flex min-h-dvh bg-[var(--bg-page)]">
-      {/* Tablet sidebar: always collapsed (72px icons-only) */}
       <Sidebar role={role} collapsed={true} onToggle={onToggle} />
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        {/* Tablet header: collapsed=true (hamburger shows expand affordance) */}
         <Header collapsed={true} onToggle={onToggle} />
         <main
           id="main-content"
@@ -317,57 +310,48 @@ function DesktopLayout({
 // ─── Root Dashboard Layout ────────────────────────────────────────────────────
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const router       = useRouter();
-  const locale       = useLocale();
-  const user          = useAuthStore((s) => s.user);
+  const router          = useRouter();
+  const locale          = useLocale();
+  const user            = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const syncMe       = useAuthStore((s) => s.syncMe);
+  const isLoading       = useAuthStore((s) => s.isLoading);
+  const syncMe          = useAuthStore((s) => s.syncMe);
 
-  /**
-   * Hydration guard.
-   * We render a transparent shell on the server and on the initial client
-   * render to prevent a hydration mismatch caused by media-query hooks
-   * that always return `false` during SSR.
-   */
-  const [mounted, setMounted] = useState(false);
-
-  /** Desktop sidebar collapse state — preserved across route changes. */
+  const [mounted, setMounted]               = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
 
-  // Mark as mounted after first paint.
+  // Birinchi render dan keyin mounted = true
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // On mount: if there's a token in localStorage but no user object yet,
-  // re-hydrate the user profile from /auth/me.
+  // Mounted bo'lganda, agar authenticated bo'lmasa — syncMe ni urinib ko'r
   useEffect(() => {
     if (!mounted) return;
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isLoading) {
       syncMe().catch(() => {
         router.replace(`/${locale}/login`);
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
-  // Auth guard — redirect after syncMe resolves with no user.
+  // syncMe tugaganidan keyin hali ham authenticated emas — loginga redirect
   useEffect(() => {
-    if (mounted && !isAuthenticated) {
+    if (mounted && !isLoading && !isAuthenticated) {
       router.replace(`/${locale}/login`);
     }
-  }, [mounted, isAuthenticated, router, locale]);
+  }, [mounted, isLoading, isAuthenticated, router, locale]);
 
   const handleToggle = () => setSidebarCollapsed((v) => !v);
 
-  // Safe role fallback — prevents layout crash if user hasn't loaded yet.
+  // User yuklanmagan bo'lsa — default role
   const role: UserRole = (user?.role as UserRole) ?? 'student';
 
-  // ── Pre-mount shell ──────────────────────────────────────────────────────
-  // Invisible placeholder prevents hydration mismatch.
+  // SSR hydration guard
   if (!mounted) {
     return (
       <div
@@ -377,13 +361,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // ── Auth loading state ───────────────────────────────────────────────────
-  if (!isAuthenticated) {
+  // Auth loading yoki unauthenticated — spinner
+  if (isLoading || !isAuthenticated) {
     return (
       <div
         aria-busy="true"
         aria-live="polite"
-        aria-label="Loading dashboard…"
+        aria-label="Dashboard yuklanmoqda…"
         className="min-h-dvh flex items-center justify-center bg-[var(--bg-page)]"
       >
         <motion.div
@@ -402,7 +386,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <SkipToContent />
       <OfflineBanner />
 
-      {/* Mobile — bottom nav, no sidebar */}
+      {/* Mobile — bottom nav, sidebar yo'q */}
       {isMobile && (
         <MobileLayout role={role}>{children}</MobileLayout>
       )}
@@ -414,7 +398,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </TabletLayout>
       )}
 
-      {/* Desktop — full or collapsed sidebar */}
+      {/* Desktop — full yoki collapsed sidebar */}
       {!isMobile && !isTablet && (
         <DesktopLayout
           role={role}

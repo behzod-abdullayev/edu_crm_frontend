@@ -3,6 +3,8 @@ import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/middleware.ts');
 
+const isDev = process.env['NODE_ENV'] !== 'production';
+
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
@@ -12,10 +14,15 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
   },
-  {
-    key: 'Strict-Transport-Security',
-    value: 'max-age=63072000; includeSubDomains; preload',
-  },
+  // HSTS faqat productionda — developmentda localhost HTTPS yo'q
+  ...(isDev
+    ? []
+    : [
+        {
+          key: 'Strict-Transport-Security',
+          value: 'max-age=63072000; includeSubDomains; preload',
+        },
+      ]),
   {
     key: 'Content-Security-Policy',
     value: [
@@ -24,13 +31,16 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' blob: data: https:",
+      // Development: localhost backend ga ulanish uchun http ham ruxsat
       "connect-src 'self' ws: wss: https: http://localhost:* http://127.0.0.1:*",
       "media-src 'self' blob: https:",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'self'",
-      "upgrade-insecure-requests",
+      // upgrade-insecure-requests OLIB TASHLANDI:
+      // localhost:3000 da HTTP ishlatiladi, bu directive manifest.json va boshqa
+      // HTTP requestlarni HTTPS ga upgrade qilishga urinadi va ERR_SSL_PROTOCOL_ERROR beradi
     ].join('; '),
   },
 ];

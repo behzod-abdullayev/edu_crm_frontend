@@ -8,7 +8,6 @@
  * Mobile   → card list with swipe actions and load-more
  */
 
-import type { Metadata } from 'next';
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -37,10 +36,6 @@ import type { TeacherDto } from '@modules/admin/types/admin.types';
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
-export const metadata: Metadata = {
-  title: 'Teachers | Admin — EduCRM',
-  robots: { index: false, follow: false },
-};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

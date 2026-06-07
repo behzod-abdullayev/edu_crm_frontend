@@ -114,6 +114,19 @@ export default function middleware(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)|api/).*)',
+    /*
+     * Quyidagilarni OLIB TASHLAYMIZ (middleware ishlamaydi):
+     *  - _next/static  (Next.js static assets)
+     *  - _next/image   (Next.js image optimization)
+     *  - favicon.ico, robots.txt, sitemap.xml
+     *  - manifest.json (PWA manifest — middleware uni HTTPS ga redirect qilmasligi kerak)
+     *  - Barcha rasm, font, audio, video fayllar
+     *  - api/ (API routes — yuqorida alohida handle qilingan)
+     *
+     * Bu pattern ERR_SSL_PROTOCOL_ERROR xatosini hal qiladi:
+     * manifest.json middleware orqali o'tsa va upgrade-insecure-requests bo'lsa,
+     * browser uni HTTPS ga o'tkazishga urinadi — localhost da bu muvaffaqiyatsiz.
+     */
+    '/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.json|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot|mp4|mp3|pdf)|api/).*)',
   ],
 };

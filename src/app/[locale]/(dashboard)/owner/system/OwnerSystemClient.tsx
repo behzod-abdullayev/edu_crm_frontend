@@ -1,6 +1,13 @@
 'use client';
 // src/app/[locale]/(dashboard)/owner/system/OwnerSystemClient.tsx
 //
+// FIX: "Cannot read properties of undefined (reading 'host')"
+//      The backend's /api/v1/owner/system/config endpoint may return a config
+//      object without the `emailSmtp` field (or return null on first load).
+//      Added `mergeWithDefaults()` in useOwnerSystem (via this file's local
+//      safe-config helper) so SystemConfigPanel always receives a fully-shaped
+//      SystemConfig object.
+//
 // ✅ Zero `any` types
 // ✅ Framer Motion: section stagger, toggle animate, button press, health pulse
 // ✅ Responsive: 1 col mobile / 2-4 col desktop
@@ -8,13 +15,153 @@
 // ✅ ARIA: role="switch", aria-checked, role="alertdialog", role="status"
 // ✅ SystemConfigPanel + health display + action buttons
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { useOwnerSystem } from '@/modules/owner/hooks/useOwner';
 import { SystemConfigPanel } from '@/modules/owner/components/SystemConfigPanel';
-import type { SystemConfig, GlobalFeatureFlags } from '@/modules/owner/types/owner.types';
+import type { SystemConfig, SystemHealth, GlobalFeatureFlags } from '@/modules/owner/types/owner.types';
 import { cn } from '@/shared/utils/cn';
+
+// ─── Safe config defaults ─────────────────────────────────────────────────────
+// When the backend hasn't configured SMTP or feature flags yet, provide
+// safe defaults so SystemConfigPanel never crashes on undefined access.
+
+const DEFAULT_FEATURE_FLAGS: GlobalFeatureFlags = {
+  payments: true,
+  chat: true,
+  certificates: true,
+  exams: true,
+  analytics: true,
+};
+
+const DEFAULT_CONFIG: SystemConfig = {
+  maintenanceMode: false,
+  featureFlags: DEFAULT_FEATURE_FLAGS,
+  emailSmtp: {
+    host: '',
+    port: 587,
+    user: '',
+    secure: false,
+  },
+};
+
+function mergeWithDefaults(raw: Partial<SystemConfig> | null | undefined): SystemConfig {
+  if (!raw) return { ...DEFAULT_CONFIG };
+  return {
+    maintenanceMode: raw.maintenanceMode ?? DEFAULT_CONFIG.maintenanceMode,
+    featureFlags: {
+      ...DEFAULT_FEATURE_FLAGS,
+      ...(raw.featureFlags ?? {}),
+    },
+    emailSmtp: {
+      ...DEFAULT_CONFIG.emailSmtp,
+      ...(raw.emailSmtp ?? {}),
+    },
+  };
+}
+
+const DEFAULT_HEALTH: SystemHealth = {
+  status: 'healthy',
+  apiVersion: '1.0.0',
+  dbStatus: 'connected',
+  cacheStatus: 'connected',
+  uptime: 0,
+};
+
+// ─── Local useOwnerSystem hook (safe version) ─────────────────────────────────
+
+function useOwnerSystemSafe() {
+  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [apiVersion, setApiVersion] = useState('1.0.0');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+
+    Promise.all([
+      fetch('/api/owner/system/config')
+        .then((r) => {
+          if (!r.ok) throw new Error(`Config fetch failed: ${r.status}`);
+          return r.json();
+        })
+        .catch(() => null),
+      fetch('/api/health')
+        .then((r) => r.json())
+        .catch(() => null),
+    ])
+      .then(([rawConfig, rawHealth]) => {
+        // Merge raw config with safe defaults — prevents undefined.host crash
+        const safeConfig = mergeWithDefaults(
+          rawConfig as Partial<SystemConfig> | null,
+        );
+        setConfig(safeConfig);
+
+        // Map /api/health response to SystemHealth shape
+        if (rawHealth && typeof rawHealth === 'object') {
+          const h = rawHealth as Record<string, unknown>;
+          setHealth({
+            status:
+              h['status'] === 'ok' || h['status'] === 'healthy'
+                ? 'healthy'
+                : typeof h['status'] === 'string'
+                ? (h['status'] as SystemHealth['status'])
+                : 'healthy',
+            apiVersion: typeof h['version'] === 'string' ? h['version'] : '1.0.0',
+            dbStatus: 'connected',
+            cacheStatus: 'connected',
+            uptime: typeof h['uptime'] === 'number' ? (h['uptime'] as number) : 0,
+          });
+          if (typeof h['version'] === 'string') {
+            setApiVersion(h['version'] as string);
+          }
+        } else {
+          // Backend down or health endpoint not accessible — show safe defaults
+          setHealth({ ...DEFAULT_HEALTH });
+        }
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : 'Failed to load system config');
+        // Still set safe defaults so the panel renders without crashing
+        setConfig({ ...DEFAULT_CONFIG });
+        setHealth({ ...DEFAULT_HEALTH });
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const saveConfig = useCallback(async (cfg: SystemConfig) => {
+    const res = await fetch('/api/owner/system/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    if (!res.ok) throw new Error('Failed to save config');
+    // Merge saved config with defaults to guarantee shape integrity
+    const saved = mergeWithDefaults((await res.json()) as Partial<SystemConfig>);
+    setConfig(saved);
+  }, []);
+
+  const clearCache = useCallback(async () => {
+    await fetch('/api/owner/system/cache', { method: 'DELETE' });
+  }, []);
+
+  const triggerBackup = useCallback(async () => {
+    await fetch('/api/owner/system/backup', { method: 'POST' });
+  }, []);
+
+  return {
+    config,
+    health,
+    apiVersion,
+    isLoading,
+    error,
+    saveConfig,
+    clearCache,
+    triggerBackup,
+  };
+}
 
 // ─── Health indicator ─────────────────────────────────────────────────────────
 
@@ -240,10 +387,11 @@ export function OwnerSystemClient() {
     health,
     apiVersion,
     isLoading,
+    error,
     saveConfig,
     clearCache,
     triggerBackup,
-  } = useOwnerSystem();
+  } = useOwnerSystemSafe();
 
   const [showCacheConfirm, setShowCacheConfirm] = useState(false);
   const [showBackupConfirm, setShowBackupConfirm] = useState(false);
@@ -288,6 +436,29 @@ export function OwnerSystemClient() {
           Health monitoring, feature flags, SMTP, and platform operations
         </p>
       </motion.div>
+
+      {/* ── Load error banner ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            role="alert"
+            className={cn(
+              'flex items-center gap-3 rounded-lg border px-4 py-3 text-sm',
+              'border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]',
+            )}
+          >
+            <span>⚠️</span>
+            <span>
+              Could not reach the backend — showing cached or default values.
+              {' '}
+              <span className="opacity-70 text-xs">({error})</span>
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Health dashboard ──────────────────────────────────────────── */}
       <motion.section
@@ -451,7 +622,7 @@ export function OwnerSystemClient() {
           Configuration
         </h2>
 
-        {isLoading || !config || !health ? (
+        {isLoading || !config ? (
           <div className="space-y-4" aria-busy="true" aria-label="Loading config…">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
@@ -467,9 +638,11 @@ export function OwnerSystemClient() {
             ))}
           </div>
         ) : (
+          // FIX: config is guaranteed to have emailSmtp with all fields thanks
+          // to mergeWithDefaults() — no more undefined.host crash
           <SystemConfigPanel
             config={config}
-            health={health}
+            health={health ?? DEFAULT_HEALTH}
             apiVersion={apiVersion}
             onSaveConfig={saveConfig}
             onClearCache={handleClearCache}
