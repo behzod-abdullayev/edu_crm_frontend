@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 import { useCurrentUser } from "@shared/hooks/useCurrentUser";
 import { useTeacherLessons } from "@/modules/teachers/hooks/useTeacher";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
@@ -308,6 +309,7 @@ const COLS = ["Title", "Type", "Duration", "Status", "Uploaded"];
 
 export function TeacherLessonsClient() {
   const { user } = useCurrentUser();
+  const locale = useLocale();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -362,7 +364,7 @@ export function TeacherLessonsClient() {
           size="sm"
           className="gap-1.5 shrink-0"
         >
-          <Link href="/teacher/lessons/upload">
+          <Link href={`/${locale}/teacher/lessons/upload`}>
             <Upload className="w-4 h-4" aria-hidden="true" />
             Upload
           </Link>

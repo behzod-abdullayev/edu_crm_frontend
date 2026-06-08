@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 import { httpClient } from "@/services/api/axios.instance";
 import { HomeworkGradingTable } from "./HomeworkGradingTable";
 import { Badge } from "@shared/components/ui/badge";
@@ -218,6 +219,7 @@ interface TeacherHomeworkDetailClientProps {
 export function TeacherHomeworkDetailClient({
   homeworkId,
 }: TeacherHomeworkDetailClientProps) {
+  const locale = useLocale();
   const isMobile = useIsMobile();
 
   const {
@@ -247,7 +249,7 @@ export function TeacherHomeworkDetailClient({
     return (
       <div className="space-y-4">
         <Link
-          href="/teacher/homework"
+          href={`/${locale}/teacher/homework`}
           className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           <ChevronLeft className="w-4 h-4" aria-hidden="true" />
@@ -280,7 +282,7 @@ export function TeacherHomeworkDetailClient({
     >
       {/* ── Back Link ──────────────────────────────────────────────────────── */}
       <Link
-        href="/teacher/homework"
+        href={`/${locale}/teacher/homework`}
         className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-[var(--transition-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] rounded"
         aria-label="Back to homework list"
       >

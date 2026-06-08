@@ -71,6 +71,8 @@ export interface ColumnDef<T> {
   className?: string;
   /** Hide on tablet (640–1023px) to reduce column count */
   hideOnTablet?: boolean;
+  /** Exclude from the visibility toggle dropdown (e.g. action columns) */
+  hideFromVisibilityToggle?: boolean;
 }
 
 export interface BulkAction<T> {
@@ -529,7 +531,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   aria-label={t('columnVisibility')}
                   className="absolute right-0 top-full mt-1.5 z-30 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-[var(--shadow-lg)] p-1.5 min-w-[180px]"
                 >
-                  {columns.map((col) => (
+                  {columns.filter((col) => !col.hideFromVisibilityToggle).map((col) => (
                     <label
                       key={col.key}
                       role="menuitemcheckbox"

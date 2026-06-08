@@ -8,10 +8,12 @@
 // ✅ Light/dark via CSS variables only
 // ✅ ARIA: aria-live, aria-busy, role="status"
 // ✅ All data from useOwner* hooks — no manual fetch
+// ✅ i18n: useTranslations — ZERO hardcoded strings
 
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslations, useLocale } from 'next-intl';
 import dynamic from 'next/dynamic';
 
 import {
@@ -38,11 +40,11 @@ const MultiTenantAnalytics = dynamic(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getGreeting(): string {
+function getGreetingKey(): 'greetingMorning' | 'greetingAfternoon' | 'greetingEvening' {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 12) return 'greetingMorning';
+  if (h < 17) return 'greetingAfternoon';
+  return 'greetingEvening';
 }
 
 // ─── Quick-stat card ─────────────────────────────────────────────────────────
@@ -53,9 +55,10 @@ interface QuickStatProps {
   change: number;
   icon: React.ReactNode;
   colorToken: string;
+  vsLastMonth: string;
 }
 
-function QuickStat({ label, value, change, icon, colorToken }: QuickStatProps) {
+function QuickStat({ label, value, change, icon, colorToken, vsLastMonth }: QuickStatProps) {
   const isPos = change >= 0;
   return (
     <motion.div
@@ -94,11 +97,11 @@ function QuickStat({ label, value, change, icon, colorToken }: QuickStatProps) {
             isPos ? 'text-[var(--success-text)]' : 'text-[var(--error-text)]',
           )}
           role="status"
-          aria-label={`${change}% change vs last month`}
+          aria-label={`${change}% ${vsLastMonth}`}
         >
           <span aria-hidden="true">{isPos ? '↑' : '↓'}</span>
           {Math.abs(change)}%{' '}
-          <span className="font-normal opacity-70">vs last month</span>
+          <span className="font-normal opacity-70">{vsLastMonth}</span>
         </span>
       </div>
     </motion.div>
@@ -145,9 +148,10 @@ interface BranchRowProps {
   revenue: string;
   status: 'active' | 'inactive';
   index: number;
+  studentLabel: string;
 }
 
-function BranchRow({ name, students, revenue, status, index }: BranchRowProps) {
+function BranchRow({ name, students, revenue, status, index, studentLabel }: BranchRowProps) {
   return (
     <motion.div
       className="flex items-center gap-3 py-3 border-b last:border-b-0"
@@ -174,7 +178,7 @@ function BranchRow({ name, students, revenue, status, index }: BranchRowProps) {
           {name}
         </p>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {students} students
+          {students} {studentLabel}
         </p>
       </div>
       <div className="text-right">
@@ -210,6 +214,8 @@ function BranchRow({ name, students, revenue, status, index }: BranchRowProps) {
 export function OwnerDashboardClient() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const t = useTranslations('owner.dashboard');
+  const locale = useLocale();
 
   const { data: kpi, isLoading: kpiLoading } = useOwnerKPI();
   const { branches, isLoading: branchesLoading } = useOwnerBranches();
@@ -218,7 +224,7 @@ export function OwnerDashboardClient() {
   // ── Real-time WebSocket events ───────────────────────────────────────────
   useSocketEvent(SocketEvent.PAYMENT_RECEIVED, () => {
     void queryClient.invalidateQueries({ queryKey: ['owner', 'kpi'] });
-    toast.success('New payment received');
+    toast.success(t('newPayment') as string);
   });
 
   useSocketEvent(SocketEvent.NOTIFICATION_NEW, () => {
@@ -233,36 +239,52 @@ export function OwnerDashboardClient() {
     [branches],
   );
 
+  // ── Localised date ────────────────────────────────────────────────────────
+  const dateLabel = new Date().toLocaleDateString(
+    locale === 'uz' ? 'uz-UZ' : locale === 'ru' ? 'ru-RU' : 'en-US',
+    {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    },
+  );
+
   // ── Quick stats from KPI ─────────────────────────────────────────────────
+  const vsLastMonth = t('vsLastMonth');
   const quickStats: QuickStatProps[] = kpi
     ? [
         {
-          label: 'MRR',
+          label: t('mrr_short'),
           value: `${(kpi.mrr / 1_000_000).toFixed(1)}M UZS`,
           change: kpi.trends?.mrrChange ?? 0,
           icon: '💰',
           colorToken: 'var(--brand-primary)',
+          vsLastMonth,
         },
         {
-          label: 'Total Users',
+          label: t('totalUsers_short'),
           value: kpi.totalUsers.toLocaleString(),
           change: kpi.trends?.usersChange ?? 0,
           icon: '👥',
           colorToken: 'var(--brand-secondary)',
+          vsLastMonth,
         },
         {
-          label: 'Branches',
+          label: t('branches_short'),
           value: String(kpi.totalBranches),
           change: 0,
           icon: '🏢',
           colorToken: 'var(--brand-accent)',
+          vsLastMonth,
         },
         {
-          label: 'Enrollments',
+          label: t('enrollments_short'),
           value: kpi.monthlyEnrollments.toLocaleString(),
           change: kpi.trends?.enrollmentsChange ?? 0,
           icon: '📚',
           colorToken: 'var(--role-teacher)',
+          vsLastMonth,
         },
       ]
     : [];
@@ -283,20 +305,15 @@ export function OwnerDashboardClient() {
           className="text-2xl font-bold sm:text-3xl"
           style={{ color: 'var(--text-primary)' }}
         >
-          {getGreeting()}, Owner 👋
+          {t(getGreetingKey())}, {t('owner')} 👋
         </h1>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-          })}
+          {dateLabel}
         </p>
       </motion.div>
 
       {/* ── Global KPI cards ───────────────────────────────────────────── */}
-      <Section title="Key Metrics">
+      <Section title={t('keyMetrics')}>
         {kpiLoading ? (
           <div
             className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6"
@@ -318,7 +335,7 @@ export function OwnerDashboardClient() {
             className="text-sm"
             style={{ color: 'var(--text-muted)' }}
           >
-            Unable to load KPI data.
+            {t('noKpiData')}
           </p>
         )}
       </Section>
@@ -340,7 +357,7 @@ export function OwnerDashboardClient() {
       )}
 
       {/* ── Analytics charts ───────────────────────────────────────────── */}
-      <Section title="Platform Analytics">
+      <Section title={t('platformAnalytics')}>
         {chartsLoading ? (
           <div
             className="grid gap-4 lg:grid-cols-2"
@@ -370,14 +387,14 @@ export function OwnerDashboardClient() {
               color: 'var(--text-muted)',
             }}
           >
-            <p className="text-sm">No analytics data available.</p>
+            <p className="text-sm">{t('noAnalyticsData')}</p>
           </div>
         )}
       </Section>
 
       {/* ── Branch overview ────────────────────────────────────────────── */}
       <Section
-        title="Branches Overview"
+        title={t('branchesOverview')}
         action={
           <motion.a
             href="branches"
@@ -385,7 +402,7 @@ export function OwnerDashboardClient() {
             style={{ color: 'var(--brand-primary)' }}
             whileTap={{ scale: 0.97 }}
           >
-            View all →
+            {t('viewAll')} →
           </motion.a>
         }
       >
@@ -415,7 +432,7 @@ export function OwnerDashboardClient() {
               className="py-8 text-center text-sm"
               style={{ color: 'var(--text-muted)' }}
             >
-              No branches yet.
+              {t('noBranchesYet')}
             </p>
           ) : (
             <div>
@@ -427,6 +444,7 @@ export function OwnerDashboardClient() {
                   revenue={`${b.monthlyRevenue.toLocaleString()} ${b.currency}`}
                   status={b.status}
                   index={i}
+                  studentLabel={t('studentLabel')}
                 />
               ))}
             </div>

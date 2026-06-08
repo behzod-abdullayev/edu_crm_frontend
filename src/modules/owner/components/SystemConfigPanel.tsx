@@ -55,6 +55,17 @@ interface AnimatedToggleProps {
 }
 
 function AnimatedToggle({ checked, onChange, id, label, danger = false }: AnimatedToggleProps) {
+  // Track:  h-6 (24px) × w-11 (44px)
+  // Thumb:  h-5 w-5 (20px)
+  //
+  // FIX: border-2 border-transparent o'rniga padding-[3px] ishlatildi.
+  // Muammo: border-2 bilan w-11 = 44px track bo'lsa, ichki kenglik 40px.
+  // Lekin ON x=22, thumb 20px → end = 42px > 40px → thumb tashqariga chiqadi.
+  // Yechim: border o'rniga padding — bu holda thumb x koordinatasi
+  // to'g'ri hisoblanadi: OFF x=2, ON x=20 (44-20-4=20).
+  //
+  // OFF:  x = 2px  (left padding = 3px, minus 1px natural offset)
+  // ON:   x = 20px (44px track - 20px thumb - 4px right padding = 20px)
   return (
     <motion.button
       type="button"
@@ -63,28 +74,29 @@ function AnimatedToggle({ checked, onChange, id, label, danger = false }: Animat
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      className="relative h-7 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2"
+      className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full p-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]"
       style={{
         background: checked
           ? danger
             ? 'var(--error-solid)'
             : 'var(--brand-primary)'
-          : 'var(--bg-surface-hover)',
+          : 'var(--border-strong)',
       }}
       animate={{
         background: checked
           ? danger
             ? 'var(--error-solid)'
             : 'var(--brand-primary)'
-          : 'var(--bg-surface-hover)',
+          : 'var(--border-strong)',
       }}
       transition={{ duration: 0.2 }}
       whileTap={{ scale: 0.95 }}
     >
       <motion.span
-        className="absolute top-1.5 h-4 w-4 rounded-full bg-white shadow-sm"
-        animate={{ x: checked ? 26 : 4 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        className="pointer-events-none block h-[18px] w-[18px] rounded-full bg-white shadow-md ring-0"
+        animate={{ x: checked ? 20 : 0 }}
+        initial={false}
+        transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
         aria-hidden="true"
       />
     </motion.button>

@@ -14,14 +14,14 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
   const touchStartX = useRef<number>(0);
   const touchStartY = useRef<number>(0);
 
-  // Auto-dismiss (error = no auto-dismiss)
+  // Auto-dismiss: success/info=4s, warning=6s, error=6s (was 0 = never)
   useEffect(() => {
     const duration =
       toast.duration !== undefined
         ? toast.duration
-        : toast.type === 'error'
-          ? 0
-          : toast.type === 'warning'
+        : toast.type === 'warning'
+          ? 6000
+          : toast.type === 'error'
             ? 6000
             : 4000;
 
@@ -74,10 +74,10 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         alignItems: 'flex-start',
         gap: '12px',
         padding: '12px 16px',
-        background: 'var(--toast-bg, white)',
-        border: '1px solid var(--toast-border, #e5e7eb)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-default)',
         borderRadius: '10px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        boxShadow: 'var(--shadow-lg)',
         cursor: 'default',
         userSelect: 'none',
         minWidth: '280px',
@@ -108,11 +108,11 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       </span>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, lineHeight: 1.4 }}>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text-primary)' }}>
           {toast.title}
         </p>
         {toast.description && (
-          <p style={{ margin: '2px 0 0', fontSize: '13px', opacity: 0.7, lineHeight: 1.4 }}>
+          <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
             {toast.description}
           </p>
         )}
@@ -143,8 +143,8 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
           border: 'none',
           cursor: 'pointer',
           padding: '2px',
-          opacity: 0.4,
-          fontSize: '16px',
+          color: 'var(--text-secondary)',
+          fontSize: '18px',
           lineHeight: 1,
           flexShrink: 0,
         }}

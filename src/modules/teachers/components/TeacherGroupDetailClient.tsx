@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Users, BookOpen, ClipboardList } from "lucide-react";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 
 import { httpClient } from "@/services/api/axios.instance";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
@@ -123,6 +124,7 @@ export function TeacherGroupDetailClient({
 }: {
   readonly groupId: string;
 }) {
+  const locale = useLocale();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<Tab>("Students");
   const [studentPage, setStudentPage] = useState(1);
@@ -194,7 +196,7 @@ export function TeacherGroupDetailClient({
     >
       {/* ── Back link ───────────────────────────────────────────────────── */}
       <Link
-        href="/teacher/groups"
+        href={`/${locale}/teacher/groups`}
         className={cn(
           "inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)]",
           "hover:text-[var(--text-primary)] transition-colors duration-[var(--transition-fast)]",
@@ -259,7 +261,7 @@ export function TeacherGroupDetailClient({
                 page={studentPage}
                 pageSize={PAGE_SIZE}
                 onPageChange={setStudentPage}
-                basePath="/teacher/students"
+                basePath={`/${locale}/teacher/students`}
               />
             ) : (
               <StudentTable
@@ -269,7 +271,7 @@ export function TeacherGroupDetailClient({
                 page={studentPage}
                 pageSize={PAGE_SIZE}
                 onPageChange={setStudentPage}
-                basePath="/teacher/students"
+                basePath={`/${locale}/teacher/students`}
               />
             )}
           </motion.div>
@@ -346,7 +348,7 @@ export function TeacherGroupDetailClient({
                 {(homework ?? []).map((hw: HomeworkDto) => (
                   <li key={hw.id}>
                     <Link
-                      href={`/teacher/homework/${hw.id}`}
+                      href={`/${locale}/teacher/homework/${hw.id}`}
                       className={cn(
                         "block rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4",
                         "hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)]",

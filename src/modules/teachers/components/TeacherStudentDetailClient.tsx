@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useLocale } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@shared/components/ui/avatar';
 import { GradesList } from '@/modules/students/components/GradesList';
@@ -69,6 +70,7 @@ function getInitials(fullName: string): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TeacherStudentDetailClient({ studentId }: { studentId: string }) {
+  const locale = useLocale();
   const [tab, setTab] = useState<Tab>('Overview');
 
   // ── Student detail ──────────────────────────────────────────────────────────
@@ -144,7 +146,7 @@ export function TeacherStudentDetailClient({ studentId }: { studentId: string })
     >
       {/* ── Back link ── */}
       <Link
-        href="/teacher/students"
+        href={`/${locale}/teacher/students`}
         className={cn(
           'inline-flex items-center gap-1.5 text-sm',
           'text-[var(--text-muted)] hover:text-[var(--text-primary)]',

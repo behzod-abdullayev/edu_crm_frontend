@@ -320,12 +320,21 @@ export function HRPanel({ staff, branches, onUpdateSalary }: HRPanelProps) {
   const filtered = useMemo(
     () =>
       staff.filter((s) => {
-        const matchBranch = branchFilter === 'all' || s.branchId === branchFilter;
+        // BUG FIX: users.branch DB maydoni NULL bo'lishi mumkin,
+        // shuning uchun s.branchId bo'sh ('') keladi.
+        // Filtr UUID (branchFilter) bilan taqqoslaydi → match topilmaydi → 0 natija.
+        // Yechim: branchId YOKI branchName orqali solishtirish (ism bo'yicha fallback).
+        const selectedBranch = branches.find((b) => b.id === branchFilter);
+        const matchBranch =
+          branchFilter === 'all' ||
+          s.branchId === branchFilter ||
+          (selectedBranch !== undefined &&
+            s.branchName.toLowerCase() === selectedBranch.name.toLowerCase());
         const matchRole = roleFilter === 'all' || s.role === roleFilter;
         const matchContract = contractFilter === 'all' || s.contractStatus === contractFilter;
         return matchBranch && matchRole && matchContract;
       }),
-    [staff, branchFilter, roleFilter, contractFilter],
+    [staff, branches, branchFilter, roleFilter, contractFilter],
   );
 
   const rows = useMemo(() => filtered.map(mapStaffDtoToRow), [filtered]);

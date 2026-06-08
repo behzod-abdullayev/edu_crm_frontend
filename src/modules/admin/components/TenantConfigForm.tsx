@@ -1,5 +1,9 @@
 'use client';
 
+// src/modules/admin/components/TenantConfigForm.tsx
+// ✅ FIX: Added guards for config.features being undefined/null when API returns error object
+//         Uses optional chaining and fallback defaults throughout
+
 import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
@@ -59,6 +63,40 @@ const FEATURE_FLAGS: Array<{
   },
 ];
 
+// ✅ FIX: Safe default config when API returns invalid data
+const SAFE_DEFAULT_CONFIG: TenantConfig = {
+  academyName: '',
+  logoUrl: null,
+  timezone: 'Asia/Tashkent',
+  currency: 'UZS',
+  primaryColor: '#4F46E5',
+  features: {
+    payments: true,
+    chat: false,
+    certificates: true,
+    exams: false,
+  },
+};
+
+// ✅ FIX: Normalize config — ensures features always has all required keys
+function normalizeConfig(config: TenantConfig): TenantConfig {
+  return {
+    ...SAFE_DEFAULT_CONFIG,
+    ...config,
+    academyName: config.academyName ?? '',
+    logoUrl: config.logoUrl ?? null,
+    timezone: config.timezone ?? 'Asia/Tashkent',
+    currency: config.currency ?? 'UZS',
+    primaryColor: config.primaryColor ?? '#4F46E5',
+    features: {
+      payments: config.features?.payments ?? true,
+      chat: config.features?.chat ?? false,
+      certificates: config.features?.certificates ?? true,
+      exams: config.features?.exams ?? false,
+    },
+  };
+}
+
 // ─── Toggle switch ────────────────────────────────────────────────────────────
 
 interface ToggleSwitchProps {
@@ -69,7 +107,13 @@ interface ToggleSwitchProps {
   disabled?: boolean;
 }
 
-function ToggleSwitch({ id, checked, onChange, label, disabled = false }: ToggleSwitchProps) {
+function ToggleSwitch({
+  id,
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: ToggleSwitchProps) {
   return (
     <button
       id={id}
@@ -124,9 +168,13 @@ function SectionCard({
       className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
     >
       <div className="border-b border-[var(--border-default)] px-4 py-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+          {title}
+        </h3>
         {description && (
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">{description}</p>
+          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+            {description}
+          </p>
         )}
       </div>
       <div className="p-4">{children}</div>
@@ -182,8 +230,14 @@ function Field({ id, label, required, error, children }: FieldProps) {
 
 // ─── TenantConfigForm ─────────────────────────────────────────────────────────
 
-export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProps) {
-  const [config, setConfig] = useState<TenantConfig>(initialConfig);
+export function TenantConfigForm({
+  initialConfig,
+  onSave,
+}: TenantConfigFormProps) {
+  // ✅ FIX: Normalize config on init to ensure all required fields exist
+  const [config, setConfig] = useState<TenantConfig>(() =>
+    normalizeConfig(initialConfig),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
@@ -202,7 +256,12 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
   const toggleFeature = (key: keyof FeatureFlags) => {
     setConfig((prev) => ({
       ...prev,
-      features: { ...prev.features, [key]: !prev.features[key] },
+      features: {
+        // ✅ FIX: Always spread safe defaults first in case features is incomplete
+        ...SAFE_DEFAULT_CONFIG.features,
+        ...(prev.features ?? {}),
+        [key]: !(prev.features?.[key] ?? false),
+      },
     }));
     setSavedAt(null);
   };
@@ -212,12 +271,12 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
     const errs: Partial<Record<string, string>> = {};
     if (!config.academyName.trim())
       errs['academyName'] = 'Academy name is required.';
-    if (
-      config.logoUrl &&
-      !/^https?:\/\/.+/i.test(config.logoUrl)
-    )
+    if (config.logoUrl && !/^https?:\/\/.+/i.test(config.logoUrl))
       errs['logoUrl'] = 'Logo URL must start with http:// or https://';
-    if (config.primaryColor && !/^#[0-9A-Fa-f]{6}$/.test(config.primaryColor))
+    if (
+      config.primaryColor &&
+      !/^#[0-9A-Fa-f]{6}$/.test(config.primaryColor)
+    )
       errs['primaryColor'] = 'Enter a valid hex color (e.g. #4F46E5).';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -255,7 +314,6 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
       role="form"
       aria-label="Tenant configuration form"
     >
-
       {/* ── Academy Information ─────────────────────────────────────────────── */}
       <SectionCard
         title="Academy Information"
@@ -263,7 +321,6 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
         delay={0}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-
           {/* Academy name */}
           <Field
             id={`${uid}-name`}
@@ -279,7 +336,9 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
               placeholder="e.g. Bright Future Academy"
               aria-required="true"
               aria-invalid={!!errors['academyName']}
-              aria-describedby={errors['academyName'] ? `${uid}-name-err` : undefined}
+              aria-describedby={
+                errors['academyName'] ? `${uid}-name-err` : undefined
+              }
               className={inputCls('academyName')}
             />
           </Field>
@@ -344,7 +403,9 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
                 onChange={(e) => updateField('primaryColor', e.target.value)}
                 placeholder="#4F46E5"
                 aria-invalid={!!errors['primaryColor']}
-                aria-describedby={errors['primaryColor'] ? `${uid}-color-err` : undefined}
+                aria-describedby={
+                  errors['primaryColor'] ? `${uid}-color-err` : undefined
+                }
                 className={cn(inputCls('primaryColor'), 'font-mono')}
                 maxLength={7}
               />
@@ -367,7 +428,9 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
                 }
                 placeholder="https://example.com/logo.png"
                 aria-invalid={!!errors['logoUrl']}
-                aria-describedby={errors['logoUrl'] ? `${uid}-logo-err` : undefined}
+                aria-describedby={
+                  errors['logoUrl'] ? `${uid}-logo-err` : undefined
+                }
                 className={inputCls('logoUrl')}
               />
             </Field>
@@ -383,14 +446,17 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
                 transition={{ duration: 0.2 }}
                 className="sm:col-span-2 flex items-center gap-3"
               >
-                <span className="text-xs text-[var(--text-muted)]">Preview:</span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Preview:
+                </span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={config.logoUrl}
                   alt="Academy logo preview"
                   className="h-10 max-w-[120px] rounded-lg border border-[var(--border-default)] object-contain p-1"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    (e.currentTarget as HTMLImageElement).style.display =
+                      'none';
                   }}
                 />
               </motion.div>
@@ -407,7 +473,9 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
       >
         <div className="space-y-4">
           {FEATURE_FLAGS.map((flag) => {
-            const isEnabled = config.features[flag.key];
+            // ✅ FIX: Safe access with fallback to false — prevents crash when features is undefined
+            const isEnabled = config.features?.[flag.key] ?? false;
+
             return (
               <motion.div
                 key={flag.key}
@@ -421,7 +489,7 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
                     'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg',
                     'transition-colors duration-[var(--transition-base)]',
                     isEnabled
-                      ? 'bg-[var(--brand-primary)] bg-opacity-10'
+                      ? 'bg-[var(--brand-primary)]/10'
                       : 'bg-[var(--bg-surface-secondary)]',
                   )}
                   aria-hidden="true"
@@ -503,7 +571,7 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
           <motion.button
             type="button"
             onClick={() => {
-              setConfig(initialConfig);
+              setConfig(normalizeConfig(initialConfig));
               setErrors({});
               setSavedAt(null);
             }}
@@ -535,7 +603,11 @@ export function TenantConfigForm({ initialConfig, onSave }: TenantConfigFormProp
               'transition-[background-color,opacity] duration-[var(--transition-base)]',
             )}
             aria-busy={isSaving}
-            aria-label={isSaving ? 'Saving configuration…' : 'Save configuration changes'}
+            aria-label={
+              isSaving
+                ? 'Saving configuration…'
+                : 'Save configuration changes'
+            }
           >
             {isSaving ? (
               <span className="flex items-center justify-center gap-2">

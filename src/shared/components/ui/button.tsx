@@ -11,19 +11,19 @@ import { cn } from '@shared/utils/cn';
 const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors',
-    'outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1',
+    'outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-1',
     'disabled:pointer-events-none disabled:opacity-50',
     'active:scale-[0.97] transition-transform',
   ],
   {
     variants: {
       variant: {
-        default: 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-dark)]',
-        destructive: 'bg-[var(--color-error)] text-white hover:bg-[var(--color-error-dark)]',
-        outline: 'border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] hover:bg-[var(--bg-sidebar-item-hover)]',
-        secondary: 'bg-[var(--bg-sidebar-item-hover)] text-[var(--color-text-primary)] hover:bg-[var(--bg-table-header)]',
-        ghost: 'bg-transparent text-[var(--color-text-primary)] hover:bg-[var(--bg-sidebar-item-hover)]',
-        link: 'bg-transparent text-[var(--color-accent)] underline-offset-4 hover:underline p-0 h-auto',
+        default: 'bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-hover)]',
+        destructive: 'bg-[var(--error-solid)] text-white hover:opacity-90',
+        outline: 'border border-[var(--border-default)] bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+        secondary: 'bg-[var(--bg-surface-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+        ghost: 'bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+        link: 'bg-transparent text-[var(--brand-primary)] underline-offset-4 hover:underline p-0 h-auto',
       },
       size: {
         sm: 'h-8 px-3 text-xs',
@@ -66,18 +66,18 @@ Button.displayName = 'Button';
 
 const inputVariants = cva(
   [
-    'flex w-full rounded-lg border bg-[var(--bg-surface)] px-3 text-sm text-[var(--color-text-primary)]',
-    'placeholder:text-[var(--color-text-muted)]',
+    'flex w-full rounded-lg border bg-[var(--bg-surface)] px-3 text-sm text-[var(--text-primary)]',
+    'placeholder:text-[var(--text-muted)]',
     'transition-colors outline-none',
-    'focus:ring-2 focus:ring-[var(--color-ring)]',
+    'focus:ring-2 focus:ring-[var(--border-focus)]',
     'disabled:opacity-50 disabled:cursor-not-allowed',
     'file:border-0 file:bg-transparent file:text-sm file:font-medium',
   ],
   {
     variants: {
       state: {
-        default: 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]',
-        error: 'border-[var(--color-error)] focus:ring-[var(--color-error)]',
+        default: 'border-[var(--border-default)] hover:border-[var(--border-strong)]',
+        error: 'border-[var(--error-solid)] focus:ring-[var(--error-solid)]',
       },
       inputSize: {
         sm: 'h-8 text-xs',
@@ -117,12 +117,12 @@ export const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
   ({ className, children, required, ...props }, ref) => (
     <label
       ref={ref}
-      className={cn('text-sm font-medium text-[var(--color-text-primary)] leading-none', className)}
+      className={cn('text-sm font-medium text-[var(--text-primary)] leading-none', className)}
       {...props}
     >
       {children}
       {required && (
-        <span className="text-[var(--color-error)] ml-0.5" aria-label="required">*</span>
+        <span className="text-[var(--error-solid)] ml-0.5" aria-label="required">*</span>
       )}
     </label>
   )
@@ -136,14 +136,14 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-[var(--color-accent)] text-white',
-        secondary: 'bg-[var(--bg-sidebar-item-hover)] text-[var(--color-text-secondary)]',
-        destructive: 'bg-[var(--color-error)]/15 text-[var(--color-error)]',
-        success: 'bg-[var(--color-success)]/15 text-[var(--color-success)]',
-        warning: 'bg-[var(--color-warning)]/15 text-[var(--color-warning)]',
-        error: 'bg-[var(--color-error)]/15 text-[var(--color-error)]',
-        info: 'bg-[var(--color-info)]/15 text-[var(--color-info)]',
-        outline: 'border border-[var(--color-border)] text-[var(--color-text-secondary)] bg-transparent',
+        default: 'bg-[var(--brand-primary)] text-white',
+        secondary: 'bg-[var(--bg-surface-secondary)] text-[var(--text-secondary)]',
+        destructive: 'bg-[var(--error-bg)] text-[var(--error-text)]',
+        success: 'bg-[var(--success-bg)] text-[var(--success-text)]',
+        warning: 'bg-[var(--warning-bg)] text-[var(--warning-text)]',
+        error: 'bg-[var(--error-bg)] text-[var(--error-text)]',
+        info: 'bg-[var(--info-bg)] text-[var(--info-text)]',
+        outline: 'border border-[var(--border-default)] text-[var(--text-secondary)] bg-transparent',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -167,7 +167,7 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('bg-[var(--bg-card)] border border-[var(--color-border)] rounded-2xl shadow-sm', className)}
+      className={cn('bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-sm', className)}
       {...props}
     />
   )
@@ -185,7 +185,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttribut
   ({ className, ...props }, ref) => (
     <h3
       ref={ref}
-      className={cn('text-lg font-semibold text-[var(--color-text-primary)] leading-tight', className)}
+      className={cn('text-lg font-semibold text-[var(--text-primary)] leading-tight', className)}
       {...props}
     />
   )
@@ -194,7 +194,7 @@ CardTitle.displayName = 'CardTitle';
 
 export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('text-sm text-[var(--color-text-muted)]', className)} {...props} />
+    <p ref={ref} className={cn('text-sm text-[var(--text-muted)]', className)} {...props} />
   )
 );
 CardDescription.displayName = 'CardDescription';

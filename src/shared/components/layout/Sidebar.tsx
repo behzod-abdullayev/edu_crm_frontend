@@ -26,7 +26,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   LayoutDashboard,
   BookOpen,
@@ -110,7 +110,7 @@ const NAV_CONFIG: Record<UserRole, NavGroup[]> = {
       key: 'main',
       items: [
         { key: 'dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },
-        { key: 'groups', href: '/teacher/groups', icon: Users },
+        { key: 'myGroups', href: '/teacher/groups', icon: Users },
         { key: 'attendance', href: '/teacher/attendance', icon: ClipboardCheck },
         { key: 'homework', href: '/teacher/homework', icon: BookMarked },
         { key: 'lessons', href: '/teacher/lessons', icon: BookOpen },
@@ -185,11 +185,12 @@ interface NavItemComponentProps {
 
 function NavItemComponent({ item, collapsed, isActive }: NavItemComponentProps) {
   const t = useTranslations('nav');
+  const locale = useLocale();
   const Icon = item.icon;
 
   const linkContent = (
     <Link
-      href={item.href}
+      href={`/${locale}${item.href}`}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'relative flex items-center gap-3 rounded-lg text-sm font-medium',
@@ -300,6 +301,9 @@ interface NavGroupComponentProps {
 
 function NavGroupComponent({ group, collapsed, pathname }: NavGroupComponentProps) {
   const t = useTranslations('nav');
+  const locale = useLocale();
+  // Strip the locale prefix so "/en/teacher/groups" matches href "/teacher/groups"
+  const pathWithoutLocale = pathname.replace(new RegExp(`^/${locale}`), '') || '/';
 
   return (
     <div>
@@ -318,7 +322,7 @@ function NavGroupComponent({ group, collapsed, pathname }: NavGroupComponentProp
             className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-sidebar)] opacity-60 truncate overflow-hidden"
             aria-hidden="true"
           >
-            {t(`groups.${group.key}`)}
+            {t(`sections.${group.key}`)}
           </motion.p>
         )}
       </AnimatePresence>
@@ -330,7 +334,7 @@ function NavGroupComponent({ group, collapsed, pathname }: NavGroupComponentProp
             <NavItemComponent
               item={item}
               collapsed={collapsed}
-              isActive={pathname.startsWith(item.href)}
+              isActive={pathWithoutLocale.startsWith(item.href)}
             />
           </li>
         ))}
@@ -403,6 +407,7 @@ export function Sidebar({ role, collapsed, onToggle }: SidebarProps) {
   const t = useTranslations('nav');
   const tCommon = useTranslations('common');
   const pathname = usePathname();
+  const locale = useLocale();
   const { user, logout } = useAuthStore();
   const groups = NAV_CONFIG[role] ?? [];
 
@@ -507,7 +512,7 @@ export function Sidebar({ role, collapsed, onToggle }: SidebarProps) {
                   <Tooltip.Root delayDuration={300}>
                     <Tooltip.Trigger asChild>
                       <Link
-                        href={`/${role}/profile`}
+                        href={`/${locale}/${role}/profile`}
                         aria-label={`${user.firstName} ${user.lastName} — ${tCommon('viewProfile')}`}
                         className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
                       >
@@ -537,7 +542,7 @@ export function Sidebar({ role, collapsed, onToggle }: SidebarProps) {
                   className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-[var(--bg-sidebar-item-hover)] transition-colors group"
                 >
                   <Link
-                    href={`/${role}/profile`}
+                    href={`/${locale}/${role}/profile`}
                     className="flex items-center gap-2 flex-1 min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] rounded-lg"
                     aria-label={tCommon('viewProfile')}
                   >

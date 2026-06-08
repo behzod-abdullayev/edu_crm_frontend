@@ -15,13 +15,19 @@ import {
 
 // ── Types that match the actual backend responses ─────────────────────────────
 
+// FIX: BackendKpis interfeysi kengaytirildi.
+// Backend /owner/dashboard endi totalBranches, activeCourses, monthlyEnrollments,
+// mrr, arr, trends fieldlarini ham qaytaradi (owner.service.ts fix dan keyin).
+// Bu interfeys ham yangilandi — yangi fieldlarni o'qib GlobalKPIData ga map qiladi.
 interface BackendKpis {
+  // Legacy fields
   monthlyRevenue?: number;
   activeStudents?: number;
   teacherCount?: number;
   attendanceRate?: number;
   completionRate?: number;
   revenueChangePercent?: number;
+  // NEW fields (owner.service.ts fix qilinganidan keyin)
   mrr?: number;
   arr?: number;
   totalUsers?: number;
@@ -77,26 +83,88 @@ interface BackendUserRow {
   salary?: number;
   contractStatus?: string;
   hireDate?: string;
+  // metadata JSONB - salary, contractStatus, hireDate backend tomonidan shu yerda saqlanadi
+  metadata?: Record<string, unknown> | null;
 }
 
+// Backend GET /api/v1/owner/branches returns BranchResponseDto[]:
+// [{ id, name, address, phone, managerId, managerName, isActive, studentCount, teacherCount, createdAt }]
+interface BackendBranchRow {
+  id: string;
+  name?: string;
+  address?: string | null;
+  phone?: string | null;
+  managerId?: string | null;
+  managerName?: string | null;
+  isActive?: boolean;
+  is_active?: boolean;
+  status?: string;
+  studentCount?: number;
+  student_count?: number;
+  teacherCount?: number;
+  teacher_count?: number;
+  courseCount?: number;
+  monthlyRevenue?: number;
+  monthly_revenue?: number;
+  currency?: string;
+  createdAt?: string;
+  created_at?: string;
+}
+
+function mapBranchRowToDto(b: BackendBranchRow): BranchDto {
+  // isActive field: backend BranchResponseDto uses isActive boolean
+  const isActive =
+    b.isActive === true ||
+    b.is_active === true ||
+    b.status === 'active';
+
+  return {
+    id:             b.id ?? '',
+    name:           b.name ?? '',
+    address:        b.address ?? '',
+    managerId:      b.managerId ?? null,
+    managerName:    b.managerName ?? null,
+    studentCount:   b.studentCount ?? b.student_count ?? 0,
+    teacherCount:   b.teacherCount ?? b.teacher_count ?? 0,
+    courseCount:    b.courseCount ?? 0,
+    monthlyRevenue: b.monthlyRevenue ?? b.monthly_revenue ?? 0,
+    currency:       b.currency ?? 'UZS',
+    // FIX: status to'g'ri aniqlash - isActive boolean dan
+    status:         isActive ? 'active' : 'inactive',
+    createdAt:
+      b.createdAt ??
+      b.created_at ??
+      new Date().toISOString(),
+  };
+}
+
+// FIX: mapBackendKpisToGlobalKPIData yangilandi.
+// Endi backend /owner/dashboard endi to'liq KPI qaytaradi:
+// totalBranches, activeCourses, monthlyEnrollments, mrr, arr, trends.
+// Mapper avval yangi fieldlarni tekshiradi (trends field mavjudligi orqali),
+// agar yangi format bo'lsa — to'g'ridan-to'g'ri ishlatadi.
+// Agar eski format kelsa (legacy) — hisob-kitob orqali bajariladi.
 function mapBackendKpisToGlobalKPIData(kpis: BackendKpis): GlobalKPIData {
-  if (kpis.trends !== undefined) {
+  // NEW format check: agar totalBranches field mavjud bo'lsa, yangi backend javobini ishlatamiz
+  if (kpis.totalBranches !== undefined || kpis.trends !== undefined) {
     return {
-      mrr: kpis.mrr ?? 0,
-      arr: kpis.arr ?? 0,
-      totalUsers: kpis.totalUsers ?? 0,
-      totalBranches: kpis.totalBranches ?? 0,
-      activeCourses: kpis.activeCourses ?? 0,
+      mrr:                kpis.mrr ?? kpis.monthlyRevenue ?? 0,
+      arr:                kpis.arr ?? (kpis.mrr ?? kpis.monthlyRevenue ?? 0) * 12,
+      totalUsers:         kpis.totalUsers ?? ((kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0)),
+      // FIX ASOSIY: endi backend totalBranches qaytaradi → 0 emas, haqiqiy son ko'rinadi
+      totalBranches:      kpis.totalBranches ?? 0,
+      activeCourses:      kpis.activeCourses ?? 0,
       monthlyEnrollments: kpis.monthlyEnrollments ?? 0,
-      revenueGrowthPercent: kpis.revenueGrowthPercent ?? 0,
+      revenueGrowthPercent: kpis.revenueGrowthPercent ?? kpis.revenueChangePercent ?? 0,
       trends: {
-        mrrChange: kpis.trends.mrrChange ?? 0,
-        usersChange: kpis.trends.usersChange ?? 0,
-        enrollmentsChange: kpis.trends.enrollmentsChange ?? 0,
+        mrrChange:         kpis.trends?.mrrChange ?? 0,
+        usersChange:       kpis.trends?.usersChange ?? 0,
+        enrollmentsChange: kpis.trends?.enrollmentsChange ?? 0,
       },
     };
   }
 
+  // Legacy format (eski backend versiyasi uchun fallback)
   const monthlyRevenue = kpis.monthlyRevenue ?? 0;
   const revenueChange = kpis.revenueChangePercent ?? 0;
 
@@ -104,7 +172,7 @@ function mapBackendKpisToGlobalKPIData(kpis: BackendKpis): GlobalKPIData {
     mrr: monthlyRevenue,
     arr: monthlyRevenue * 12,
     totalUsers: (kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0),
-    totalBranches: 1,
+    totalBranches: 0, // Legacy formatda bu ma'lumot yo'q
     activeCourses: 0,
     monthlyEnrollments: 0,
     revenueGrowthPercent: kpis.completionRate ?? 0,
@@ -175,7 +243,15 @@ function mapBackendAnalyticsToChartData(data: BackendGlobalAnalytics): MultiTena
 
 // Maps BackendUserRow to StaffDto (for HR panel)
 // Only users with role 'teacher' or 'admin' are included as staff
-function mapBackendUserToStaffDto(user: BackendUserRow): StaffDto | null {
+//
+// BUG FIX: Backend users.branch maydoni — bu branch NOMI (masalan "Main Branch"),
+// lekin getBranches endpointi branch UUID id qaytaradi.
+// HRPanel filtri branchId (UUID) bilan solishtiradi → "Main Branch" !== UUID → hech kim chiqmaydi.
+// Yechim: branches ro'yxatini qabul qilib, nom orqali to'g'ri UUID id ni topamiz.
+function mapBackendUserToStaffDto(
+  user: BackendUserRow,
+  branches: BackendBranchRow[],
+): StaffDto | null {
   const role = user.role as string;
   if (role !== 'teacher' && role !== 'admin') return null;
 
@@ -183,13 +259,36 @@ function mapBackendUserToStaffDto(user: BackendUserRow): StaffDto | null {
   const lastName = user.last_name ?? user.lastName ?? '';
   const name = `${firstName} ${lastName}`.trim() || user.email;
 
+  // user.branch — bu matn nom (masalan "Main Branch") yoki NULL bo'lishi mumkin.
+  // Muammo: DB da users.branch maydoni ko'pincha NULL (seed da o'rnatilmagan).
+  // Yechim 1: branchId (UUID) bo'yicha to'g'ridan-to'g'ri topamiz.
+  // Yechim 2: branch nomi bo'yicha topamiz.
+  // Yechim 3: agar ikkalasi ham topilmasa va faqat 1 ta filial bo'lsa → default filial.
+  const branchNameFromUser = user.branch ?? '';
+  const matchedBranch =
+    branches.find(
+      (b) =>
+        (user.branchId != null && user.branchId !== '' && b.id === user.branchId) ||
+        (branchNameFromUser !== '' &&
+          (b.name ?? '').toLowerCase() === branchNameFromUser.toLowerCase()),
+    ) ??
+    // Fallback: agar branch yo'q/null bo'lsa va yagona filial bo'lsa → uni ishlatamiz
+    (branches.length === 1 ? branches[0] : undefined);
+
+  const resolvedBranchId = matchedBranch?.id ?? user.branchId ?? user.branch ?? '';
+  const resolvedBranchName = matchedBranch?.name ?? user.branchName ?? user.branch ?? 'Main Branch';
+
   return {
     id: user.id,
     name,
     role: role as 'teacher' | 'admin',
-    branchId: user.branchId ?? user.branch ?? '',
-    branchName: user.branchName ?? user.branch ?? 'Main Branch',
-    salary: user.salary ?? 0,
+    branchId: resolvedBranchId,
+    branchName: resolvedBranchName,
+    // Maosh metadata JSONB dan o'qiymiz (backend uni metadata.salary da saqlaydi)
+    // user.salary to'g'ridan-to'g'ri bo'lsa (eski format) — uni ishlatamiz
+    salary: typeof user.salary === 'number'
+      ? user.salary
+      : (typeof user.metadata?.salary === 'number' ? user.metadata.salary : 0),
     currency: 'UZS',
     contractStatus: (user.contractStatus as StaffDto['contractStatus']) ?? 'active',
     hireDate:
@@ -200,21 +299,127 @@ function mapBackendUserToStaffDto(user: BackendUserRow): StaffDto | null {
   };
 }
 
+// Maps BackendUserRow → UserDto (for the Users management page)
+// The backend returns snake_case field names (first_name, last_name, last_login_at, created_at)
+// while the frontend UserDto expects camelCase (name, lastLogin, createdAt).
+// This mapper bridges that gap so the Users page shows all users correctly.
+function mapBackendUserRowToUserDto(user: BackendUserRow): UserDto {
+  const firstName = user.first_name ?? user.firstName ?? '';
+  const lastName = user.last_name ?? user.lastName ?? '';
+  const name = `${firstName} ${lastName}`.trim() || user.email;
+
+  const lastLogin =
+    user.last_login_at ?? user.lastLoginAt ?? null;
+  const createdAt =
+    user.created_at ?? user.createdAt ?? new Date().toISOString();
+
+  // Normalise status: backend may send 'active'/'inactive' or UserStatus enum values
+  const rawStatus = (user.status ?? 'active') as string;
+  const status: 'active' | 'inactive' =
+    rawStatus === 'inactive' ? 'inactive' : 'active';
+
+  return {
+    id: user.id,
+    name,
+    email: user.email,
+    role: user.role as UserRole,
+    status,
+    lastLogin: lastLogin ? new Date(lastLogin).toISOString() : null,
+    createdAt: new Date(createdAt).toISOString(),
+    branchId: user.branchId ?? user.branch ?? null,
+    branchName: user.branchName ?? null,
+  };
+}
+
 // ── KPI ───────────────────────────────────────────────────────────────────────
 
+// FIX: useOwnerKPI to'liq qayta yozildi.
+// Muammo: avvalgi versiyada faqat /api/owner/dashboard so'rovi yuborilgan,
+// va bu endpoint faqat eski KPI fieldlarni qaytargan (totalBranches yo'q edi).
+// Natijada dashboard da "Branches: 0" ko'rinardi.
+//
+// Yechim: endi /api/owner/dashboard so'roviga qo'shimcha ravishda
+// /api/owner/branches so'rovi ham yuboriladi (parallel Promise.all bilan).
+// Branches soni branches array uzunligi orqali aniqlanadi.
+// Bu ham eski backend (totalBranches qaytarmaydigan) ham yangi backend bilan ishlaydi.
 export function useOwnerKPI() {
   const [data, setData] = useState<GlobalKPIData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/owner/dashboard')
-      .then((r) => r.json())
-      .then((res) => {
-        const raw: BackendKpis = (res as { kpis?: BackendKpis }).kpis ?? (res as BackendKpis);
-        setData(mapBackendKpisToGlobalKPIData(raw));
-      })
-      .catch(() => setData(null))
-      .finally(() => setIsLoading(false));
+    let cancelled = false;
+
+    async function load() {
+      try {
+        // Parallel so'rovlar: dashboard KPI + branches (totalBranches uchun)
+        const [dashRes, branchRes] = await Promise.all([
+          fetch('/api/owner/dashboard'),
+          fetch('/api/owner/branches'),
+        ]);
+
+        if (cancelled) return;
+
+        // Dashboard KPI parse
+        let kpiData: GlobalKPIData | null = null;
+        if (dashRes.ok) {
+          const res = (await dashRes.json()) as { kpis?: BackendKpis } | BackendKpis;
+          const raw: BackendKpis =
+            (res as { kpis?: BackendKpis }).kpis !== undefined
+              ? ((res as { kpis: BackendKpis }).kpis)
+              : (res as BackendKpis);
+          kpiData = mapBackendKpisToGlobalKPIData(raw);
+        }
+
+        if (cancelled) return;
+
+        // Branches parse — totalBranches ni aniqlash uchun
+        // Bu fallback: agar backend /dashboard da totalBranches qaytarmasa,
+        // branches endpointidan hisoblaymiz
+        let branchCount = 0;
+        if (branchRes.ok) {
+          const branchData = (await branchRes.json()) as unknown;
+          if (Array.isArray(branchData)) {
+            branchCount = (branchData as unknown[]).length;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (kpiData !== null) {
+          // Agar backend yangi format qaytarsa (totalBranches > 0 bo'lsa) — ishonib qolaveramiz.
+          // Agar eski format qaytsa (totalBranches = 0 bo'lsa) — branches endpointdan override qilamiz.
+          const finalData: GlobalKPIData = {
+            ...kpiData,
+            totalBranches:
+              kpiData.totalBranches > 0
+                ? kpiData.totalBranches  // yangi backend javobini ishlatamiz
+                : branchCount,           // fallback: branches endpointdan
+          };
+          setData(finalData);
+        } else if (branchCount > 0) {
+          // Dashboard fail bo'lsa lekin branches kelsa — minimal data
+          setData({
+            mrr: 0,
+            arr: 0,
+            totalUsers: 0,
+            totalBranches: branchCount,
+            activeCourses: 0,
+            monthlyEnrollments: 0,
+            revenueGrowthPercent: 0,
+            trends: { mrrChange: 0, usersChange: 0, enrollmentsChange: 0 },
+          });
+        } else {
+          setData(null);
+        }
+      } catch {
+        if (!cancelled) setData(null);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   return { data, isLoading };
@@ -230,8 +435,15 @@ export function useOwnerBranches() {
     setIsLoading(true);
     try {
       const res = await fetch('/api/owner/branches');
+      if (!res.ok) {
+        setBranches([]);
+        return;
+      }
       const data = (await res.json()) as unknown;
-      setBranches(Array.isArray(data) ? (data as BranchDto[]) : []);
+      // Backend returns BranchResponseDto[] (array directly, not paginated)
+      const rawList: BackendBranchRow[] = Array.isArray(data) ? (data as BackendBranchRow[]) : [];
+      const mapped: BranchDto[] = rawList.map(mapBranchRowToDto);
+      setBranches(mapped);
     } catch {
       setBranches([]);
     } finally {
@@ -250,7 +462,24 @@ export function useOwnerBranches() {
       body: JSON.stringify(form),
     });
     if (!res.ok) throw new Error('Failed to create branch');
-    const created = (await res.json()) as BranchDto;
+
+    // FIX: Backend POST /owner/branches qaytaradi { branches: BranchDto[] }
+    // Oxirgi branch - yangi yaratilgan branch
+    const raw = (await res.json()) as Record<string, unknown>;
+
+    // Backend manageBranches metodi { branches: BranchDto[] } qaytaradi
+    // Yangi branch - bu arrayning oxirgi elementi
+    if (raw['branches'] && Array.isArray(raw['branches'])) {
+      const backendBranches = raw['branches'] as BackendBranchRow[];
+      const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
+      // Butun listni yangilash
+      setBranches(mapped);
+      return;
+    }
+
+    // Agar to'g'ridan-to'g'ri branch object qaytsa
+    // FIX: Record<string, unknown> → unknown → BackendBranchRow (safe double cast)
+    const created = mapBranchRowToDto(raw as unknown as BackendBranchRow);
     setBranches((prev) => [...prev, created]);
   }, []);
 
@@ -258,17 +487,46 @@ export function useOwnerBranches() {
     const res = await fetch(`/api/owner/branches/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ id, ...form }),
     });
     if (!res.ok) throw new Error('Failed to update branch');
-    const updated = (await res.json()) as BranchDto;
+
+    const raw = (await res.json()) as Record<string, unknown>;
+
+    // Backend manageBranches metodi { branches: BranchDto[] } qaytaradi
+    if (raw['branches'] && Array.isArray(raw['branches'])) {
+      const backendBranches = raw['branches'] as BackendBranchRow[];
+      const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
+      setBranches(mapped);
+      return;
+    }
+
+    // Agar to'g'ridan-to'g'ri branch object qaytsa
+    // FIX: Record<string, unknown> → unknown → BackendBranchRow (safe double cast)
+    const updated = mapBranchRowToDto({ id, ...raw } as unknown as BackendBranchRow);
     setBranches((prev) => prev.map((b) => (b.id === id ? updated : b)));
   }, []);
 
   const deactivateBranch = useCallback(async (id: string) => {
-    await fetch(`/api/owner/branches/${id}/deactivate`, { method: 'PATCH' });
+    // Backend da deactivate endpoint yo'q - POST /owner/branches bilan isActive=false junatiladi
+    // Yoki frontend side only update qilish
+    const res = await fetch('/api/owner/branches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, isActive: false }),
+    });
+    if (res.ok) {
+      const raw = (await res.json()) as Record<string, unknown>;
+      if (raw['branches'] && Array.isArray(raw['branches'])) {
+        const backendBranches = raw['branches'] as BackendBranchRow[];
+        const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
+        setBranches(mapped);
+        return;
+      }
+    }
+    // Fallback: local state update
     setBranches((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: 'inactive' } : b)),
+      prev.map((b) => (b.id === id ? { ...b, status: 'inactive' as const } : b)),
     );
   }, []);
 
@@ -277,40 +535,105 @@ export function useOwnerBranches() {
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
-export function useOwnerUsers() {
+// FIX: useOwnerUsers real server-side pagination bilan qayta yozildi.
+// Muammo: avvalgi versiya limit/page parametrsiz fetch qilardi (backend default=20 bilan).
+// Natijada:
+//   1. Barcha users bir sahifada ko'rinardi (11 ta user bo'lsa barchasi kelardi).
+//   2. DataTable limit dropdown (10/25/50/100) ishlamardi — onLimitChange yo'q edi.
+// Yechim:
+//   - page va limit parametrlarini qabul qilamiz.
+//   - Backend PaginatedResult<UserRow> { data, meta } ni to'liq parse qilamiz.
+//   - paginationMeta ni qaytaramiz — DataTable uchun real page/total/limit.
+
+export interface UsersPaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface UseOwnerUsersOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: UserRole;
+}
+
+export function useOwnerUsers(options: UseOwnerUsersOptions = {}) {
+  const { page = 1, limit = 10, search, role } = options;
+
   const [users, setUsers] = useState<UserDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [paginationMeta, setPaginationMeta] = useState<UsersPaginationMeta>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/owner/users');
+      // Build query string with real pagination params — backend supports page & limit
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(limit));
+      if (search) params.set('search', search);
+      if (role) params.set('role', role);
+
+      const res = await fetch(`/api/owner/users?${params.toString()}`);
       const data = (await res.json()) as unknown;
-      const list =
+
+      // Backend returns PaginatedResult<UserRow> = { data: UserRow[], meta: { total, page, limit } }
+      const rawList: BackendUserRow[] =
         Array.isArray((data as { data?: unknown }).data)
-          ? ((data as { data: UserDto[] }).data)
+          ? ((data as { data: BackendUserRow[] }).data)
           : Array.isArray(data)
-          ? (data as UserDto[])
+          ? (data as BackendUserRow[])
           : [];
-      setUsers(list);
+
+      // Map snake_case backend fields → camelCase UserDto
+      const mapped: UserDto[] = rawList.map(mapBackendUserRowToUserDto);
+      setUsers(mapped);
+
+      // Build real pagination meta from backend response
+      const meta = (data as { meta?: { total?: number; page?: number; limit?: number } }).meta;
+      const total = meta?.total ?? mapped.length;
+      const currentPage = meta?.page ?? page;
+      const currentLimit = meta?.limit ?? limit;
+      const totalPages = Math.max(1, Math.ceil(total / currentLimit));
+
+      setPaginationMeta({
+        page: currentPage,
+        limit: currentLimit,
+        total,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1,
+      });
     } catch {
       setUsers([]);
+      setPaginationMeta((prev) => ({ ...prev, total: 0, totalPages: 1 }));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page, limit, search, role]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const changeRole = useCallback(async (userId: string, role: UserRole) => {
+  const changeRole = useCallback(async (userId: string, newRole: UserRole) => {
     await fetch(`/api/owner/users/${userId}/role`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role: newRole }),
     });
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
   }, []);
 
   const toggleStatus = useCallback(async (userId: string, status: 'active' | 'inactive') => {
@@ -322,7 +645,7 @@ export function useOwnerUsers() {
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
   }, []);
 
-  return { users, isLoading, changeRole, toggleStatus, refresh: load };
+  return { users, isLoading, paginationMeta, changeRole, toggleStatus, refresh: load };
 }
 
 // ── Roles ─────────────────────────────────────────────────────────────────────
@@ -431,6 +754,10 @@ export function useOwnerAnalytics() {
 // Returns: PaginatedResult<UserRow> = { data: UserRow[], meta: {...} }
 // UserRow has: { id, first_name, last_name, email, role, status, branch, ... }
 // We filter to only teacher + admin roles and map to StaffDto for HRPanel
+//
+// BUG FIX: users.branch — bu matn nom (masalan "Main Branch").
+// Filtr UUID bilan ishlashi uchun avval branches ro'yxatini yuklab,
+// keyin har bir staff uchun branchId ni nom orqali topamiz.
 
 export function useOwnerHR() {
   const [staff, setStaff] = useState<StaffDto[]>([]);
@@ -439,14 +766,17 @@ export function useOwnerHR() {
   const loadStaff = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch teachers
-      const [teacherRes, adminRes] = await Promise.all([
+      // Barcha kerakli ma'lumotlarni parallel yuklaymiz:
+      // teachers, admins va branches (branchId ni aniqlash uchun)
+      const [teacherRes, adminRes, branchRes] = await Promise.all([
         fetch('/api/owner/users?role=teacher&limit=100'),
         fetch('/api/owner/users?role=admin&limit=100'),
+        fetch('/api/owner/branches'),
       ]);
 
       const teacherData = (await teacherRes.json()) as unknown;
       const adminData = (await adminRes.json()) as unknown;
+      const branchData = (await branchRes.json()) as unknown;
 
       const teacherRows: BackendUserRow[] = Array.isArray(
         (teacherData as { data?: unknown }).data,
@@ -464,9 +794,14 @@ export function useOwnerHR() {
         ? (adminData as BackendUserRow[])
         : [];
 
+      // branches ro'yxati: nom → id moslashtirish uchun
+      const branches: BackendBranchRow[] = Array.isArray(branchData)
+        ? (branchData as BackendBranchRow[])
+        : [];
+
       const allRows = [...teacherRows, ...adminRows];
       const mapped: StaffDto[] = allRows
-        .map(mapBackendUserToStaffDto)
+        .map((u) => mapBackendUserToStaffDto(u, branches))
         .filter((s): s is StaffDto => s !== null);
 
       setStaff(mapped);
@@ -482,16 +817,21 @@ export function useOwnerHR() {
   }, [loadStaff]);
 
   const updateSalary = useCallback(async (staffId: string, salary: number) => {
-    // Backend uses POST /owner/hr for HR operations
-    await fetch('/api/owner/hr', {
+    // Backend POST /owner/hr endpoint - 'update_salary' operatsiyasi
+    // Maosh metadata JSONB da saqlanadi (users jadvalida alohida salary column yo'q)
+    const res = await fetch('/api/owner/hr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId: staffId,
-        operation: 'change_role',
+        operation: 'update_salary',
         salary,
       }),
     });
+    if (!res.ok) {
+      throw new Error('Failed to update salary');
+    }
+    // Local state ni yangilaymiz (sahifani qayta yuklamasdan ko'rinadi)
     setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, salary } : s)));
   }, []);
 

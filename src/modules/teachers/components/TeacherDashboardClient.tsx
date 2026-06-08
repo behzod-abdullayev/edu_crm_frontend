@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useLocale } from "next-intl";
 import {
   Users,
   GraduationCap,
@@ -114,6 +115,7 @@ export function TeacherDashboardClient() {
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const locale = useLocale();
 
   const teacherId = user?.id ?? "";
 
@@ -231,7 +233,7 @@ export function TeacherDashboardClient() {
           size="sm"
           className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
         >
-          <Link href="/teacher/attendance">
+          <Link href={`/${locale}/teacher/attendance`}>
             <CheckSquare size={16} aria-hidden="true" />
             Mark Attendance
           </Link>
@@ -243,7 +245,7 @@ export function TeacherDashboardClient() {
           size="sm"
           className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
         >
-          <Link href="/teacher/homework/create">
+          <Link href={`/${locale}/teacher/homework/create`}>
             <PlusCircle size={16} aria-hidden="true" />
             Create Homework
           </Link>
@@ -255,7 +257,7 @@ export function TeacherDashboardClient() {
           size="sm"
           className="gap-2 h-9 min-h-[44px] sm:min-h-[36px]"
         >
-          <Link href="/teacher/lessons/upload">
+          <Link href={`/${locale}/teacher/lessons/upload`}>
             <Upload size={16} aria-hidden="true" />
             Upload Lesson
           </Link>

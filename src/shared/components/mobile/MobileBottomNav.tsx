@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -246,6 +247,7 @@ function TabItem({ tab, isActive, notificationCount }: TabItemProps) {
 
 export function MobileBottomNav({ role }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const locale = useLocale();
   const tabs: TabConfig[] = TAB_CONFIGS[role] ?? TAB_CONFIGS.student;
   const notificationCount = useNotificationCount();
 
@@ -266,15 +268,19 @@ export function MobileBottomNav({ role }: MobileBottomNavProps) {
       }}
     >
       {tabs.map((tab) => {
+        // Build the locale-aware href for navigation
+        const localizedHref = `/${locale}${tab.href}`;
+        // Strip locale from pathname for active check
+        const pathWithoutLocale = pathname.replace(new RegExp(`^/${locale}`), '') || '/';
         const isActive =
           tab.href === `/${role}`
-            ? pathname === tab.href || pathname === `/${role}/`
-            : pathname.startsWith(tab.href);
+            ? pathWithoutLocale === tab.href || pathWithoutLocale === `/${role}/`
+            : pathWithoutLocale.startsWith(tab.href);
 
         return (
           <TabItem
             key={tab.href}
-            tab={tab}
+            tab={{ ...tab, href: localizedHref }}
             isActive={isActive}
             notificationCount={notificationCount}
           />

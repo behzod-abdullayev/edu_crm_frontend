@@ -3,23 +3,17 @@
 /**
  * OwnerUsersClient — /[locale]/owner/users
  *
- * FIX: The generated `useGetOwnerUsers` hook was sending requests directly to
- *      the backend which caused CORS/auth errors when the backend is not
- *      accessible from the browser. Switched to `useOwnerUsers` from
- *      `@/modules/owner/hooks/useOwner` which routes through the Next.js
- *      API proxy at /api/owner/users → backend /api/v1/owner/users.
+ * FIX 1: Real server-side pagination implemented.
+ *         - [page, limit] state managed in this component.
+ *         - useOwnerUsers({ page, limit, search, role }) receives params.
+ *         - Backend sends only the requested page/limit — no more showing all 11 users.
  *
- * FIX: Added proper null/undefined guards on pagination meta fields.
+ * FIX 2: DataTable onLimitChange prop now wired up.
+ *         - Selecting 25/50/100 from the dropdown resets page to 1 and refetches.
+ *         - paginationMeta from hook feeds real total/totalPages into DataTable.
  *
- * Features:
- *  - Full-text search (debounced 350 ms)
- *  - Role filter (all / student / teacher / admin / owner)
- *  - Paginated DataTable on desktop (≥ 640 px)
- *  - MobileCardList on mobile (< 640 px) with pull-to-refresh
- *  - Assign-role sheet (mobile) / modal (desktop)
- *  - Full A11Y: ARIA labels, focus management, keyboard navigation
- *  - Framer Motion: page fade-in, card stagger, button press animations
- *  - i18n via next-intl (zero hardcoded strings for user-facing copy)
+ * FIX 3: Client-side filter removed — search & role filters sent as query params
+ *         to the backend so filtering + pagination work together correctly.
  */
 
 import { useState, useCallback, useMemo, useId, type ReactNode } from 'react';
@@ -76,7 +70,6 @@ const ROLE_BADGE_CLASSES: Record<string, string> = {
 function toAvatarUser(
   u: UserDto,
 ): Pick<SharedUserProfile, 'firstName' | 'lastName' | 'avatar' | 'role'> {
-  // UserDto.name is "First Last" — split it
   const parts = u.name.split(' ');
   const firstName = parts[0] ?? u.name;
   const lastName = parts.slice(1).join(' ') || '';
@@ -142,7 +135,6 @@ function AssignRoleDialog({
   );
   const [isPending, setIsPending] = useState(false);
 
-  // Sync selectedRole when user changes
   const currentUserRole = user?.role;
   useMemo(() => {
     if (currentUserRole) setSelectedRole(currentUserRole);
@@ -208,7 +200,6 @@ function AssignRoleDialog({
             aria-modal="true"
             aria-labelledby={titleId}
           >
-            {/* Drag handle (mobile only) */}
             <div
               className="flex justify-center pb-1 pt-3 sm:hidden"
               aria-hidden="true"
@@ -216,7 +207,6 @@ function AssignRoleDialog({
               <div className="h-1 w-10 rounded-full bg-[var(--border-strong)]" />
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-4">
               <h2
                 id={titleId}
@@ -239,7 +229,6 @@ function AssignRoleDialog({
               </button>
             </div>
 
-            {/* User info */}
             <div className="flex items-center gap-3 bg-[var(--bg-surface-secondary)] px-6 py-4">
               <AvatarWithRole user={toAvatarUser(user)} size="md" showRole={false} />
               <div className="min-w-0">
@@ -253,7 +242,6 @@ function AssignRoleDialog({
               <RoleBadge role={user.role} size="sm" />
             </div>
 
-            {/* Role selector */}
             <div className="space-y-3 p-6">
               <p className="text-sm font-semibold text-[var(--text-primary)]">
                 Select new role
@@ -296,7 +284,6 @@ function AssignRoleDialog({
               </div>
             </div>
 
-            {/* Actions */}
             <div
               className="flex items-center gap-3 border-t border-[var(--border-default)] px-6 py-4"
               style={{
@@ -437,6 +424,11 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const reduced = useReducedMotion() ?? false;
   const { toast } = useToast();
 
+  // ── Pagination state ───────────────────────────────────────────────────────
+  // FIX: page va limit state bu yerda saqlanadi va hook ga uzatiladi
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
   // ── Filter state ───────────────────────────────────────────────────────────
   const [searchRaw, setSearchRaw] = useState('');
   const search = useDebounce(searchRaw, 350);
@@ -450,45 +442,35 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const roleFilterId = useId();
 
-  // ── Data fetching (via /api/owner/users proxy) ─────────────────────────────
+  // ── Data fetching — real server-side pagination ────────────────────────────
+  // FIX: hook endi page, limit, search, role parametrlarini qabul qiladi.
+  // Backend faqat so'ralgan sahifani qaytaradi — hammasi emas.
   const {
-    users: allUsers,
+    users,
     isLoading,
+    paginationMeta,
     changeRole,
     refresh,
-  } = useOwnerUsers();
+  } = useOwnerUsers({
+    page,
+    limit,
+    ...(search ? { search } : {}),
+    ...(roleFilter ? { role: roleFilter } : {}),
+  });
 
-  // Client-side filter (since the hook fetches all users at once)
-  const users = useMemo<UserDto[]>(() => {
-    let filtered = allUsers;
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(
-        (u) =>
-          u.name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q),
-      );
-    }
-    if (roleFilter) {
-      filtered = filtered.filter((u) => u.role === roleFilter);
-    }
-    return filtered;
-  }, [allUsers, search, roleFilter]);
-
-  // Build fake pagination meta for DataTable
+  // FIX: Real pagination meta — DataTable ga uzatiladi
   const pagination = useMemo(
     () => ({
-      page: 1,
-      limit: users.length || 10,
-      total: users.length,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPrevPage: false,
+      page: paginationMeta.page,
+      limit: paginationMeta.limit,
+      total: paginationMeta.total,
+      totalPages: paginationMeta.totalPages,
+      hasNextPage: paginationMeta.hasNextPage,
+      hasPrevPage: paginationMeta.hasPrevPage,
     }),
-    [users.length],
+    [paginationMeta],
   );
 
-  // Error state (hook doesn't expose error, but we can handle load failures)
   const [loadError, setLoadError] = useState<Error | null>(null);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -526,22 +508,38 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
 
   const handleSearch = useCallback((v: string) => {
     setSearchRaw(v);
+    setPage(1); // Search o'zgarganda 1-sahifaga qaytamiz
   }, []);
 
   const handleRoleFilter = useCallback(
     (role: UserRole | undefined) => {
       setRoleFilter(role);
       setRoleDropdownOpen(false);
+      setPage(1); // Filter o'zgarganda 1-sahifaga qaytamiz
     },
     [],
   );
 
+  // FIX: onPageChange — sahifalar orasida o'tish
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+  }, []);
+
+  // FIX: onLimitChange — qatorlar soni (10/25/50/100) o'zgarganda
+  // Avvalgi versiyada bu prop DataTable ga umuman berilmagan edi!
+  const handleLimitChange = useCallback((newLimit: number) => {
+    setLimit(newLimit);
+    setPage(1); // Limit o'zgarganda 1-sahifaga qaytamiz
+  }, []);
+
   // ── Desktop table columns ─────────────────────────────────────────────────
+  const tOwner = useTranslations('owner.users');
+
   const columns = useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
         key: 'name',
-        header: 'User',
+        header: tOwner('userColumn'),
         accessor: (row): ReactNode => (
           <AvatarWithRole
             user={toAvatarUser(row as UserDto)}
@@ -554,13 +552,13 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
       },
       {
         key: 'email',
-        header: 'Email',
+        header: tOwner('emailColumn'),
         accessor: 'email',
         width: '220px',
       },
       {
         key: 'role',
-        header: 'Role',
+        header: tOwner('roleColumn'),
         accessor: (row): ReactNode => (
           <RoleBadge role={(row as UserDto).role} />
         ),
@@ -569,7 +567,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
       },
       {
         key: 'lastLogin',
-        header: 'Last Login',
+        header: tOwner('lastLoginColumn'),
         accessor: (row): ReactNode => {
           const u = row as UserDto;
           return u.lastLogin
@@ -580,7 +578,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
       },
       {
         key: 'actions',
-        header: '',
+        header: tOwner('actionsColumn'),
+        hideFromVisibilityToggle: true,
         accessor: (row): ReactNode => (
           <motion.button
             type="button"
@@ -597,13 +596,13 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             )}
           >
             <Shield size={12} aria-hidden="true" />
-            Assign Role
+            {tOwner('assignRole')}
           </motion.button>
         ),
         width: '120px',
       },
     ],
-    [handleOpenAssignRole, reduced],
+    [handleOpenAssignRole, reduced, tOwner],
   );
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -628,7 +627,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             {t('nav.users')}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            {users.length.toLocaleString()} total users
+            {paginationMeta.total.toLocaleString()} total users
           </p>
         </div>
       </div>
@@ -769,6 +768,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             onClick={() => {
               handleSearch('');
               setRoleFilter(undefined);
+              setPage(1);
             }}
             aria-label="Clear all filters"
             className={cn(
@@ -818,7 +818,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           data={users as (UserDto & { id: string })[]}
           isLoading={isLoading}
           error={loadError}
-          hasMore={false}
+          hasMore={paginationMeta.hasNextPage}
           onRefresh={handleRefresh}
           emptyState={{
             title: 'No users found',
@@ -844,7 +844,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           isLoading={isLoading}
           error={loadError}
           pagination={pagination}
-          onPageChange={() => {/* single page */}}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
           rowKey="id"
           emptyState={{
             title: 'No users found',

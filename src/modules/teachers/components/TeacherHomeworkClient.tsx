@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 import { useCurrentUser } from "@shared/hooks/useCurrentUser";
 import { useTeacherHomework } from "@/modules/teachers/hooks/useTeacher";
 import { useIsMobile } from "@shared/hooks/useIsMobile";
@@ -11,7 +12,6 @@ import { MobileCardList } from "@shared/components/mobile/MobileCardList";
 import { EmptyState } from "@shared/components/data-display/EmptyState";
 import { ErrorState } from "@shared/components/data-display/ErrorState";
 import { Button } from "@shared/components/ui/button";
-import { Badge } from "@shared/components/ui/badge";
 import { cn } from "@shared/lib/utils";
 import {
   Plus,
@@ -25,7 +25,11 @@ import {
 import type { HomeworkDto } from "@generated/models";
 
 // ─── Homework type alias & status enum ───────────────────────────────────────
-type Homework = HomeworkDto & { status: "published" | "draft" | "closed"; submissionCount?: number };
+
+type Homework = HomeworkDto & {
+  status: "published" | "draft" | "closed";
+  submissionCount?: number;
+};
 
 const HomeworkStatus = {
   published: "published",
@@ -51,23 +55,24 @@ function isOverdue(dueDate: string): boolean {
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 function HomeworkStatusBadge({ status }: { status: Homework["status"] }) {
-  const map: Record<Homework["status"], { label: string; className: string }> = {
-    [HomeworkStatus.published]: {
-      label: "Published",
-      className:
-        "bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]",
-    },
-    [HomeworkStatus.draft]: {
-      label: "Draft",
-      className:
-        "bg-[var(--bg-surface-secondary)] text-[var(--text-secondary)] border-[var(--border-default)]",
-    },
-    [HomeworkStatus.closed]: {
-      label: "Closed",
-      className:
-        "bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]",
-    },
-  };
+  const map: Record<Homework["status"], { label: string; className: string }> =
+    {
+      [HomeworkStatus.published]: {
+        label: "Published",
+        className:
+          "bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]",
+      },
+      [HomeworkStatus.draft]: {
+        label: "Draft",
+        className:
+          "bg-[var(--bg-surface-secondary)] text-[var(--text-secondary)] border-[var(--border-default)]",
+      },
+      [HomeworkStatus.closed]: {
+        label: "Closed",
+        className:
+          "bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]",
+      },
+    };
 
   const config = map[status] ?? map[HomeworkStatus.draft]!;
 
@@ -99,11 +104,14 @@ const rowVariants = {
 interface HomeworkRowProps {
   hw: Homework;
   index: number;
+  locale: string;
 }
 
-function HomeworkRow({ hw, index }: HomeworkRowProps) {
+function HomeworkRow({ hw, index, locale }: HomeworkRowProps) {
   const overdue =
-    hw.dueDate && hw.status === HomeworkStatus.published && isOverdue(hw.dueDate);
+    hw.dueDate &&
+    hw.status === HomeworkStatus.published &&
+    isOverdue(hw.dueDate);
 
   return (
     <motion.tr
@@ -116,7 +124,7 @@ function HomeworkRow({ hw, index }: HomeworkRowProps) {
       {/* Title */}
       <td className="px-4 py-3">
         <Link
-          href={`/teacher/homework/${hw.id}`}
+          href={`/${locale}/teacher/homework/${hw.id}`}
           className="font-medium text-sm text-[var(--text-primary)] hover:text-[var(--brand-primary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] rounded"
         >
           {hw.title}
@@ -135,12 +143,16 @@ function HomeworkRow({ hw, index }: HomeworkRowProps) {
         <span
           className={cn(
             "text-sm tabular-nums",
-            overdue ? "text-[var(--error-text)] font-medium" : "text-[var(--text-secondary)]"
+            overdue
+              ? "text-[var(--error-text)] font-medium"
+              : "text-[var(--text-secondary)]"
           )}
         >
           {hw.dueDate ? formatDate(hw.dueDate) : "—"}
           {overdue && (
-            <span className="ml-1 text-xs text-[var(--error-solid)]">Overdue</span>
+            <span className="ml-1 text-xs text-[var(--error-solid)]">
+              Overdue
+            </span>
           )}
         </span>
       </td>
@@ -160,7 +172,7 @@ function HomeworkRow({ hw, index }: HomeworkRowProps) {
       {/* Actions */}
       <td className="px-4 py-3">
         <Link
-          href={`/teacher/homework/${hw.id}`}
+          href={`/${locale}/teacher/homework/${hw.id}`}
           className="inline-flex items-center gap-1 text-xs font-medium text-[var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] rounded opacity-0 group-hover:opacity-100 transition-opacity"
           aria-label={`View homework: ${hw.title}`}
         >
@@ -199,13 +211,20 @@ function TableSkeleton() {
 
 // ─── Mobile Card ──────────────────────────────────────────────────────────────
 
-function MobileHomeworkCard({ hw }: { hw: Homework }) {
+interface MobileHomeworkCardProps {
+  hw: Homework;
+  locale: string;
+}
+
+function MobileHomeworkCard({ hw, locale }: MobileHomeworkCardProps) {
   const overdue =
-    hw.dueDate && hw.status === HomeworkStatus.published && isOverdue(hw.dueDate);
+    hw.dueDate &&
+    hw.status === HomeworkStatus.published &&
+    isOverdue(hw.dueDate);
 
   return (
     <Link
-      href={`/teacher/homework/${hw.id}`}
+      href={`/${locale}/teacher/homework/${hw.id}`}
       className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] rounded-xl"
       aria-label={`Homework: ${hw.title}`}
     >
@@ -227,7 +246,9 @@ function MobileHomeworkCard({ hw }: { hw: Homework }) {
         </div>
 
         {hw.groupName && (
-          <p className="text-xs text-[var(--text-muted)] pl-6">{hw.groupName}</p>
+          <p className="text-xs text-[var(--text-muted)] pl-6">
+            {hw.groupName}
+          </p>
         )}
 
         <div className="flex items-center gap-3 pl-6 flex-wrap">
@@ -247,7 +268,8 @@ function MobileHomeworkCard({ hw }: { hw: Homework }) {
           )}
           <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
             <CheckSquare className="w-3 h-3" aria-hidden="true" />
-            {hw.submissionCount ?? 0} submission{hw.submissionCount !== 1 ? "s" : ""}
+            {hw.submissionCount ?? 0} submission
+            {hw.submissionCount !== 1 ? "s" : ""}
           </span>
         </div>
       </motion.div>
@@ -261,6 +283,7 @@ const COLS = ["Title", "Group", "Due Date", "Submissions", "Status", ""];
 
 export function TeacherHomeworkClient() {
   const { user } = useCurrentUser();
+  const locale = useLocale();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -282,12 +305,10 @@ export function TeacherHomeworkClient() {
     });
   }, [queryClient, teacherId]);
 
-  // ── Mobile infinite scroll load-more ─────────────────────────────────────
   const handleLoadMore = useCallback(() => {
     setPage((p) => p + 1);
   }, []);
 
-  // ── Pagination ────────────────────────────────────────────────────────────
   const goToPrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
   const goToNext = useCallback(
     () => setPage((p) => Math.min(totalPages, p + 1)),
@@ -296,7 +317,7 @@ export function TeacherHomeworkClient() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* ── Page Header ───────────────────────────────────────────────────── */}
+      {/* ── Page Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1
@@ -313,19 +334,15 @@ export function TeacherHomeworkClient() {
           </p>
         </div>
 
-        <Button
-          asChild
-          size="sm"
-          className="gap-1.5 shrink-0"
-        >
-          <Link href="/teacher/homework/create">
+        <Button asChild size="sm" className="gap-1.5 shrink-0">
+          <Link href={`/${locale}/teacher/homework/create`}>
             <Plus className="w-4 h-4" aria-hidden="true" />
             Create
           </Link>
         </Button>
       </div>
 
-      {/* ── Error State ────────────────────────────────────────────────────── */}
+      {/* ── Error / Mobile / Desktop ─────────────────────────────────────────── */}
       <AnimatePresence mode="wait">
         {isError && (
           <motion.div
@@ -336,14 +353,18 @@ export function TeacherHomeworkClient() {
             transition={{ duration: 0.2 }}
           >
             <ErrorState
-              error={error instanceof Error ? error : new Error("Failed to load homework")}
+              error={
+                error instanceof Error
+                  ? error
+                  : new Error("Failed to load homework")
+              }
               title="Could not load homework"
               onRetry={() => void refetch()}
             />
           </motion.div>
         )}
 
-        {/* ── Mobile Card List ──────────────────────────────────────────────── */}
+        {/* ── Mobile Card List ─────────────────────────────────────────────── */}
         {isMobile && !isError && (
           <motion.div
             key="mobile"
@@ -363,13 +384,13 @@ export function TeacherHomeworkClient() {
                 description: "Create your first assignment to get started.",
               }}
               renderCard={(hw: Homework) => (
-                <MobileHomeworkCard hw={hw} />
+                <MobileHomeworkCard hw={hw} locale={locale} />
               )}
             />
           </motion.div>
         )}
 
-        {/* ── Desktop Table ─────────────────────────────────────────────────── */}
+        {/* ── Desktop Table ────────────────────────────────────────────────── */}
         {!isMobile && !isError && (
           <motion.div
             key="desktop"
@@ -429,7 +450,12 @@ export function TeacherHomeworkClient() {
                     </tr>
                   ) : (
                     rows.map((hw, i) => (
-                      <HomeworkRow key={hw.id} hw={hw} index={i} />
+                      <HomeworkRow
+                        key={hw.id}
+                        hw={hw}
+                        index={i}
+                        locale={locale}
+                      />
                     ))
                   )}
                 </tbody>
@@ -448,9 +474,7 @@ export function TeacherHomeworkClient() {
                   <span className="font-semibold text-[var(--text-primary)]">
                     {totalPages}
                   </span>
-                  {data?.total != null && (
-                    <> · {data.total} total</>
-                  )}
+                  {data?.total != null && <> · {data.total} total</>}
                 </span>
 
                 <div className="flex items-center gap-1.5">
@@ -465,30 +489,34 @@ export function TeacherHomeworkClient() {
                     <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                   </Button>
 
-                  {/* Page numbers */}
-                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                    const pageNum =
-                      totalPages <= 5
-                        ? i + 1
-                        : page <= 3
-                        ? i + 1
-                        : page >= totalPages - 2
-                        ? totalPages - 4 + i
-                        : page - 2 + i;
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={pageNum === page ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setPage(pageNum)}
-                        aria-label={`Go to page ${pageNum}`}
-                        aria-current={pageNum === page ? "page" : undefined}
-                        className="h-8 w-8 p-0 text-xs"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
+                  {Array.from(
+                    { length: Math.min(totalPages, 5) },
+                    (_, i) => {
+                      const pageNum =
+                        totalPages <= 5
+                          ? i + 1
+                          : page <= 3
+                          ? i + 1
+                          : page >= totalPages - 2
+                          ? totalPages - 4 + i
+                          : page - 2 + i;
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          aria-label={`Go to page ${pageNum}`}
+                          aria-current={
+                            pageNum === page ? "page" : undefined
+                          }
+                          className="h-8 w-8 p-0 text-xs"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    }
+                  )}
 
                   <Button
                     variant="outline"

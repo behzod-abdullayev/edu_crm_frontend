@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback, useMemo, useId } from 'react';
+import { useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2,
@@ -77,6 +78,7 @@ function StatusBadge({ status }: { status: BranchDto['status'] }) {
 // ─── KPI bar ──────────────────────────────────────────────────────────────────
 
 function KPIBar({ branches }: { branches: BranchDto[] }) {
+  const t = useTranslations('owner.branches');
   const total = branches.length;
   const active = branches.filter((b) => b.status === 'active').length;
   const totalStudents = branches.reduce((s, b) => s + b.studentCount, 0);
@@ -84,7 +86,7 @@ function KPIBar({ branches }: { branches: BranchDto[] }) {
 
   const cards = [
     {
-      label: 'Total Branches',
+      label: t('totalBranches'),
       value: total,
       icon: Building2,
       bg: 'bg-[var(--info-bg)]',
@@ -92,7 +94,7 @@ function KPIBar({ branches }: { branches: BranchDto[] }) {
       format: (v: number) => formatNumber(v),
     },
     {
-      label: 'Active Branches',
+      label: t('activeBranches'),
       value: active,
       icon: CheckCircle2,
       bg: 'bg-[var(--success-bg)]',
@@ -100,7 +102,7 @@ function KPIBar({ branches }: { branches: BranchDto[] }) {
       format: (v: number) => formatNumber(v),
     },
     {
-      label: 'Total Students',
+      label: t('totalStudents'),
       value: totalStudents,
       icon: Users,
       bg: 'bg-[var(--brand-primary)]/10',
@@ -108,7 +110,7 @@ function KPIBar({ branches }: { branches: BranchDto[] }) {
       format: (v: number) => formatNumber(v),
     },
     {
-      label: 'Monthly Revenue',
+      label: t('monthlyRevenue'),
       value: totalRevenue,
       icon: DollarSign,
       bg: 'bg-[var(--warning-bg)]',
@@ -160,6 +162,7 @@ interface BranchFormModalProps {
 }
 
 function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
+  const t = useTranslations('owner.branches');
   const titleId = useId();
   const [form, setForm] = useState<BranchForm>({
     name: initial?.name ?? '',
@@ -171,8 +174,8 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
 
   const validate = (): boolean => {
     const next: typeof errors = {};
-    if (!form.name.trim()) next.name = 'Branch name is required.';
-    if (!form.address.trim()) next.address = 'Address is required.';
+    if (!form.name.trim()) next.name = t('nameRequired');
+    if (!form.address.trim()) next.address = t('addressRequired');
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -184,7 +187,7 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
       await onSubmit(form);
       onClose();
     } catch {
-      setErrors({ name: 'Failed to save branch. Please try again.' });
+      setErrors({ name: t('saveFailed') });
     } finally {
       setSaving(false);
     }
@@ -225,7 +228,7 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
             id={titleId}
             className="text-base font-semibold text-[var(--text-primary)]"
           >
-            {initial ? 'Edit Branch' : 'Create Branch'}
+            {initial ? t('editBranch') : t('createBranch')}
           </h2>
           <button
             onClick={onClose}
@@ -257,7 +260,7 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
                   return rest;
                 });
               }}
-              placeholder="Main Campus"
+              placeholder={t('branchNamePlaceholder')}
               aria-required="true"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? 'branch-name-error' : undefined}
@@ -302,7 +305,7 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
                   return rest;
                 });
               }}
-              placeholder="123 Education Street, Tashkent"
+              placeholder={t('addressPlaceholder')}
               rows={3}
               aria-required="true"
               aria-invalid={!!errors.address}
@@ -372,7 +375,7 @@ function BranchFormModal({ initial, onSubmit, onClose }: BranchFormModalProps) {
             ) : (
               <Save size={14} aria-hidden="true" />
             )}
-            {saving ? 'Saving…' : initial ? 'Save Changes' : 'Create Branch'}
+            {saving ? t('saving') : initial ? t('saveChanges') : t('createBranch')}
           </motion.button>
         </div>
       </motion.div>
@@ -391,6 +394,7 @@ function DeactivateDialog({
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
+  const t = useTranslations('owner.branches');
   const titleId = useId();
   const [pending, setPending] = useState(false);
 
@@ -425,12 +429,10 @@ function DeactivateDialog({
         </div>
 
         <h2 id={titleId} className="text-base font-semibold text-[var(--text-primary)]">
-          Deactivate Branch
+          {t('deactivateBranch')}
         </h2>
         <p className="mt-2 text-sm text-[var(--text-muted)]">
-          Are you sure you want to deactivate{' '}
-          <strong className="text-[var(--text-primary)]">{branch.name}</strong>? This will hide
-          it from active operations but preserve all data.
+          {t('deactivateConfirm').replace('{name}', branch.name)}
         </p>
 
         <div className="mt-6 flex gap-3">
@@ -452,7 +454,7 @@ function DeactivateDialog({
             ) : (
               <PowerOff size={14} aria-hidden="true" />
             )}
-            {pending ? 'Deactivating…' : 'Deactivate'}
+            {pending ? t('deactivating') : t('deactivate')}
           </motion.button>
         </div>
       </motion.div>
@@ -591,13 +593,14 @@ function DesktopTable({
   onEdit: (b: BranchDto) => void;
   onDeactivate: (b: BranchDto) => void;
 }) {
+  const t = useTranslations('owner.branches');
   if (isLoading) return <SkeletonLoader variant="table" />;
   if (branches.length === 0) {
     return (
       <EmptyState
         icon={Building2}
-        title="No branches found"
-        description="Try adjusting your search or filters."
+        title={t('noFound')}
+        description={t('noFoundDesc')}
       />
     );
   }
@@ -605,18 +608,18 @@ function DesktopTable({
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
       <div className="overflow-x-auto">
-        <table className="w-full" role="table" aria-label="Branches">
+        <table className="w-full" role="table" aria-label={t('title')}>
           <thead>
             <tr className="border-b border-[var(--border-default)] bg-[var(--bg-surface-secondary)]">
               {[
-                'Branch',
-                'Manager',
-                'Students',
-                'Teachers',
-                'Courses',
-                'Monthly Revenue',
-                'Status',
-                'Created',
+                t('branchColumn'),
+                t('managerColumn'),
+                t('studentsColumn'),
+                t('teachersColumn'),
+                t('coursesColumn'),
+                t('revenueColumn'),
+                t('statusColumn'),
+                t('createdColumn'),
                 '',
               ].map((h) => (
                 <th
@@ -657,6 +660,7 @@ function MobileBranchCard({
   onEdit: (b: BranchDto) => void;
   onDeactivate: (b: BranchDto) => void;
 }) {
+  const t = useTranslations('owner.branches');
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -683,19 +687,19 @@ function MobileBranchCard({
       {/* Stats grid */}
       <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-[var(--bg-surface-secondary)] p-3">
         <div className="text-center">
-          <p className="text-xs text-[var(--text-muted)]">Students</p>
+          <p className="text-xs text-[var(--text-muted)]">{t('studentsColumn')}</p>
           <p className="text-sm font-bold tabular-nums text-[var(--text-primary)]">
             {formatNumber(branch.studentCount)}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-[var(--text-muted)]">Teachers</p>
+          <p className="text-xs text-[var(--text-muted)]">{t('teachersColumn')}</p>
           <p className="text-sm font-bold tabular-nums text-[var(--text-primary)]">
             {branch.teacherCount}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-[var(--text-muted)]">Revenue</p>
+          <p className="text-xs text-[var(--text-muted)]">{t('revenueColumn')}</p>
           <p className="text-sm font-bold tabular-nums text-[var(--text-primary)]">
             ${formatNumber(branch.monthlyRevenue)}
           </p>
@@ -704,7 +708,7 @@ function MobileBranchCard({
 
       {branch.managerName && (
         <p className="mt-2 text-xs text-[var(--text-muted)]">
-          Manager:{' '}
+          {t('manager')}:{' '}
           <span className="font-medium text-[var(--text-secondary)]">{branch.managerName}</span>
         </p>
       )}
@@ -717,7 +721,7 @@ function MobileBranchCard({
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-default)] py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)]"
         >
           <Edit2 size={12} aria-hidden="true" />
-          Edit
+          {t('editBranch').replace('Edit ', '')}
         </motion.button>
 
         {branch.status === 'active' && (
@@ -727,7 +731,7 @@ function MobileBranchCard({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] py-2 text-xs font-medium text-[var(--warning-text)] transition-colors"
           >
             <PowerOff size={12} aria-hidden="true" />
-            Deactivate
+            {t('deactivate')}
           </motion.button>
         )}
       </div>
@@ -802,6 +806,7 @@ function Pagination({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OwnerBranchesPage() {
+  const t = useTranslations('owner.branches');
   const { branches, isLoading, createBranch, editBranch, deactivateBranch } =
     useOwnerBranches();
 
@@ -889,7 +894,7 @@ export default function OwnerBranchesPage() {
                   Branches
                 </h1>
                 <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                  {formatNumber(branches.length)} branches across the network
+                  {formatNumber(branches.length)} {t('networkAcross')}
                 </p>
               </div>
             </div>
@@ -901,7 +906,7 @@ export default function OwnerBranchesPage() {
             className="flex items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 py-2.5 text-sm font-medium text-[var(--text-on-brand)] shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--brand-primary-hover)] sm:px-4"
           >
             <Plus size={16} aria-hidden="true" />
-            <span className="hidden sm:inline">New Branch</span>
+            <span className="hidden sm:inline">{t('newBranch')}</span>
           </motion.button>
         </motion.div>
 
@@ -921,8 +926,8 @@ export default function OwnerBranchesPage() {
               type="search"
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search branches…"
-              aria-label="Search branches"
+              placeholder={t('searchPlaceholder')}
+              aria-label={t('searchPlaceholder')}
               className="h-10 w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--border-focus)]/20"
             />
           </div>
@@ -941,7 +946,7 @@ export default function OwnerBranchesPage() {
                     : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]',
                 )}
               >
-                {s === 'all' ? 'All' : s}
+                {s === 'all' ? t('filterAll') : s === 'active' ? t('filterActive') : t('filterInactive')}
               </button>
             ))}
           </div>
@@ -973,9 +978,9 @@ export default function OwnerBranchesPage() {
             ) : paginated.length === 0 ? (
               <EmptyState
                 icon={Building2}
-                title="No branches found"
-                description="Try adjusting your search."
-                action={{ label: 'Create Branch', onClick: () => setShowCreateModal(true) }}
+                title={t('noFound')}
+                description={t('noFoundDesc')}
+                action={{ label: t('createBranch'), onClick: () => setShowCreateModal(true) }}
               />
             ) : (
               paginated.map((branch) => (

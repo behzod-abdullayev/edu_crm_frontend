@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Lock } from 'lucide-react';
-import axiosInstance from '@/services/api/axios.instance';
+import { httpClient } from '@/services/api/axios.instance';
 import { useToast } from '@shared/hooks/useToast';
 import { Button } from '@shared/components/ui/button';
 import { Input } from '@shared/components/ui/input';
@@ -46,15 +46,9 @@ export function ChangePasswordForm({ userId, role = 'student', className }: Chan
 
   const onSubmit = async (data: FormValues) => {
     try {
-      await axiosInstance<void>({
-        method: 'POST',
-        url: '/auth/change-password',
-        data: {
-          userId,
-          role,
-          currentPassword: data.currentPassword,
-          newPassword: data.newPassword,
-        },
+      await httpClient.post('/auth/change-password', {
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
       });
       toast.success('Password changed successfully');
       reset();
