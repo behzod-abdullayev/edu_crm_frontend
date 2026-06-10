@@ -641,7 +641,11 @@
       "revokeAction": "Bekor qilish",
       "togglePermissionAria": "{role} uchun \"{permission}\" huquqini {action}",
       "permissionMatrixTableAria": "Huquqlar matritsasi jadvali",
-      "permissionMatrixMobileAria": "Huquqlar matritsasi (mobil)"
+      "permissionMatrixMobileAria": "Huquqlar matritsasi (mobil)",
+      "deleteRoleAria": "{name} rolini o'chirish",
+      "deleteRoleConfirmTitle": "\"{name}\" rolini o'chirasizmi?",
+      "deleteRoleConfirmDesc": "\"{name}\" roli va uning huquqlar sozlamalari butunlay o'chiriladi. Bu amalni qaytarib bo'lmaydi.",
+      "deleteRoleConfirmButton": "Rolni o'chirish"
     },
     "users": {
       "title": "Foydalanuvchilar",

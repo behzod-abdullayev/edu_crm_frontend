@@ -84,6 +84,8 @@ export interface RoleDto {
   name: UserRole;
   displayName: string;
   permissions: string[];
+  isSystem: boolean;
+  userCount: number;
 }
 
 export interface PermissionMatrix {

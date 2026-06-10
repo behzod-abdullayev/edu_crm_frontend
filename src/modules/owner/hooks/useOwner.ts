@@ -18,6 +18,7 @@ import { httpClient } from '@/services/api/axios.instance';
 import { ownerApi } from '@/services/api/owner.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useUIStore } from '@/store/ui.store';
+import { parseApiError } from '@/shared/utils/api-error';
 import type {
   GlobalKPIData,
   BranchDto,
@@ -737,6 +738,19 @@ export function useOwnerRoles() {
     },
   });
 
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (roleId: string) => {
+      await ownerApi.deleteRole(roleId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.roles() });
+      addToast({ type: 'success', title: 'Role deleted successfully.' });
+    },
+    onError: (error: unknown) => {
+      addToast({ type: 'error', title: parseApiError(error).message });
+    },
+  });
+
   const saveRole = useCallback(
     async (roleId: string, permissions: string[]) => {
       await saveRoleMutation.mutateAsync({ roleId, permissions });
@@ -751,14 +765,23 @@ export function useOwnerRoles() {
     [createRoleMutation],
   );
 
+  const deleteRole = useCallback(
+    async (roleId: string) => {
+      await deleteRoleMutation.mutateAsync(roleId);
+    },
+    [deleteRoleMutation],
+  );
+
   return {
     matrix:         matrix ?? null,
     isLoading,
     isError,
     saveRole,
     createRole,
+    deleteRole,
     isCreatingRole: createRoleMutation.isPending,
     isSavingRole:   saveRoleMutation.isPending,
+    isDeletingRole: deleteRoleMutation.isPending,
   };
 }
 

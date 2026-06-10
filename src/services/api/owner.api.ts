@@ -58,6 +58,8 @@ function buildMatrix(
     // displayName: derive from name if backend doesn't supply it
     displayName: r.name.charAt(0).toUpperCase() + r.name.slice(1),
     permissions: r.permissions ?? [],
+    isSystem: r.isSystem ?? false,
+    userCount: r.userCount ?? 0,
   }));
 
   // Derive allPermissions from the union of role.permissions
@@ -298,6 +300,10 @@ export const ownerApi = {
     await httpClient.patch(`/owner/roles/${roleId}/permissions`, {
       permissions,
     });
+  },
+
+  deleteRole: async (roleId: string): Promise<void> => {
+    await httpClient.delete(`/owner/roles/${roleId}`);
   },
 
   // ── Branches ────────────────────────────────────────────────────────────────

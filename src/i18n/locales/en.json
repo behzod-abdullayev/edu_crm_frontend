@@ -641,7 +641,11 @@
       "revokeAction": "Revoke",
       "togglePermissionAria": "{action} {permission} for {role}",
       "permissionMatrixTableAria": "Permission matrix table",
-      "permissionMatrixMobileAria": "Permission matrix (mobile)"
+      "permissionMatrixMobileAria": "Permission matrix (mobile)",
+      "deleteRoleAria": "Delete role {name}",
+      "deleteRoleConfirmTitle": "Delete role \"{name}\"?",
+      "deleteRoleConfirmDesc": "This will permanently delete the \"{name}\" role and its permission settings. This action cannot be undone.",
+      "deleteRoleConfirmButton": "Delete role"
     },
     "users": {
       "title": "Users",

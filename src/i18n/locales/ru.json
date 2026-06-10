@@ -641,7 +641,11 @@
       "revokeAction": "Отозвать",
       "togglePermissionAria": "{action} «{permission}» для роли «{role}»",
       "permissionMatrixTableAria": "Таблица матрицы прав",
-      "permissionMatrixMobileAria": "Матрица прав (мобильная версия)"
+      "permissionMatrixMobileAria": "Матрица прав (мобильная версия)",
+      "deleteRoleAria": "Удалить роль {name}",
+      "deleteRoleConfirmTitle": "Удалить роль «{name}»?",
+      "deleteRoleConfirmDesc": "Роль «{name}» и её настройки прав будут удалены без возможности восстановления.",
+      "deleteRoleConfirmButton": "Удалить роль"
     },
     "users": {
       "title": "Пользователи",

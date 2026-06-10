@@ -22,9 +22,11 @@ import { useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Trash2 } from 'lucide-react';
 
 import { useOwnerRoles } from '@/modules/owner/hooks/useOwner';
 import { RolePermissionMatrix } from '@/modules/owner/components/RolePermissionMatrix';
+import { ConfirmDialog } from '@/shared/components/feedback/ConfirmDialog';
 import type {
   UserRole,
   RoleDto,
@@ -93,16 +95,17 @@ type CreateRoleFormValues = z.infer<typeof createRoleSchema>;
 interface RoleCardProps {
   role: RoleDto;
   index: number;
+  onDelete: (role: RoleDto) => void;
 }
 
-function RoleCard({ role, index }: RoleCardProps) {
+function RoleCard({ role, index, onDelete }: RoleCardProps) {
   const t = useTranslations('owner.roles');
   // FIX XATO 5: displayName → owner.api.ts da derive qilingan (role.displayName har doim mavjud)
   const meta = ROLE_META[role.name] ?? ROLE_META.student;
 
   return (
     <motion.div
-      className="rounded-2xl border p-5 flex gap-4 items-start"
+      className="relative rounded-2xl border p-5 flex gap-4 items-start"
       style={{
         background: 'var(--bg-surface)',
         borderColor: 'var(--border-default)',
@@ -113,6 +116,18 @@ function RoleCard({ role, index }: RoleCardProps) {
       transition={{ delay: index * 0.07, duration: 0.3 }}
       whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
     >
+      {!role.isSystem && (
+        <motion.button
+          type="button"
+          onClick={() => onDelete(role)}
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ backgroundColor: 'var(--error-bg)' }}
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--error-text)]"
+          aria-label={t('deleteRoleAria', { name: role.displayName })}
+        >
+          <Trash2 size={15} aria-hidden="true" />
+        </motion.button>
+      )}
       <div
         className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
         style={{ background: meta.bg, color: meta.color }}
@@ -122,7 +137,7 @@ function RoleCard({ role, index }: RoleCardProps) {
       </div>
       <div className="flex-1 min-w-0">
         <p
-          className="text-sm font-semibold"
+          className="text-sm font-semibold pr-8"
           style={{ color: 'var(--text-primary)' }}
         >
           {role.displayName}
@@ -359,10 +374,22 @@ export function OwnerRolesClient() {
     isLoading,
     saveRole,
     createRole,
+    deleteRole,
     isCreatingRole,
+    isDeletingRole,
   } = useOwnerRoles();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<RoleDto | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!roleToDelete) return;
+    try {
+      await deleteRole(roleToDelete.id);
+    } finally {
+      setRoleToDelete(null);
+    }
+  };
 
   return (
     <div
@@ -425,7 +452,12 @@ export function OwnerRolesClient() {
       ) : matrix ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {matrix.roles.map((role: RoleDto, i: number) => (
-            <RoleCard key={role.id} role={role} index={i} />
+            <RoleCard
+              key={role.id}
+              role={role}
+              index={i}
+              onDelete={setRoleToDelete}
+            />
           ))}
         </div>
       ) : null}
@@ -516,6 +548,18 @@ export function OwnerRolesClient() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── Delete Role confirmation ────────────────────────────────────── */}
+      <ConfirmDialog
+        open={roleToDelete !== null}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => setRoleToDelete(null)}
+        title={t('deleteRoleConfirmTitle', { name: roleToDelete?.displayName ?? '' })}
+        description={t('deleteRoleConfirmDesc', { name: roleToDelete?.displayName ?? '' })}
+        confirmLabel={t('deleteRoleConfirmButton')}
+        variant="destructive"
+        isLoading={isDeletingRole}
+      />
     </div>
   );
 }
