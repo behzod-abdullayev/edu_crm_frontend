@@ -79,7 +79,7 @@ import { useDebounce } from '@shared/hooks/useDebounce';
 import { SwipeableCard, type SwipeAction } from '@shared/components/mobile/SwipeableCard';
 import { PullToRefresh } from '@shared/components/mobile/PullToRefresh';
 import { cn } from '@shared/utils/cn';
-import { formatNumber, formatDate } from '@shared/utils/format';
+import { formatNumber, formatDate, formatCurrency } from '@shared/utils/format';
 import { useUIStore } from '@/store/ui.store';
 import { queryKeys } from '@/services/query/keys.factory';
 import { ownerApi } from '@/services/api/owner.api';
@@ -270,12 +270,13 @@ function KPIBar({ branches }: { branches: BranchDto[] }) {
   const active        = branches.filter((b) => b.status === 'active').length;
   const totalStudents = branches.reduce((s, b) => s + b.studentCount, 0);
   const totalRevenue  = branches.reduce((s, b) => s + b.monthlyRevenue, 0);
+  const currency      = branches[0]?.currency ?? 'UZS';
 
   const cards = [
-    { label: t('totalBranches'),  value: total,         icon: Building2,    bg: 'bg-[var(--info-bg)]',          color: 'text-[var(--info-solid)]',    fmt: (v: number) => formatNumber(v)       },
-    { label: t('activeBranches'), value: active,        icon: CheckCircle2, bg: 'bg-[var(--success-bg)]',       color: 'text-[var(--success-text)]',  fmt: (v: number) => formatNumber(v)       },
-    { label: t('totalStudents'),  value: totalStudents, icon: Users,        bg: 'bg-[var(--brand-primary)]/10', color: 'text-[var(--brand-primary)]', fmt: (v: number) => formatNumber(v)       },
-    { label: t('monthlyRevenue'), value: totalRevenue,  icon: DollarSign,   bg: 'bg-[var(--warning-bg)]',       color: 'text-[var(--warning-text)]',  fmt: (v: number) => `$${formatNumber(v)}` },
+    { label: t('totalBranches'),  value: total,         icon: Building2,    bg: 'bg-[var(--info-bg)]',          color: 'text-[var(--info-solid)]',    fmt: (v: number) => formatNumber(v)              },
+    { label: t('activeBranches'), value: active,        icon: CheckCircle2, bg: 'bg-[var(--success-bg)]',       color: 'text-[var(--success-text)]',  fmt: (v: number) => formatNumber(v)              },
+    { label: t('totalStudents'),  value: totalStudents, icon: Users,        bg: 'bg-[var(--brand-primary)]/10', color: 'text-[var(--brand-primary)]', fmt: (v: number) => formatNumber(v)              },
+    { label: t('monthlyRevenue'), value: totalRevenue,  icon: DollarSign,   bg: 'bg-[var(--warning-bg)]',       color: 'text-[var(--warning-text)]',  fmt: (v: number) => formatCurrency(v, currency)  },
   ] as const;
 
   return (
@@ -808,8 +809,7 @@ function DesktopTable({
                       )}
                       {col.key === 'revenue'  && (
                         <span className="text-sm font-medium tabular-nums text-[var(--text-primary)]">
-                          ${formatNumber(branch.monthlyRevenue)}{' '}
-                          <span className="text-xs font-normal text-[var(--text-muted)]">{branch.currency}</span>
+                          {formatCurrency(branch.monthlyRevenue, branch.currency)}
                         </span>
                       )}
                       {/* ✅ t passed as prop — no hook in .map() */}
@@ -904,7 +904,7 @@ function MobileBranchCard({
           </div>
           <div className="text-center">
             <p className="text-xs text-[var(--text-muted)]">{t('revenueColumn')}</p>
-            <p className="text-sm font-bold tabular-nums text-[var(--text-primary)]">${formatNumber(branch.monthlyRevenue)}</p>
+            <p className="text-sm font-bold tabular-nums text-[var(--text-primary)]">{formatCurrency(branch.monthlyRevenue, branch.currency)}</p>
           </div>
         </div>
 
