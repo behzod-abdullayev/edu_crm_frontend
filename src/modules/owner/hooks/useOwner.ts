@@ -15,6 +15,7 @@
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { httpClient } from '@/services/api/axios.instance';
+import { ownerApi } from '@/services/api/owner.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useUIStore } from '@/store/ui.store';
 import type {
@@ -713,15 +714,11 @@ export function useOwnerRoles() {
     isError,
   } = useQuery<PermissionMatrix>({
     queryKey: queryKeys.owner.roles(),
-    queryFn: async (): Promise<PermissionMatrix> => {
-      const res = await httpClient.get<unknown>('/owner/roles');
-      const data = res.data;
-      // Backend bo'sh array qaytarsa system rollar fallback sifatida ishlatiladi
-      if (Array.isArray(data)) {
-        return { roles: data as PermissionMatrix['roles'], allPermissions: [] };
-      }
-      return data as PermissionMatrix;
-    },
+    // OBS-13: ownerApi.getRoles() maps the raw /owner/roles response into a
+    // PermissionMatrix and derives allPermissions when the backend doesn't
+    // supply them. The previous inline queryFn returned allPermissions: []
+    // for array responses, which made the matrix render empty.
+    queryFn: () => ownerApi.getRoles(),
     ...QUERY_DEFAULTS,
   });
 

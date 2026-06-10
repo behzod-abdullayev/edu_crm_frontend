@@ -69,6 +69,9 @@ function buildMatrix(
   const categoryMap = new Map<string, Set<string>>();
   for (const role of roles) {
     for (const perm of role.permissions) {
+      // '*' is the Owner's full-access wildcard, not a real permission key —
+      // skip it so it doesn't show up as its own bogus category.
+      if (perm === '*') continue;
       const category = perm.split('.')[0] ?? 'other';
       if (!categoryMap.has(category)) categoryMap.set(category, new Set());
       categoryMap.get(category)?.add(perm);
