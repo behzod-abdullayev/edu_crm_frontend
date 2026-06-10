@@ -23,7 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, usePathname } from 'next/navigation';
-import { format } from 'date-fns';
+import { formatLocalizedDate } from '@/shared/utils/format';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useUpdateProfile, useUploadAvatar, resolveFileUrl } from '@/shared/hooks/useUpdateProfile';
 import { useToast } from '@/shared/hooks/useToast';
@@ -378,7 +378,7 @@ export function OwnerProfileClient() {
                   <Label htmlFor="op-memberSince">{t('memberSince')}</Label>
                   <Input
                     id="op-memberSince"
-                    value={user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : '—'}
+                    value={user?.createdAt ? formatLocalizedDate(user.createdAt, locale, 'long') : '—'}
                     readOnly
                     disabled
                   />

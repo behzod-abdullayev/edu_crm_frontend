@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Users,
   Search,
@@ -19,7 +19,7 @@ import {
   Download,
   UserX,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatLocalizedDate } from '@/shared/utils/format';
 
 import {
   useOwnerUsers,
@@ -640,11 +640,12 @@ interface UserCardProps {
 
 function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
   const tOwner = useTranslations('owner.users');
+  const locale = useLocale();
   const reduced = useReducedMotion() ?? false;
 
   // FIX XATO 4: "Never" → tOwner('never')
   const lastLogin = user.lastLogin
-    ? format(new Date(user.lastLogin), 'MMM d, yyyy')
+    ? formatLocalizedDate(user.lastLogin, locale)
     : tOwner('never');
 
   return (
@@ -720,7 +721,7 @@ type UserRow = UserDto & Record<string, unknown>;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
+export function OwnerUsersClient({ locale }: OwnerUsersClientProps) {
   const t = useTranslations();
   const tOwner = useTranslations('owner.users');
   const isMobile = useIsMobile();
@@ -969,7 +970,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           const u = row as UserDto;
           // FIX XATO 4: hardcoded '—' o'rniga tOwner('never')
           return u.lastLogin
-            ? format(new Date(u.lastLogin), 'MMM d, yyyy')
+            ? formatLocalizedDate(u.lastLogin, locale)
             : tOwner('never');
         },
         width: '140px',
@@ -1001,7 +1002,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         width: '120px',
       },
     ],
-    [handleOpenAssignRole, reduced, tOwner],
+    [handleOpenAssignRole, reduced, tOwner, locale],
   );
 
   // ─── Render ───────────────────────────────────────────────────────────────

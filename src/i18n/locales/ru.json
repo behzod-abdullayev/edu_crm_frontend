@@ -755,13 +755,25 @@
       "noTransactions": "Транзакции не найдены",
       "noTransactionsDesc": "Транзакции появятся здесь после проведения платежей.",
       "loading": "Загрузка…",
+      "breakdownByCourse": "Доходы и расходы по курсам",
+      "breakdownByBranch": "Доходы и расходы по филиалам",
+      "studentCashFlow": "Движение средств по студентам",
+      "noBreakdownData": "Данных пока нет",
+      "allBranches": "Все филиалы",
+      "filterByBranch": "Фильтр по филиалу",
       "columns": {
         "student": "Студент",
         "course": "Курс",
         "amount": "Сумма",
         "method": "Метод",
         "status": "Статус",
-        "date": "Дата"
+        "date": "Дата",
+        "branch": "Филиал",
+        "income": "Доход",
+        "expenses": "Расход",
+        "netProfit": "Чистая прибыль",
+        "inflow": "Приход",
+        "outflow": "Расход"
       }
     },
     "hr": {

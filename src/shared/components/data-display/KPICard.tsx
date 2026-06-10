@@ -17,7 +17,7 @@
  */
 
 import { motion } from 'framer-motion';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { CountUp } from '@shared/components/animations/CountUp';
 import { SparklineChart } from '@shared/components/charts/SparklineChart';
@@ -92,6 +92,7 @@ export function KPICard({
   className,
 }: KPICardProps) {
   const t = useTranslations('kpi');
+  const locale = useLocale();
 
   // ── Loading state: skeleton shimmer ──
   if (isLoading) {
@@ -181,6 +182,7 @@ export function KPICard({
           <CountUp
             to={value}
             duration={1.2}
+            locale={locale}
             className="tabular-nums text-3xl font-bold text-[var(--text-primary)]"
           />
           {unit !== undefined && (

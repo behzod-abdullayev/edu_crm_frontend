@@ -1,3 +1,45 @@
+import { format as formatDateFns } from 'date-fns';
+import { uz, ru, enUS } from 'date-fns/locale';
+
+// ─── Locale-aware date formatting (date-fns) ──────────────────────────────────
+
+const DATE_FNS_LOCALES = { uz, ru, en: enUS } as const;
+
+const LOCALIZED_DATE_FORMATS = {
+  en: { short: 'MMM d, yyyy', long: 'MMMM d, yyyy' },
+  ru: { short: 'd MMM yyyy', long: 'd MMMM yyyy' },
+  uz: { short: 'd-MMM, yyyy', long: 'd-MMMM, yyyy' },
+} as const;
+
+/**
+ * Formats a date with locale-aware month names using date-fns' bundled
+ * locale data. Unlike `Intl.DateTimeFormat`, this doesn't depend on the
+ * browser's ICU data — `Intl.DateTimeFormat('uz', { month: 'short' })`
+ * renders as "M06" in some browsers because their ICU data lacks abbreviated
+ * Uzbek month names.
+ *
+ * @example formatLocalizedDate('2026-06-07', 'uz') → '7-iyun, 2026'
+ * @example formatLocalizedDate('2026-06-07', 'en') → 'Jun 7, 2026'
+ */
+export function formatLocalizedDate(
+  date: string | Date | null | undefined,
+  locale: string,
+  style: 'short' | 'long' = 'short',
+): string {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '—';
+
+  const key = locale in DATE_FNS_LOCALES ? (locale as keyof typeof DATE_FNS_LOCALES) : 'en';
+  const dateFnsLocale = DATE_FNS_LOCALES[key];
+  const formats = LOCALIZED_DATE_FORMATS[key];
+  const formatted = formatDateFns(d, formats[style], { locale: dateFnsLocale });
+
+  // date-fns' 'uz' locale only has capitalized month names (e.g. "Iyun"),
+  // but Uzbek convention lowercases them in this position ("7-iyun, 2026").
+  return locale === 'uz' ? formatted.toLowerCase() : formatted;
+}
+
 /**
  * Returns 1–2 uppercase initials from a first + last name pair.
  * Falls back to '?' if both are empty.
@@ -74,6 +116,30 @@ export function formatCurrency(
       currency,
       minimumFractionDigits: currency === 'UZS' ? 0 : 2,
       maximumFractionDigits: currency === 'UZS' ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString(locale)} ${currency}`;
+  }
+}
+
+/**
+ * Formats a numeric amount as a compact currency string for space-constrained
+ * UI like chart axis ticks (e.g. "21.5M UZS" instead of "21,500,000 UZS").
+ *
+ * @example formatCompactCurrency(21500000, 'UZS') → '21.5M UZS'
+ * @example formatCompactCurrency(1500, 'USD') → '$1.5K'
+ */
+export function formatCompactCurrency(
+  amount: number,
+  currency = 'USD',
+  locale = 'en-US',
+): string {
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
     }).format(amount);
   } catch {
     return `${amount.toLocaleString(locale)} ${currency}`;

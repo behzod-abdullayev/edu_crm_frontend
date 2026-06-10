@@ -18,7 +18,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import {
   Download,
@@ -28,8 +28,6 @@ import {
   Clock,
   Users,
   Building2,
-  CreditCard,
-  Banknote,
   Loader2,
 } from 'lucide-react';
 import {
@@ -51,19 +49,40 @@ import { DataTable, type ColumnDef } from '@shared/components/data-display/DataT
 import { MobileCardList } from '@shared/components/mobile/MobileCardList';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { useMediaQuery } from '@shared/hooks/useMediaQuery';
+import { formatCurrency, formatCompactCurrency } from '@shared/utils/format';
 import { useOwnerFinances, useOwnerKPI, useOwnerBranches } from '@/modules/owner/hooks/useOwner';
 import type { SparklineDataPoint } from '@shared/components/charts/SparklineChart';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface TransactionRow extends Record<string, unknown> {
+// Per-student cash flow row (BUG #4: cash inflow/outflow per individual student)
+interface StudentCashFlowRow extends Record<string, unknown> {
   id: string;
+  studentId: string;
   studentName: string;
-  amount: number;
-  method: 'card' | 'cash' | 'transfer';
-  status: 'paid' | 'pending' | 'overdue';
-  date: string;
-  course: string;
+  branch: string;
+  inflow: number;
+  outflow: number;
+  netProfit: number;
+}
+
+// Per-course cash flow row (BUG #4: cash inflow/outflow per Course)
+interface CourseCashFlowRow extends Record<string, unknown> {
+  id: string;
+  courseId: string;
+  courseName: string;
+  income: number;
+  expenses: number;
+  netProfit: number;
+}
+
+// Per-branch cash flow row (BUG #4: cash inflow/outflow per Branch/Filial)
+interface BranchCashFlowRow extends Record<string, unknown> {
+  id: string;
+  branchName: string;
+  income: number;
+  expenses: number;
+  netProfit: number;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -80,10 +99,12 @@ function CustomTooltip({
   active,
   payload,
   label,
+  currency,
 }: {
   active?: boolean;
   payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
+  currency: string;
 }) {
   if (active && payload && payload.length) {
     return (
@@ -104,7 +125,7 @@ function CustomTooltip({
             key={entry.name}
             style={{ color: entry.color, fontSize: 13, fontWeight: 600 }}
           >
-            {entry.name}: ${entry.value.toLocaleString()}
+            {entry.name}: {formatCurrency(entry.value, currency)}
           </p>
         ))}
       </div>
@@ -113,68 +134,52 @@ function CustomTooltip({
   return null;
 }
 
-// ── Status badge helper ───────────────────────────────────────────────────────
+// ── Cash flow mobile card (per student / course / branch) ────────────────────
 
-function getStatusStyle(status: TransactionRow['status']): React.CSSProperties {
-  switch (status) {
-    case 'paid':
-      return { background: 'var(--success-bg)', color: 'var(--success-text)' };
-    case 'pending':
-      return { background: 'var(--warning-bg)', color: 'var(--warning-text)' };
-    case 'overdue':
-      return { background: 'var(--error-bg)', color: 'var(--error-text)' };
-  }
-}
-
-function getMethodIcon(method: TransactionRow['method']) {
-  switch (method) {
-    case 'card':
-      return <CreditCard size={14} aria-hidden="true" />;
-    case 'cash':
-      return <Banknote size={14} aria-hidden="true" />;
-    case 'transfer':
-      return <DollarSign size={14} aria-hidden="true" />;
-  }
-}
-
-// ── Transaction mobile card ───────────────────────────────────────────────────
-
-function TransactionCard({ tx }: { tx: TransactionRow }) {
-  const style = getStatusStyle(tx.status);
+function CashFlowCard({
+  name,
+  subtitle,
+  inflow,
+  outflow,
+  netProfit,
+  currency,
+  inflowLabel,
+  outflowLabel,
+}: {
+  name: string;
+  subtitle?: string;
+  inflow: number;
+  outflow: number;
+  netProfit: number;
+  currency: string;
+  inflowLabel: string;
+  outflowLabel: string;
+}) {
   return (
     <div className="p-4">
       <div className="mb-1 flex items-center justify-between">
-        <span
-          className="text-sm font-medium"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {tx.studentName}
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          {name}
         </span>
         <span
-          className="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-          style={style}
+          className="text-sm font-bold"
+          style={{ color: netProfit >= 0 ? 'var(--success-text)' : 'var(--error-text)' }}
         >
-          {tx.status}
+          {formatCurrency(netProfit, currency)}
         </span>
       </div>
-      <p className="mb-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-        {tx.course}
-      </p>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span style={{ color: 'var(--text-muted)' }}>{getMethodIcon(tx.method)}</span>
-          <span className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>
-            {tx.method}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            ${tx.amount}
-          </span>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {tx.date}
-          </span>
-        </div>
+      {subtitle && (
+        <p className="mb-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          {subtitle}
+        </p>
+      )}
+      <div className="flex items-center justify-between text-xs">
+        <span style={{ color: 'var(--success-text)' }}>
+          {inflowLabel}: {formatCurrency(inflow, currency)}
+        </span>
+        <span style={{ color: 'var(--error-text)' }}>
+          {outflowLabel}: {formatCurrency(outflow, currency)}
+        </span>
       </div>
     </div>
   );
@@ -184,8 +189,9 @@ function TransactionCard({ tx }: { tx: TransactionRow }) {
 
 export function OwnerFinancesClient() {
   const t = useTranslations('owner.finances');
+  const locale = useLocale();
   const isMobile = useMediaQuery('(max-width: 639px)');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
   const [isExporting, setIsExporting] = useState(false);
 
   // ── XATO №1: React Query hooks — haqiqiy API ma'lumotlari ─────────────────
@@ -195,17 +201,23 @@ export function OwnerFinancesClient() {
 
   const isLoading = financesLoading || kpiLoading || branchesLoading;
 
+  // BUG #3 FIX: yagona valyuta — backend tenants.currency dan keladi (default 'UZS')
+  const currency = overview?.currency ?? 'UZS';
+
   // ── Hisoblangan qiymatlar (API ma'lumotlaridan) ──────────────────────────
-  const totalIncome = overview?.mrr ?? 0;
-  const totalExpenses = totalIncome > 0 ? Math.round(totalIncome * 0.6) : 0;
-  const netProfit = totalIncome - totalExpenses;
+  // BUG #2 FIX: Total Income endi payments.status='paid' yig'indisidan keladi
+  const totalIncome = overview?.totalIncome ?? 0;
+  // BUG #1 FIX: Total Expenses endi HR paneldagi faol xodim maoshlari yig'indisi
+  const totalExpenses = overview?.totalExpenses ?? 0;
+  // BUG #4 FIX: Net Profit = Total Income - Total Expenses (backend tomonidan ham qat'iy hisoblanadi)
+  const netProfit = overview?.netProfit ?? (totalIncome - totalExpenses);
   const pendingAmount = overview?.totalOutstanding ?? 0;
   const totalStudents = kpiData?.totalUsers ?? 0;
   const activeBranches = branches.filter((b) => b.status === 'active').length;
 
   // ── Sparkline data ────────────────────────────────────────────────────────
   const incomeSparkline: SparklineDataPoint[] =
-    overview !== null && overview !== undefined
+    totalIncome > 0
       ? [
           { value: totalIncome * 0.75 },
           { value: totalIncome * 0.82 },
@@ -229,11 +241,11 @@ export function OwnerFinancesClient() {
       : [];
 
   // ── Chart data ────────────────────────────────────────────────────────────
-  // Avval barcha oylik ma'lumotlarni olamiz, mobileda faqat oxirgi 7ni ko'rsatamiz
+  // BUG #4 FIX: filial bo'yicha real income/expenses (HR maoshlari + to'lovlar)
   const fullRevenueData = overview?.revenueByBranch?.map((b) => ({
     month: b.branchName,
     income: b.revenue,
-    expenses: Math.round(b.revenue * 0.6),
+    expenses: b.expenses,
   })) ?? [];
 
   // XATO №8 fix: mobileda soddalashtirilgan data (oxirgi 7 ta)
@@ -249,28 +261,63 @@ export function OwnerFinancesClient() {
     value: m.percent,
   })) ?? [];
 
-  // ── Transactions (API dan, yo'q bo'lsa bo'sh) ─────────────────────────────
-  const allTransactions = useMemo<TransactionRow[]>(
+  // ── BUG #4: Cash inflow/outflow per individual student ────────────────────
+  const studentCashFlowRows = useMemo<StudentCashFlowRow[]>(
     () =>
-      overview?.topStudents?.map((s) => ({
+      overview?.studentBreakdown?.map((s) => ({
         id: s.studentId,
+        studentId: s.studentId,
         studentName: s.studentName,
-        amount: s.totalPaid,
-        method: 'card' as const,
-        status: 'paid' as const,
-        date: new Date().toISOString().slice(0, 10),
-        course: s.currency,
+        branch: s.branch ?? '—',
+        inflow: s.inflow,
+        outflow: s.outflow,
+        netProfit: s.netProfit,
       })) ?? [],
-    [overview?.topStudents],
+    [overview?.studentBreakdown],
   );
 
-  const filteredTransactions = useMemo(
-    () => allTransactions.filter((tx) => statusFilter === 'all' || tx.status === statusFilter),
-    [allTransactions, statusFilter],
+  const branchOptions = useMemo(
+    () => Array.from(new Set(studentCashFlowRows.map((s) => s.branch))).sort(),
+    [studentCashFlowRows],
+  );
+
+  const filteredStudentRows = useMemo(
+    () =>
+      studentCashFlowRows.filter(
+        (row) => branchFilter === 'all' || row.branch === branchFilter,
+      ),
+    [studentCashFlowRows, branchFilter],
+  );
+
+  // ── BUG #4: Cash inflow/outflow per Course ─────────────────────────────────
+  const courseCashFlowRows = useMemo<CourseCashFlowRow[]>(
+    () =>
+      overview?.courseBreakdown?.map((c) => ({
+        id: c.courseId,
+        courseId: c.courseId,
+        courseName: c.courseName,
+        income: c.income,
+        expenses: c.expenses,
+        netProfit: c.netProfit,
+      })) ?? [],
+    [overview?.courseBreakdown],
+  );
+
+  // ── BUG #4: Cash inflow/outflow per Branch (Filial) ────────────────────────
+  const branchCashFlowRows = useMemo<BranchCashFlowRow[]>(
+    () =>
+      overview?.revenueByBranch?.map((b) => ({
+        id: b.branchName,
+        branchName: b.branchName,
+        income: b.revenue,
+        expenses: b.expenses,
+        netProfit: b.netProfit,
+      })) ?? [],
+    [overview?.revenueByBranch],
   );
 
   // ── DataTable columns ────────────────────────────────────────────────────
-  const columns: ColumnDef<TransactionRow>[] = [
+  const studentColumns: ColumnDef<StudentCashFlowRow>[] = [
     {
       key: 'studentName',
       header: t('columns.student'),
@@ -278,54 +325,121 @@ export function OwnerFinancesClient() {
       sortable: true,
     },
     {
-      key: 'course',
-      header: t('columns.course'),
-      accessor: 'course',
+      key: 'branch',
+      header: t('columns.branch'),
+      accessor: 'branch',
       sortable: true,
       hideOnTablet: true,
     },
     {
-      key: 'amount',
-      header: t('columns.amount'),
+      key: 'inflow',
+      header: t('columns.inflow'),
       accessor: (row) => (
-        <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-          ${row.amount}
+        <span className="font-semibold" style={{ color: 'var(--success-text)' }}>
+          {formatCurrency(row.inflow, currency)}
         </span>
       ),
       sortable: true,
     },
     {
-      key: 'method',
-      header: t('columns.method'),
+      key: 'outflow',
+      header: t('columns.outflow'),
       accessor: (row) => (
-        <div className="flex items-center gap-1.5">
-          <span style={{ color: 'var(--text-muted)' }}>{getMethodIcon(row.method)}</span>
-          <span className="text-xs capitalize" style={{ color: 'var(--text-secondary)' }}>
-            {row.method}
-          </span>
-        </div>
+        <span className="font-semibold" style={{ color: 'var(--error-text)' }}>
+          {formatCurrency(row.outflow, currency)}
+        </span>
       ),
+      sortable: true,
       hideOnTablet: true,
     },
     {
-      key: 'status',
-      header: t('columns.status'),
+      key: 'netProfit',
+      header: t('columns.netProfit'),
       accessor: (row) => (
         <span
-          className="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-          style={getStatusStyle(row.status)}
+          className="font-semibold"
+          style={{ color: row.netProfit >= 0 ? 'var(--success-text)' : 'var(--error-text)' }}
         >
-          {row.status}
+          {formatCurrency(row.netProfit, currency)}
+        </span>
+      ),
+      sortable: true,
+    },
+  ];
+
+  const courseColumns: ColumnDef<CourseCashFlowRow>[] = [
+    { key: 'courseName', header: t('columns.course'), accessor: 'courseName', sortable: true },
+    {
+      key: 'income',
+      header: t('columns.income'),
+      accessor: (row) => (
+        <span className="font-semibold" style={{ color: 'var(--success-text)' }}>
+          {formatCurrency(row.income, currency)}
         </span>
       ),
       sortable: true,
     },
     {
-      key: 'date',
-      header: t('columns.date'),
-      accessor: 'date',
+      key: 'expenses',
+      header: t('columns.expenses'),
+      accessor: (row) => (
+        <span className="font-semibold" style={{ color: 'var(--error-text)' }}>
+          {formatCurrency(row.expenses, currency)}
+        </span>
+      ),
       sortable: true,
       hideOnTablet: true,
+    },
+    {
+      key: 'netProfit',
+      header: t('columns.netProfit'),
+      accessor: (row) => (
+        <span
+          className="font-semibold"
+          style={{ color: row.netProfit >= 0 ? 'var(--success-text)' : 'var(--error-text)' }}
+        >
+          {formatCurrency(row.netProfit, currency)}
+        </span>
+      ),
+      sortable: true,
+    },
+  ];
+
+  const branchColumns: ColumnDef<BranchCashFlowRow>[] = [
+    { key: 'branchName', header: t('columns.branch'), accessor: 'branchName', sortable: true },
+    {
+      key: 'income',
+      header: t('columns.income'),
+      accessor: (row) => (
+        <span className="font-semibold" style={{ color: 'var(--success-text)' }}>
+          {formatCurrency(row.income, currency)}
+        </span>
+      ),
+      sortable: true,
+    },
+    {
+      key: 'expenses',
+      header: t('columns.expenses'),
+      accessor: (row) => (
+        <span className="font-semibold" style={{ color: 'var(--error-text)' }}>
+          {formatCurrency(row.expenses, currency)}
+        </span>
+      ),
+      sortable: true,
+      hideOnTablet: true,
+    },
+    {
+      key: 'netProfit',
+      header: t('columns.netProfit'),
+      accessor: (row) => (
+        <span
+          className="font-semibold"
+          style={{ color: row.netProfit >= 0 ? 'var(--success-text)' : 'var(--error-text)' }}
+        >
+          {formatCurrency(row.netProfit, currency)}
+        </span>
+      ),
+      sortable: true,
     },
   ];
 
@@ -333,18 +447,17 @@ export function OwnerFinancesClient() {
   const handleExportCsv = useCallback(() => {
     setIsExporting(true);
     try {
-      const rows = allTransactions.map(
-        (tx) =>
-          `${tx.id},${tx.studentName},${tx.course},${tx.amount},${tx.method},${tx.status},${tx.date}`,
+      const rows = filteredStudentRows.map(
+        (row) =>
+          `${row.studentId},${row.studentName},${row.branch},${row.inflow},${row.outflow},${row.netProfit}`,
       );
       const csv = [
         [
           t('columns.student'),
-          t('columns.course'),
-          t('columns.amount'),
-          t('columns.method'),
-          t('columns.status'),
-          t('columns.date'),
+          t('columns.branch'),
+          t('columns.inflow'),
+          t('columns.outflow'),
+          t('columns.netProfit'),
         ].join(','),
         ...rows,
       ].join('\n');
@@ -360,7 +473,7 @@ export function OwnerFinancesClient() {
     } finally {
       setIsExporting(false);
     }
-  }, [allTransactions, t]);
+  }, [filteredStudentRows, t]);
 
   // ── Loading: shared SkeletonLoader (shimmer, not animate-pulse) ────────────
   // XATO №9 fix
@@ -441,7 +554,7 @@ export function OwnerFinancesClient() {
         <KPICard
           title={t('totalIncome')}
           value={totalIncome}
-          prefix="$"
+          unit={currency}
           icon={TrendingUp}
           iconColor="var(--success-solid)"
           trend={{
@@ -455,19 +568,15 @@ export function OwnerFinancesClient() {
         <KPICard
           title={t('totalExpenses')}
           value={totalExpenses}
-          prefix="$"
+          unit={currency}
           icon={TrendingDown}
           iconColor="var(--error-solid)"
-          trend={{
-            value: 5.2,
-            label: t('vsLastPeriod'),
-            direction: 'down',
-          }}
+          comparePeriod={t('vsLastPeriod')}
         />
         <KPICard
           title={t('netProfit')}
           value={netProfit}
-          prefix="$"
+          unit={currency}
           icon={DollarSign}
           iconColor="var(--brand-primary)"
           trend={{
@@ -483,14 +592,12 @@ export function OwnerFinancesClient() {
         <KPICard
           title={t('pending')}
           value={pendingAmount}
-          prefix="$"
+          unit={currency}
           icon={Clock}
           iconColor="var(--warning-solid)"
-          trend={{
-            value: overview?.overdueTotal ?? 0,
-            label: t('overdue'),
-            direction: (overview?.overdueTotal ?? 0) > 0 ? 'down' : 'neutral',
-          }}
+          {...((overview?.overdueTotal ?? 0) > 0
+            ? { comparePeriod: `${t('overdue')}: ${formatCurrency(overview?.overdueTotal ?? 0, currency, locale)}` }
+            : {})}
         />
         <KPICard
           title={t('totalStudents')}
@@ -563,8 +670,9 @@ export function OwnerFinancesClient() {
                 <YAxis
                   tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
                   width={isMobile ? 40 : 60}
+                  tickFormatter={(value: number) => formatCompactCurrency(value, currency, locale)}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip currency={currency} />} />
                 {/* XATO №8 fix: Legend */}
                 <Legend
                   wrapperStyle={{
@@ -676,7 +784,7 @@ export function OwnerFinancesClient() {
         </motion.div>
       </div>
 
-      {/* ── Transactions Table / Card List ──────────────────────────────────── */}
+      {/* ── BUG #4: Cash Flow per Student (with branch filter) ───────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -697,14 +805,14 @@ export function OwnerFinancesClient() {
             className="text-base font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
-            {t('recentTransactions')}
+            {t('studentCashFlow')}
           </h2>
           <div className="flex items-center gap-2">
             {/* XATO №11 fix: aria-label qo'shildi */}
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label={t('filterByStatus')}
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              aria-label={t('filterByBranch')}
               className="rounded-lg px-2 py-1.5 text-xs outline-none"
               style={{
                 background: 'var(--bg-surface-secondary)',
@@ -712,10 +820,12 @@ export function OwnerFinancesClient() {
                 color: 'var(--text-primary)',
               }}
             >
-              <option value="all">{t('statusAll')}</option>
-              <option value="paid">{t('statusPaid')}</option>
-              <option value="pending">{t('statusPending')}</option>
-              <option value="overdue">{t('statusOverdue')}</option>
+              <option value="all">{t('allBranches')}</option>
+              {branchOptions.map((branch) => (
+                <option key={branch} value={branch}>
+                  {branch}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -723,9 +833,18 @@ export function OwnerFinancesClient() {
         {/* XATO №7 fix: MobileCardList (mobile), DataTable (desktop/tablet) */}
         {isMobile ? (
           <MobileCardList
-            data={filteredTransactions}
-            renderCard={(tx, _isSelected) => (
-              <TransactionCard tx={tx} />
+            data={filteredStudentRows}
+            renderCard={(row, _isSelected) => (
+              <CashFlowCard
+                name={row.studentName}
+                subtitle={row.branch}
+                inflow={row.inflow}
+                outflow={row.outflow}
+                netProfit={row.netProfit}
+                currency={currency}
+                inflowLabel={t('columns.inflow')}
+                outflowLabel={t('columns.outflow')}
+              />
             )}
             isLoading={false}
             emptyState={{
@@ -736,8 +855,8 @@ export function OwnerFinancesClient() {
         ) : (
           /* XATO №6 fix: shared DataTable */
           <DataTable
-            columns={columns}
-            data={filteredTransactions}
+            columns={studentColumns}
+            data={filteredStudentRows}
             isLoading={false}
             rowKey="id"
             stickyHeader
@@ -746,6 +865,112 @@ export function OwnerFinancesClient() {
               title: t('noTransactions'),
               description: t('noTransactionsDesc'),
             }}
+          />
+        )}
+      </motion.div>
+
+      {/* ── BUG #4: Income & Expenses by Course ──────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.4 }}
+        className="rounded-xl"
+        style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <div
+          className="p-4"
+          style={{ borderBottom: '1px solid var(--border-default)' }}
+        >
+          <h2
+            className="text-base font-semibold"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {t('breakdownByCourse')}
+          </h2>
+        </div>
+
+        {isMobile ? (
+          <MobileCardList
+            data={courseCashFlowRows}
+            renderCard={(row, _isSelected) => (
+              <CashFlowCard
+                name={row.courseName}
+                inflow={row.income}
+                outflow={row.expenses}
+                netProfit={row.netProfit}
+                currency={currency}
+                inflowLabel={t('columns.income')}
+                outflowLabel={t('columns.expenses')}
+              />
+            )}
+            isLoading={false}
+            emptyState={{ title: t('noBreakdownData') }}
+          />
+        ) : (
+          <DataTable
+            columns={courseColumns}
+            data={courseCashFlowRows}
+            isLoading={false}
+            rowKey="id"
+            stickyHeader
+            emptyState={{ title: t('noBreakdownData') }}
+          />
+        )}
+      </motion.div>
+
+      {/* ── BUG #4: Income & Expenses by Branch (Filial) ─────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.45 }}
+        className="rounded-xl"
+        style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <div
+          className="p-4"
+          style={{ borderBottom: '1px solid var(--border-default)' }}
+        >
+          <h2
+            className="text-base font-semibold"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {t('breakdownByBranch')}
+          </h2>
+        </div>
+
+        {isMobile ? (
+          <MobileCardList
+            data={branchCashFlowRows}
+            renderCard={(row, _isSelected) => (
+              <CashFlowCard
+                name={row.branchName}
+                inflow={row.income}
+                outflow={row.expenses}
+                netProfit={row.netProfit}
+                currency={currency}
+                inflowLabel={t('columns.income')}
+                outflowLabel={t('columns.expenses')}
+              />
+            )}
+            isLoading={false}
+            emptyState={{ title: t('noBreakdownData') }}
+          />
+        ) : (
+          <DataTable
+            columns={branchColumns}
+            data={branchCashFlowRows}
+            isLoading={false}
+            rowKey="id"
+            stickyHeader
+            emptyState={{ title: t('noBreakdownData') }}
           />
         )}
       </motion.div>

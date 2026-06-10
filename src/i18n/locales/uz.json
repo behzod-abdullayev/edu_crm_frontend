@@ -755,13 +755,25 @@
       "noTransactions": "Tranzaksiyalar topilmadi",
       "noTransactionsDesc": "To'lovlar amalga oshirilgandan so'ng tranzaksiyalar bu yerda ko'rinadi.",
       "loading": "Yuklanmoqda…",
+      "breakdownByCourse": "Kurslar bo'yicha daromad va xarajatlar",
+      "breakdownByBranch": "Filiallar bo'yicha daromad va xarajatlar",
+      "studentCashFlow": "O'quvchilar bo'yicha pul oqimi",
+      "noBreakdownData": "Hozircha ma'lumot yo'q",
+      "allBranches": "Barcha filiallar",
+      "filterByBranch": "Filial bo'yicha filtr",
       "columns": {
         "student": "O'quvchi",
         "course": "Kurs",
         "amount": "Miqdor",
         "method": "Usul",
         "status": "Holat",
-        "date": "Sana"
+        "date": "Sana",
+        "branch": "Filial",
+        "income": "Daromad",
+        "expenses": "Xarajat",
+        "netProfit": "Sof foyda",
+        "inflow": "Kirim",
+        "outflow": "Chiqim"
       }
     },
     "hr": {

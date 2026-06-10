@@ -124,6 +124,12 @@ export interface StaffDto {
 export interface FinancialOverview {
   mrr: number;
   arr: number;
+  // Total cash inflow from students (sum of all paid payments)
+  totalIncome: number;
+  // Total cash outflow (active staff payroll, aggregated from HR module)
+  totalExpenses: number;
+  // Strictly: netProfit = totalIncome - totalExpenses
+  netProfit: number;
   totalPaid: number;
   totalOutstanding: number;
   currency: string;
@@ -131,11 +137,36 @@ export interface FinancialOverview {
   paymentMethodBreakdown: PaymentMethodShare[];
   topStudents: TopStudent[];
   overdueTotal: number;
+  // Cash inflow/outflow broken down per Course
+  courseBreakdown: CourseFinanceBreakdown[];
+  // Cash inflow/outflow broken down per individual student
+  studentBreakdown: StudentFinanceBreakdown[];
 }
 
 export interface BranchRevenue {
   branchName: string;
   revenue: number;
+  expenses: number;
+  netProfit: number;
+}
+
+export interface CourseFinanceBreakdown {
+  courseId: string;
+  courseName: string;
+  income: number;
+  expenses: number;
+  netProfit: number;
+  currency: string;
+}
+
+export interface StudentFinanceBreakdown {
+  studentId: string;
+  studentName: string;
+  branch: string | null;
+  inflow: number;
+  outflow: number;
+  netProfit: number;
+  currency: string;
 }
 
 export interface PaymentMethodShare {

@@ -27,11 +27,13 @@ import { useMotionValue, animate } from 'framer-motion';
 //   decimals  – decimal places shown (default 0)
 //   prefix    – text prepended to number, e.g. "$" (default "")
 //   suffix    – text appended to number,  e.g. "%" (default "")
+//   locale    – BCP 47 locale used for thousands-separator grouping (default "en-US")
 //   className – forwarded to the wrapping <span>
 //
 // Usage:
 //   <CountUp to={1842} prefix="$" />
 //   <CountUp from={80} to={96} suffix="%" decimals={1} duration={0.8} />
+//   <CountUp to={21500000} locale="uz" /> → "21 500 000"
 
 interface CountUpProps {
   from?: number;
@@ -40,13 +42,24 @@ interface CountUpProps {
   prefix?: string;
   suffix?: string;
   decimals?: number;
+  locale?: string;
   className?: string;
 }
 
 type DisplayAction = number;
 
-function formatValue(value: number, decimals: number, prefix: string, suffix: string): string {
-  return `${prefix}${value.toFixed(decimals)}${suffix}`;
+function formatValue(
+  value: number,
+  decimals: number,
+  prefix: string,
+  suffix: string,
+  locale: string,
+): string {
+  const formatted = value.toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `${prefix}${formatted}${suffix}`;
 }
 
 export function CountUp({
@@ -56,13 +69,14 @@ export function CountUp({
   prefix = '',
   suffix = '',
   decimals = 0,
+  locale = 'en-US',
   className,
 }: CountUpProps) {
   const motionValue = useMotionValue(from);
 
   const [displayValue, setDisplayValue] = useReducer(
-    (_prev: string, next: DisplayAction) => formatValue(next, decimals, prefix, suffix),
-    formatValue(from, decimals, prefix, suffix),
+    (_prev: string, next: DisplayAction) => formatValue(next, decimals, prefix, suffix, locale),
+    formatValue(from, decimals, prefix, suffix, locale),
   );
 
   useEffect(() => {
@@ -91,7 +105,7 @@ export function CountUp({
   return (
     <span
       className={className}
-      aria-label={formatValue(to, decimals, prefix, suffix)}
+      aria-label={formatValue(to, decimals, prefix, suffix, locale)}
     >
       {displayValue}
     </span>
