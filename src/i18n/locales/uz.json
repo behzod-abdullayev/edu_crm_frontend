@@ -713,7 +713,9 @@
         "globalRevenue": "Global Daromad Tendentsiyasi",
         "branchComparison": "Filiallar Daromad Taqqoslashi",
         "userGrowth": "Foydalanuvchilar O'sishi",
-        "enrollmentTrends": "Ro'yxatga Olish Tendentsiyalari"
+        "enrollmentTrends": "Ro'yxatga Olish Tendentsiyalari",
+        "noBranchData": "Filiallar bo'yicha ma'lumot yo'q",
+        "noBranchDataDesc": "Filiallarda o'quvchilar yoki daromad paydo bo'lgach, taqqoslash shu yerda ko'rinadi."
       },
       "enrollmentTrends": "Ro'yxatga olish tendentsiyalari",
       "allBranches": "Barcha filiallar",

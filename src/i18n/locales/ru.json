@@ -713,7 +713,9 @@
         "globalRevenue": "Глобальная Тенденция Дохода",
         "branchComparison": "Сравнение Доходов Филиалов",
         "userGrowth": "Рост Пользователей",
-        "enrollmentTrends": "Тенденции Зачислений"
+        "enrollmentTrends": "Тенденции Зачислений",
+        "noBranchData": "Нет данных по филиалам",
+        "noBranchDataDesc": "Сравнение филиалов появится, когда у филиалов будут учащиеся или доход."
       },
       "enrollmentTrends": "Тенденции зачислений",
       "allBranches": "Все филиалы",

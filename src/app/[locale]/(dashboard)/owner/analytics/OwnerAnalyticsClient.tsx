@@ -537,11 +537,18 @@ interface BranchComparisonChartProps {
 }
 
 function BranchComparisonChart({ data, branches, title }: BranchComparisonChartProps) {
+  const t = useTranslations('owner.analytics');
+
   return (
     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-[var(--shadow-sm)]">
       <h3 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
-      {data.length === 0 ? (
-        <ChartSkeleton height={240} />
+      {data.length === 0 || branches.length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title={t('charts.noBranchData')}
+          description={t('charts.noBranchDataDesc')}
+          className="py-8"
+        />
       ) : (
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -936,22 +943,11 @@ export function OwnerAnalyticsClient() {
 
             {/* Branch comparison + User growth — side by side on lg+ */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {branchList.length > 0 && branchCompData.length > 0 ? (
-                <BranchComparisonChart
-                  data={branchCompData}
-                  branches={branchList}
-                  title={t('charts.branchComparison')}
-                />
-              ) : (
-                <SimpleBarDisplay
-                  title={t('charts.branchComparison')}
-                  data={[
-                    { label: 'Branch A', value: 42000 },
-                    { label: 'Branch B', value: 28000 },
-                    { label: 'Branch C', value: 19000 },
-                  ]}
-                />
-              )}
+              <BranchComparisonChart
+                data={branchCompData}
+                branches={branchList}
+                title={t('charts.branchComparison')}
+              />
 
               {userGrowthData.length > 0 ? (
                 <UserGrowthChart data={userGrowthData} title={t('charts.userGrowth')} />

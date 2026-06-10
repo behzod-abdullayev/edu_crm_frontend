@@ -713,7 +713,9 @@
         "globalRevenue": "Global Revenue Trend",
         "branchComparison": "Branch Revenue Comparison",
         "userGrowth": "User Growth",
-        "enrollmentTrends": "Enrollment Trends"
+        "enrollmentTrends": "Enrollment Trends",
+        "noBranchData": "No branch data",
+        "noBranchDataDesc": "Branch comparison will appear once branches have students or revenue."
       },
       "enrollmentTrends": "Enrollment Trends",
       "allBranches": "All Branches",
