@@ -14,7 +14,6 @@ import { ErrorState } from "@shared/components/data-display/ErrorState";
 import { Button } from "@shared/components/ui/button";
 import { cn } from "@shared/lib/utils";
 import {
-  Plus,
   BookOpen,
   Video,
   FileText,

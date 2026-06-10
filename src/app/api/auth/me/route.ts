@@ -37,6 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     } catch (fetchErr: unknown) {
       const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      // eslint-disable-next-line no-console
       console.error('[API /auth/me] Cannot reach backend:', msg);
       return NextResponse.json(
         { message: `Backend ulanmadi: ${msg}` },
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(data, { status: 200 });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
     console.error('[API /auth/me] Unexpected error:', msg);
     return NextResponse.json({ message: `Server xatosi: ${msg}` }, { status: 500 });
   }

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, UserMinus, Search, Users } from 'lucide-react';
+import { UserMinus, Search, Users } from 'lucide-react';
 import { httpClient } from '@/services/api/axios.instance';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useToast } from '@shared/hooks/useToast';

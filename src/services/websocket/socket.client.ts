@@ -1,7 +1,8 @@
 'use client';
 
-import { io, type Socket } from 'socket.io-client';
-import { SocketEvent, type SocketEventPayloadMap } from './socket.events';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import type { SocketEvent, SocketEventPayloadMap } from './socket.events';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

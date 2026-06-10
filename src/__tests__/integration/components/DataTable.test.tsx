@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 // Correct import: barrel file re-exports from data-display/DataTable
 import { DataTable } from '@/shared/components/DataTable/DataTable';
 import type { ColumnDef } from '@/shared/components/DataTable/DataTable.types';
-import { PaginationMeta } from '@/generated/models';
-import { DataTableProps } from '@/shared/components/data-display/DataTable';
+import type { PaginationMeta } from '@/generated/models';
+import type { DataTableProps } from '@/shared/components/data-display/DataTable';
 
 expect.extend(toHaveNoViolations);
 

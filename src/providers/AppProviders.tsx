@@ -49,6 +49,21 @@ function AuthHydrator(): null {
   return null;
 }
 
+/**
+ * Keeps `localStorage.NEXT_LOCALE` in sync with the active next-intl locale.
+ * The axios instance reads this value to set the `Accept-Language` header,
+ * which was previously always 'en' since nothing ever wrote this key.
+ */
+function LocaleSync({ locale }: { locale: string }): null {
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('NEXT_LOCALE', locale);
+    }
+  }, [locale]);
+
+  return null;
+}
+
 export function AppProviders({
   children,
   locale,
@@ -70,6 +85,7 @@ export function AppProviders({
             <SocketProvider>
               <TenantLoader />
               <AuthHydrator />
+              <LocaleSync locale={locale} />
               {children}
             </SocketProvider>
           </ToastProvider>

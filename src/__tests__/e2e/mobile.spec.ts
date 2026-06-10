@@ -1,4 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 // All tests in this file use mobile viewport
 test.use({ viewport: { width: 390, height: 844 } });
@@ -76,7 +77,7 @@ test.describe('Mobile Interactions', () => {
     await page.mouse.up();
 
     // Refresh spinner may appear briefly
-    const refreshSpinner = page.getByTestId('pull-refresh-spinner');
+    const _refreshSpinner = page.getByTestId('pull-refresh-spinner');
     // Just verify page still has content after gesture
     await expect(page.getByTestId('course-card').first()).toBeVisible({ timeout: 6000 });
   });

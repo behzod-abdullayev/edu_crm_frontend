@@ -50,7 +50,14 @@ export function LanguageSwitcher() {
     if (segments.length >= 2) {
       segments[1] = code;
     }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('NEXT_LOCALE', code);
+    }
     router.push(segments.join('/'));
+    // FIX: Next.js Router Cache may serve a stale RSC payload for the
+    // previous locale-prefixed route — force a refresh so the new
+    // locale's messages/layout are actually fetched and rendered.
+    router.refresh();
   };
 
   return (

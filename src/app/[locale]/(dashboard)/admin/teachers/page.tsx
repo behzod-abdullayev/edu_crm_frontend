@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   Search,
@@ -480,7 +480,7 @@ function Pagination({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminTeachersPage() {
-  const { teachers, isLoading, toggleStatus, refresh } = useAdminTeachers();
+  const { teachers, isLoading, toggleStatus, refresh: _refresh } = useAdminTeachers();
 
   const isMobile = useMediaQuery('(max-width: 639px)');
 

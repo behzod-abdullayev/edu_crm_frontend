@@ -1,6 +1,6 @@
 import { httpClient } from './axios.instance';
 import type { PaginatedResponse, PaginationParams } from './students.api';
-import type { UserProfile, UserRole, Permission } from './auth.api';
+import type { UserRole, Permission } from './auth.api';
 
 export interface AdminListParams extends PaginationParams {
   role?: UserRole;

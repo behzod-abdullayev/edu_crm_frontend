@@ -56,7 +56,7 @@ function formatConversationTime(isoString?: string): string {
 }
 
 /** Extract room ID from a message ID that uses the "::" convention. */
-function extractRoomId(messageId: string): string {
+function _extractRoomId(messageId: string): string {
   return messageId.split("::")[0] ?? messageId;
 }
 

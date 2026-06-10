@@ -250,6 +250,7 @@ interface SmtpSectionProps {
   host:     string;
   port:     number;
   user:     string;
+  password: string; // XATO 6 FIX: password maydoni qo'shildi
   secure:   boolean;
   onChange: <K extends keyof SystemConfig['emailSmtp']>(
     field: K,
@@ -257,7 +258,7 @@ interface SmtpSectionProps {
   ) => void;
 }
 
-function SmtpSection({ host, port, user, secure, onChange }: SmtpSectionProps) {
+function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSectionProps) {
   const inputClass =
     'w-full rounded-lg border px-3 py-2.5 text-sm min-h-[44px] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)] focus:ring-offset-1';
 
@@ -318,7 +319,7 @@ function SmtpSection({ host, port, user, secure, onChange }: SmtpSectionProps) {
         </div>
 
         {/* User */}
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5">
           <label
             htmlFor="smtp-user"
             className="block text-xs font-medium"
@@ -334,6 +335,31 @@ function SmtpSection({ host, port, user, secure, onChange }: SmtpSectionProps) {
             onChange={(e) => onChange('user', e.target.value)}
             placeholder="noreply@academy.com"
             className={inputClass}
+            style={{
+              background:  'var(--bg-surface-secondary)',
+              borderColor: 'var(--border-default)',
+              color:       'var(--text-primary)',
+            }}
+          />
+        </div>
+
+        {/* Password — XATO 6 FIX: avval yo'q edi */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="smtp-password"
+            className="block text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Password
+          </label>
+          <input
+            id="smtp-password"
+            type="password"
+            value={password}
+            onChange={(e) => onChange('password', e.target.value)}
+            placeholder="••••••••"
+            className={inputClass}
+            autoComplete="new-password"
             style={{
               background:  'var(--bg-surface-secondary)',
               borderColor: 'var(--border-default)',
@@ -662,6 +688,7 @@ export function SystemConfigPanel({
         host={local.emailSmtp.host}
         port={local.emailSmtp.port}
         user={local.emailSmtp.user}
+        password={local.emailSmtp.password}
         secure={local.emailSmtp.secure}
         onChange={handleSmtpChange}
       />

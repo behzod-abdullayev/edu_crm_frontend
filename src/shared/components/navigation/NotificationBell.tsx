@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -23,7 +24,7 @@ import type { PaginatedResponse } from '@/services/api/students.api';
 
 // ─── Notification type → icon/color mapping ───────────────────────────────────
 
-const NOTIFICATION_COLOR: Record<string, string> = {
+const _NOTIFICATION_COLOR: Record<string, string> = {
   payment_received: 'text-[var(--success-solid)]',
   payment_overdue: 'text-[var(--error-solid)]',
   homework_graded: 'text-[var(--info-solid)]',
@@ -459,7 +460,7 @@ export function NotificationBell() {
             {/* ── Footer ── */}
             {notifications.length > 0 && (
               <div className="border-t border-[var(--border-default)] px-4 py-2.5">
-                <a
+                <Link
                   href="/notifications"
                   className={cn(
                     'block w-full text-center text-xs font-medium',
@@ -469,7 +470,7 @@ export function NotificationBell() {
                   )}
                 >
                   {t('viewAll')}
-                </a>
+                </Link>
               </div>
             )}
           </motion.div>

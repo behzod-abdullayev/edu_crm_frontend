@@ -27,7 +27,7 @@ const pageVariants = {
 // ─── AdminPaymentDetailClient ─────────────────────────────────────────────────
 
 export function AdminPaymentDetailClient({ invoiceId }: AdminPaymentDetailClientProps) {
-  const t         = useTranslations('admin.payments');
+  const _t        = useTranslations('admin.payments');
   const locale    = useLocale();
   const router    = useRouter();
   const { toast } = useToast();

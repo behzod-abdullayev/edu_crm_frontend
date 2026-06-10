@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ListVideo,
   X,
-  Menu,
 } from "lucide-react";
 import Link from "next/link";
 

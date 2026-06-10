@@ -31,7 +31,7 @@ interface ChangePasswordFormProps {
   className?: string;
 }
 
-export function ChangePasswordForm({ userId, role = 'student', className }: ChangePasswordFormProps) {
+export function ChangePasswordForm({ userId: _userId, role: _role = 'student', className }: ChangePasswordFormProps) {
   const { toast } = useToast();
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);

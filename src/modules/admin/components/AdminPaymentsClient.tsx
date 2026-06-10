@@ -13,7 +13,6 @@ import { DebtCalculator } from '@/modules/payments/components/DebtCalculator';
 import { AdminPaymentsSkeleton } from './AdminPaymentsSkeleton';
 import { useToast } from '@shared/hooks/useToast';
 import { useIsMobile } from '@shared/hooks/useIsMobile';
-import type { InvoiceDto } from '@/modules/payments/types/payment.types';
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -50,9 +49,9 @@ export function AdminPaymentsClient() {
     isOffline,
     error,
     markPaid,
-    createInvoice,
+    createInvoice: _createInvoice,
     sendReminder,
-    refundInvoice,
+    refundInvoice: _refundInvoice,
     refresh,
   } = usePayments();
 

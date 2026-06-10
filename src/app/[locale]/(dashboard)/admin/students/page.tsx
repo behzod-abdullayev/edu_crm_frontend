@@ -19,19 +19,15 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
   CheckCircle2,
   XCircle,
   Eye,
   Trash2,
-  TrendingUp,
-  TrendingDown,
   Minus,
 } from 'lucide-react';
 import { useAdminStudents } from '@modules/admin/hooks/useAdmin';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
-import { ErrorState } from '@shared/components/data-display/ErrorState';
 import { useMediaQuery } from '@shared/hooks/useMediaQuery';
 import { useDebounce } from '@shared/hooks/useDebounce';
 import { cn } from '@shared/utils/cn';

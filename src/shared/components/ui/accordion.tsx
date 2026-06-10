@@ -3,7 +3,6 @@
 import * as React from 'react';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
-import { motion, AnimatePresence } from 'framer-motion';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronDown, AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import { cn } from '@shared/utils/cn';

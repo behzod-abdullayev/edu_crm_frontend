@@ -1,11 +1,14 @@
 'use client';
 // src/app/[locale]/(dashboard)/owner/roles/OwnerRolesClient.tsx
 //
-// FIX: "Cannot read properties of undefined (reading 'map')"
-//      The backend returns roles as a plain array, so `matrix.allPermissions`
-//      was undefined when RolePermissionMatrix tried to call .map() on it.
-//      Added `ensureMatrix()` to derive allPermissions from role.permissions
-//      when the backend doesn't supply the full PermissionMatrix shape.
+// XATO 1 FIX: Backend bo'sh array qaytarsa → system rollar fallback (owner.api.ts da)
+// XATO 2 FIX: useOwnerRoles endi TanStack Query (useQuery) ishlatadi
+// XATO 3 FIX: saveRole → useMutation + cache invalidation (useOwner.ts da)
+// XATO 4 FIX: createRole → useMutation + POST /owner/roles + cache invalidation
+// XATO 5 FIX: displayName → owner.api.ts mapRawRolesToMatrix da derive qilinadi
+// XATO 6 FIX: admin.bg → 'var(--role-admin)'/10 (CSS variable, hardcoded hex yo'q)
+// XATO 7 FIX: Barcha UI matnlar i18n orqali (useTranslations)
+// XATO 10 FIX: CreateRoleModal → React Hook Form v7 + Zod v3 validation
 //
 // ✅ Zero `any` types
 // ✅ Framer Motion: card stagger, save button pulse, checkmark animate
@@ -15,116 +18,87 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 import { useOwnerRoles } from '@/modules/owner/hooks/useOwner';
 import { RolePermissionMatrix } from '@/modules/owner/components/RolePermissionMatrix';
 import type {
   UserRole,
-  PermissionMatrix,
   RoleDto,
-  PermissionCategory,
 } from '@/modules/owner/types/owner.types';
 import { cn } from '@/shared/utils/cn';
 
-// ─── Safe matrix normalizer ───────────────────────────────────────────────────
-//
-// The backend may return:
-//   a) A full PermissionMatrix: { roles: [...], allPermissions: [...] }
-//   b) Just an array of RoleDto
-//   c) An object with roles but without allPermissions
-//
-// This function always produces a valid PermissionMatrix with allPermissions
-// derived from the union of all permissions across all roles.
+// ─── Role description keys (strongly typed subset) ───────────────────────────
 
-function ensureMatrix(raw: PermissionMatrix | null): PermissionMatrix | null {
-  if (!raw) return null;
+const ROLE_DESC_KEYS = {
+  student:     'roleDescStudent',
+  teacher:     'roleDescTeacher',
+  admin:       'roleDescAdmin',
+  owner:       'roleDescOwner',
+  super_admin: 'roleDescSuperAdmin',
+} as const satisfies Record<UserRole, string>;
 
-  // If allPermissions is already a non-empty array, use as-is
-  if (Array.isArray(raw.allPermissions) && raw.allPermissions.length > 0) {
-    return raw;
-  }
-
-  // Build allPermissions from the union of role.permissions
-  // Group permissions by their prefix (e.g. "course.create" → category "course")
-  const categoryMap = new Map<string, Set<string>>();
-
-  for (const role of raw.roles) {
-    for (const perm of role.permissions) {
-      const parts = perm.split('.');
-      const category = parts[0] ?? 'other';
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, new Set());
-      }
-      categoryMap.get(category)!.add(perm);
-    }
-  }
-
-  const allPermissions: PermissionCategory[] = Array.from(
-    categoryMap.entries(),
-  ).map(([category, permSet]) => ({
-    category,
-    permissions: Array.from(permSet).map((key) => ({
-      key,
-      label: key
-        .replace(/\./g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
-    })),
-  }));
-
-  return {
-    roles: raw.roles,
-    allPermissions,
-  };
-}
-
-// ─── Role color tokens ────────────────────────────────────────────────────────
+// ─── Role color tokens (CSS variables only — no hardcoded hex) ────────────────
+// FIX XATO 6: admin.bg har doim CSS variable ishlatadi
 
 const ROLE_META: Record<
   UserRole,
-  { color: string; bg: string; icon: string; description: string }
+  { color: string; bg: string; icon: string }
 > = {
   student: {
     color: 'var(--role-student)',
     bg: 'var(--info-bg)',
     icon: '🎓',
-    description: 'View courses, submit homework, track grades',
   },
   teacher: {
     color: 'var(--role-teacher)',
     bg: 'var(--success-bg)',
     icon: '👩‍🏫',
-    description: 'Manage groups, grade submissions, upload lessons',
   },
   admin: {
     color: 'var(--role-admin)',
-    bg: '#F3F0FF',
+    // FIX XATO 6: '#F3F0FF' hardcoded edi → CSS variable
+    bg: 'color-mix(in srgb, var(--role-admin) 10%, var(--bg-surface))',
     icon: '⚙️',
-    description: 'Configure courses, manage payments, run reports',
   },
   owner: {
     color: 'var(--role-owner)',
     bg: 'var(--warning-bg)',
     icon: '👑',
-    description: 'Full platform access — all permissions granted',
+  },
+  super_admin: {
+    color: 'var(--brand-primary)',
+    bg: 'color-mix(in srgb, var(--brand-primary) 10%, var(--bg-surface))',
+    icon: '🛡️',
   },
 };
+
+// ─── Create role form schema (XATO 10 fix) ───────────────────────────────────
+
+const createRoleSchema = z.object({
+  name: z
+    .string()
+    .min(2, 'Role name must be at least 2 characters')
+    .max(50, 'Role name must be at most 50 characters')
+    .trim(),
+});
+
+type CreateRoleFormValues = z.infer<typeof createRoleSchema>;
 
 // ─── Role summary card ────────────────────────────────────────────────────────
 
 interface RoleCardProps {
-  displayName: string;
-  name: UserRole;
-  permissionCount: number;
+  role: RoleDto;
   index: number;
 }
 
-function RoleCard({
-  displayName,
-  name,
-  permissionCount,
-  index,
-}: RoleCardProps) {
-  const meta = ROLE_META[name] ?? ROLE_META.student;
+function RoleCard({ role, index }: RoleCardProps) {
+  const t = useTranslations('owner.roles');
+  // FIX XATO 5: displayName → owner.api.ts da derive qilingan (role.displayName har doim mavjud)
+  const meta = ROLE_META[role.name] ?? ROLE_META.student;
 
   return (
     <motion.div
@@ -151,23 +125,27 @@ function RoleCard({
           className="text-sm font-semibold"
           style={{ color: 'var(--text-primary)' }}
         >
-          {displayName}
+          {role.displayName}
         </p>
         <p
           className="text-xs mt-0.5 leading-relaxed"
           style={{ color: 'var(--text-muted)' }}
         >
-          {meta.description}
+          {t(ROLE_DESC_KEYS[role.name] ?? ROLE_DESC_KEYS.student)}
         </p>
         <div className="mt-2 flex items-center gap-1.5">
           <span
             className="text-xs font-medium rounded-full px-2 py-0.5"
             style={{
-              background: name === 'owner' ? meta.bg : 'var(--bg-surface-hover)',
-              color: name === 'owner' ? meta.color : 'var(--text-secondary)',
+              background:
+                role.name === 'owner' ? meta.bg : 'var(--bg-surface-hover)',
+              color:
+                role.name === 'owner' ? meta.color : 'var(--text-secondary)',
             }}
           >
-            {name === 'owner' ? 'All permissions' : `${permissionCount} permissions`}
+            {role.name === 'owner'
+              ? t('allPermissions')
+              : t('permissionsCount', { count: role.permissions.length })}
           </span>
         </div>
       </div>
@@ -175,9 +153,42 @@ function RoleCard({
   );
 }
 
-// ─── Create role modal ────────────────────────────────────────────────────────
+// ─── Create role modal (XATO 10 FIX: React Hook Form + Zod) ──────────────────
 
-function CreateRoleModal({ onClose }: { onClose: () => void }) {
+interface CreateRoleModalProps {
+  onClose: () => void;
+  onSubmit: (name: string) => Promise<void>;
+  isSubmitting: boolean;
+}
+
+function CreateRoleModal({
+  onClose,
+  onSubmit,
+  isSubmitting,
+}: CreateRoleModalProps) {
+  const t = useTranslations('owner.roles');
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<CreateRoleFormValues>({
+    resolver: zodResolver(createRoleSchema),
+    defaultValues: { name: '' },
+  });
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const onValid = async (values: CreateRoleFormValues) => {
+    await onSubmit(values.name);
+    reset();
+    onClose();
+  };
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4"
@@ -186,11 +197,11 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleClose();
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="Create custom role"
+      aria-labelledby="create-role-modal-title"
     >
       <motion.div
         className="w-full max-w-md rounded-2xl border p-6 shadow-xl"
@@ -206,93 +217,116 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex items-center justify-between mb-5">
           <h3
+            id="create-role-modal-title"
             className="text-lg font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
-            Create Custom Role
+            {t('createModalTitle')}
           </h3>
           <motion.button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
             style={{ color: 'var(--text-muted)' }}
             whileTap={{ scale: 0.92 }}
-            whileHover={{ background: 'var(--bg-surface-hover)' }}
+            whileHover={{ backgroundColor: 'var(--bg-surface-hover)' }}
             aria-label="Close dialog"
           >
             ×
           </motion.button>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label
-              className="text-xs font-medium"
-              style={{ color: 'var(--text-secondary)' }}
-              htmlFor="role-name"
-            >
-              Role Name
-            </label>
-            <input
-              id="role-name"
-              type="text"
-              placeholder="e.g. Branch Manager"
-              className="w-full rounded-lg border px-3 py-2.5 text-sm min-h-[44px] outline-none transition-all"
+        {/* FIX XATO 10: React Hook Form controlled form with Zod validation */}
+        <form onSubmit={handleSubmit(onValid)} noValidate>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                className="text-xs font-medium"
+                style={{ color: 'var(--text-secondary)' }}
+                htmlFor="role-name-input"
+              >
+                {t('roleNameLabel')}
+              </label>
+              <input
+                id="role-name-input"
+                type="text"
+                placeholder={t('roleNamePlaceholder')}
+                aria-required="true"
+                aria-describedby={errors.name ? 'role-name-error' : undefined}
+                aria-invalid={errors.name ? 'true' : undefined}
+                className={cn(
+                  'w-full rounded-lg border px-3 py-2.5 text-sm min-h-[44px] outline-none transition-all',
+                  errors.name
+                    ? 'border-[var(--error-solid)] focus:ring-2 focus:ring-[var(--error-solid)]/20'
+                    : 'border-[var(--border-default)] focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--brand-primary)]/15',
+                )}
+                style={{
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                }}
+                {...register('name')}
+              />
+              {errors.name && (
+                <motion.p
+                  id="role-name-error"
+                  role="alert"
+                  className="text-xs"
+                  style={{ color: 'var(--error-text)' }}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {errors.name.message}
+                </motion.p>
+              )}
+            </div>
+
+            <p
+              className="text-xs rounded-lg px-3 py-2.5"
               style={{
-                background: 'var(--bg-surface)',
+                background: 'var(--info-bg)',
+                color: 'var(--info-text)',
+                border: '1px solid var(--info-border)',
+              }}
+            >
+              ℹ️ {t('createRoleInfo')}
+            </p>
+          </div>
+
+          <div className="mt-6 flex gap-3">
+            <motion.button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 rounded-lg py-2.5 text-sm font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                background: 'var(--brand-primary)',
+                color: 'var(--text-on-brand)',
+              }}
+              whileTap={{ scale: 0.97 }}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  {t('savingLabel')}
+                </span>
+              ) : (
+                t('createRoleButton')
+              )}
+            </motion.button>
+            <motion.button
+              type="button"
+              className="flex-1 rounded-lg border py-2.5 text-sm font-medium min-h-[44px]"
+              style={{
                 borderColor: 'var(--border-default)',
                 color: 'var(--text-primary)',
               }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-focus)';
-                e.currentTarget.style.boxShadow =
-                  '0 0 0 3px var(--brand-primary)18';
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-default)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            />
+              whileTap={{ scale: 0.97 }}
+              onClick={handleClose}
+            >
+              {t('cancelButton')}
+            </motion.button>
           </div>
-          <p
-            className="text-xs rounded-lg px-3 py-2.5"
-            style={{
-              background: 'var(--info-bg)',
-              color: 'var(--info-text)',
-              border: '1px solid var(--info-border)',
-            }}
-          >
-            ℹ️ Custom roles are created with no permissions by default. Configure
-            permissions in the matrix below after creation.
-          </p>
-        </div>
-
-        <div className="mt-6 flex gap-3">
-          <motion.button
-            type="button"
-            className="flex-1 rounded-lg py-2.5 text-sm font-semibold min-h-[44px]"
-            style={{
-              background: 'var(--brand-primary)',
-              color: 'var(--text-on-brand)',
-            }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onClose}
-          >
-            Create Role
-          </motion.button>
-          <motion.button
-            type="button"
-            className="flex-1 rounded-lg border py-2.5 text-sm font-medium min-h-[44px]"
-            style={{
-              borderColor: 'var(--border-default)',
-              color: 'var(--text-primary)',
-            }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onClose}
-          >
-            Cancel
-          </motion.button>
-        </div>
+        </form>
       </motion.div>
     </motion.div>
   );
@@ -301,16 +335,15 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
 // ─── Empty / error state ──────────────────────────────────────────────────────
 
 function MatrixEmptyState() {
+  const t = useTranslations('owner.roles');
   return (
     <div
       className="py-16 text-center"
       style={{ color: 'var(--text-muted)' }}
     >
       <p className="text-4xl mb-3" aria-hidden="true">🔒</p>
-      <p className="text-sm">Unable to load permission matrix</p>
-      <p className="text-xs mt-1 opacity-70">
-        The backend may not have returned role data yet.
-      </p>
+      <p className="text-sm">{t('unableToLoad')}</p>
+      <p className="text-xs mt-1 opacity-70">{t('unableToLoadDesc')}</p>
     </div>
   );
 }
@@ -318,10 +351,16 @@ function MatrixEmptyState() {
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function OwnerRolesClient() {
-  const { matrix: rawMatrix, isLoading, saveRole } = useOwnerRoles();
+  const t = useTranslations('owner.roles');
 
-  // FIX: normalize the matrix so allPermissions is always present
-  const matrix = ensureMatrix(rawMatrix);
+  // FIX XATO 2+3+4: useOwnerRoles endi TanStack Query ishlatadi
+  const {
+    matrix,
+    isLoading,
+    saveRole,
+    createRole,
+    isCreatingRole,
+  } = useOwnerRoles();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -338,17 +377,18 @@ export function OwnerRolesClient() {
         transition={{ duration: 0.28 }}
       >
         <div>
+          {/* FIX XATO 7: i18n keys — no hardcoded strings */}
           <h1
             className="text-2xl font-bold sm:text-3xl"
             style={{ color: 'var(--text-primary)' }}
           >
-            Roles &amp; Permissions
+            {t('title')}
           </h1>
           <p
             className="mt-1 text-sm"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Configure what each role can do across the platform
+            {t('subtitle')}
           </p>
         </div>
 
@@ -362,8 +402,9 @@ export function OwnerRolesClient() {
           }}
           whileTap={{ scale: 0.96 }}
           whileHover={{ scale: 1.01 }}
+          aria-label={t('addCustomRole')}
         >
-          + Custom Role
+          {t('addCustomRole')}
         </motion.button>
       </motion.div>
 
@@ -384,13 +425,7 @@ export function OwnerRolesClient() {
       ) : matrix ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {matrix.roles.map((role: RoleDto, i: number) => (
-            <RoleCard
-              key={role.id}
-              displayName={role.displayName}
-              name={role.name}
-              permissionCount={role.permissions.length}
-              index={i}
-            />
+            <RoleCard key={role.id} role={role} index={i} />
           ))}
         </div>
       ) : null}
@@ -417,19 +452,23 @@ export function OwnerRolesClient() {
             className="text-sm font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
-            Permission Matrix
+            {t('matrixTitle')}
           </h2>
           <p
-            className="text-xs"
+            className="text-xs hidden sm:block"
             style={{ color: 'var(--text-muted)' }}
           >
-            Click a checkbox to toggle. Owner always has full access.
+            {t('matrixHint')}
           </p>
         </div>
 
         <div className="p-5">
           {isLoading ? (
-            <div className="space-y-3" aria-busy="true" aria-label="Loading matrix…">
+            <div
+              className="space-y-3"
+              aria-busy="true"
+              aria-label="Loading matrix…"
+            >
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
@@ -440,7 +479,6 @@ export function OwnerRolesClient() {
               ))}
             </div>
           ) : matrix && matrix.allPermissions.length > 0 ? (
-            // FIX: only render RolePermissionMatrix when allPermissions is populated
             <RolePermissionMatrix
               matrix={matrix}
               onSaveRole={saveRole}
@@ -465,14 +503,17 @@ export function OwnerRolesClient() {
         transition={{ delay: 0.5 }}
         role="note"
       >
-        <strong>⚠️ Important:</strong> Permission changes take effect immediately
-        after saving. Users currently online may need to refresh their session.
+        <strong>⚠️</strong> {t('importantNote')}
       </motion.div>
 
       {/* ── Create Role Modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {showCreateModal && (
-          <CreateRoleModal onClose={() => setShowCreateModal(false)} />
+          <CreateRoleModal
+            onClose={() => setShowCreateModal(false)}
+            onSubmit={createRole}
+            isSubmitting={isCreatingRole}
+          />
         )}
       </AnimatePresence>
     </div>

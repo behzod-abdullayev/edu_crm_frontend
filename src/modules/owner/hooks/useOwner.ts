@@ -1,5 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
+'use client';
+// src/modules/owner/hooks/useOwner.ts
+//
+// ✅ ALL hooks use TanStack Query v5 (useQuery / useMutation)
+// ✅ queryKeys from keys.factory.ts used throughout
+// ✅ httpClient (axios instance) used for all requests — no raw fetch()
+// ✅ Mapper logic preserved — all backend ↔ frontend transformations intact
+// ✅ Optimistic updates + targeted cache invalidation on mutations
+// ✅ staleTime / gcTime / retry settings match global config
+// ✅ useOwnerUsers: sortBy/sortOrder support + optimistic update + rollback
+// ✅ useOwnerRoles: createRole mutation + addToast notifications
+// ✅ useOwnerKPI: totalBranches fallback from /branches endpoint
+// ✅ KPI sparklines derived from revenueByMonth / userGrowth when available
+
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { httpClient } from '@/services/api/axios.instance';
+import { queryKeys } from '@/services/query/keys.factory';
+import { useUIStore } from '@/store/ui.store';
+import type {
   GlobalKPIData,
   BranchDto,
   BranchForm,
@@ -13,12 +31,21 @@ import {
   SystemHealth,
 } from '../types/owner.types';
 
-// ── Types that match the actual backend responses ─────────────────────────────
+// ── Query defaults ─────────────────────────────────────────────────────────────
 
-// FIX: BackendKpis interfeysi kengaytirildi.
-// Backend /owner/dashboard endi totalBranches, activeCourses, monthlyEnrollments,
-// mrr, arr, trends fieldlarini ham qaytaradi (owner.service.ts fix dan keyin).
-// Bu interfeys ham yangilandi — yangi fieldlarni o'qib GlobalKPIData ga map qiladi.
+const QUERY_DEFAULTS = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 10 * 60 * 1000,
+  retry: 2,
+  retryDelay: (n: number) => Math.min(1000 * 2 ** n, 30_000),
+  refetchOnWindowFocus: false,
+  refetchOnMount: true,
+} as const;
+
+// ── Backend response interfaces ────────────────────────────────────────────────
+
+// Backend /owner/dashboard qaytaradigan KPI fieldlari.
+// Legacy fields (eski backend) + NEW fields (yangi backend) ikkalasini ham qabul qiladi.
 interface BackendKpis {
   // Legacy fields
   monthlyRevenue?: number;
@@ -40,12 +67,13 @@ interface BackendKpis {
     usersChange?: number;
     enrollmentsChange?: number;
   };
+  // Sparkline arrays (optional — backend qo'shganda mavjud)
+  revenueByMonth?: { month: string; amount: number }[];
+  userGrowth?: { month: string; count: number }[];
+  studentGrowth?: { month: string; count: number }[];
 }
 
-// Backend GET /api/v1/owner/analytics/global returns GlobalAnalyticsDto:
-// { totalRevenue, totalStudents, totalTeachers, totalCourses, activeGroups,
-//   attendanceRate, revenueByMonth: [{month, amount}], studentGrowth: [{month, count}],
-//   topCourses, branchComparison: [], userGrowth: [] }
+// Backend GET /api/v1/owner/analytics/global returns GlobalAnalyticsDto
 interface BackendGlobalAnalytics {
   totalRevenue?: number;
   totalStudents?: number;
@@ -60,9 +88,7 @@ interface BackendGlobalAnalytics {
   userGrowth?: { month: string; students: number; teachers: number }[];
 }
 
-// Backend GET /api/v1/owner/users returns PaginatedResult<UserRow>:
-// { data: [{id, first_name, last_name, email, phone, role, status, last_login_at, created_at, branch}],
-//   meta: {total, page, limit} }
+// Backend GET /api/v1/owner/users returns PaginatedResult<UserRow>
 interface BackendUserRow {
   id: string;
   first_name?: string;
@@ -83,12 +109,11 @@ interface BackendUserRow {
   salary?: number;
   contractStatus?: string;
   hireDate?: string;
-  // metadata JSONB - salary, contractStatus, hireDate backend tomonidan shu yerda saqlanadi
+  // metadata JSONB — salary, contractStatus, hireDate backend tomonidan shu yerda saqlanadi
   metadata?: Record<string, unknown> | null;
 }
 
-// Backend GET /api/v1/owner/branches returns BranchResponseDto[]:
-// [{ id, name, address, phone, managerId, managerName, isActive, studentCount, teacherCount, createdAt }]
+// Backend GET /api/v1/owner/branches returns BranchResponseDto[]
 interface BackendBranchRow {
   id: string;
   name?: string;
@@ -111,6 +136,16 @@ interface BackendBranchRow {
   created_at?: string;
 }
 
+// ── Mapper functions ───────────────────────────────────────────────────────────
+
+// Sparkline data yo'q bo'lganda trend foizidan sintetik sparkline hosil qiladi
+function generateSparkline(currentValue: number, trendPct: number, points = 7): { value: number }[] {
+  const step = (trendPct / 100) * currentValue / (points - 1);
+  return Array.from({ length: points }, (_, i) => ({
+    value: Math.max(0, currentValue - step * (points - 1 - i)),
+  }));
+}
+
 function mapBranchRowToDto(b: BackendBranchRow): BranchDto {
   // isActive field: backend BranchResponseDto uses isActive boolean
   const isActive =
@@ -129,7 +164,7 @@ function mapBranchRowToDto(b: BackendBranchRow): BranchDto {
     courseCount:    b.courseCount ?? 0,
     monthlyRevenue: b.monthlyRevenue ?? b.monthly_revenue ?? 0,
     currency:       b.currency ?? 'UZS',
-    // FIX: status to'g'ri aniqlash - isActive boolean dan
+    // status to'g'ri aniqlash — isActive boolean dan
     status:         isActive ? 'active' : 'inactive',
     createdAt:
       b.createdAt ??
@@ -138,23 +173,31 @@ function mapBranchRowToDto(b: BackendBranchRow): BranchDto {
   };
 }
 
-// FIX: mapBackendKpisToGlobalKPIData yangilandi.
-// Endi backend /owner/dashboard endi to'liq KPI qaytaradi:
-// totalBranches, activeCourses, monthlyEnrollments, mrr, arr, trends.
-// Mapper avval yangi fieldlarni tekshiradi (trends field mavjudligi orqali),
-// agar yangi format bo'lsa — to'g'ridan-to'g'ri ishlatadi.
-// Agar eski format kelsa (legacy) — hisob-kitob orqali bajariladi.
-function mapBackendKpisToGlobalKPIData(kpis: BackendKpis): GlobalKPIData {
-  // NEW format check: agar totalBranches field mavjud bo'lsa, yangi backend javobini ishlatamiz
-  if (kpis.totalBranches !== undefined || kpis.trends !== undefined) {
-    return {
-      mrr:                kpis.mrr ?? kpis.monthlyRevenue ?? 0,
-      arr:                kpis.arr ?? (kpis.mrr ?? kpis.monthlyRevenue ?? 0) * 12,
-      totalUsers:         kpis.totalUsers ?? ((kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0)),
-      // FIX ASOSIY: endi backend totalBranches qaytaradi → 0 emas, haqiqiy son ko'rinadi
-      totalBranches:      kpis.totalBranches ?? 0,
-      activeCourses:      kpis.activeCourses ?? 0,
-      monthlyEnrollments: kpis.monthlyEnrollments ?? 0,
+// Backend /owner/dashboard → GlobalKPIData mapper.
+// branchCount: /owner/branches endpointdan olingan filiallar soni (fallback uchun).
+// Agar backend yangi format qaytarsa (totalBranches mavjud) — uni ishlatadi.
+// Agar eski format kelsa — branchCount fallback sifatida ishlatiladi.
+// Sparklines: revenueByMonth / userGrowth backenddan kelsa — ular ishlatiladi,
+// aks holda trendPct dan sintetik sparkline generatsiya qilinadi.
+function mapBackendKpisToGlobalKPIData(kpis: BackendKpis, branchCount = 0): GlobalKPIData {
+  const useNewFormat = kpis.totalBranches !== undefined || kpis.trends !== undefined;
+
+  let base: GlobalKPIData;
+
+  if (useNewFormat) {
+    const mrr = kpis.mrr ?? kpis.monthlyRevenue ?? 0;
+    const totalUsers = kpis.totalUsers ?? ((kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0));
+    const monthlyEnrollments = kpis.monthlyEnrollments ?? 0;
+    base = {
+      mrr,
+      arr:                  kpis.arr ?? mrr * 12,
+      totalUsers,
+      // FIX: backend totalBranches qaytarsa — ishlatamiz, aks holda branches endpointdan
+      totalBranches:        (kpis.totalBranches !== undefined && kpis.totalBranches > 0)
+                              ? kpis.totalBranches
+                              : branchCount,
+      activeCourses:        kpis.activeCourses ?? 0,
+      monthlyEnrollments,
       revenueGrowthPercent: kpis.revenueGrowthPercent ?? kpis.revenueChangePercent ?? 0,
       trends: {
         mrrChange:         kpis.trends?.mrrChange ?? 0,
@@ -162,32 +205,49 @@ function mapBackendKpisToGlobalKPIData(kpis: BackendKpis): GlobalKPIData {
         enrollmentsChange: kpis.trends?.enrollmentsChange ?? 0,
       },
     };
+  } else {
+    // Legacy format (eski backend versiyasi uchun fallback)
+    const mrr = kpis.monthlyRevenue ?? 0;
+    const totalUsers = (kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0);
+    const mrrChange = kpis.revenueChangePercent ?? 0;
+    base = {
+      mrr,
+      arr:                  mrr * 12,
+      totalUsers,
+      totalBranches:        branchCount,
+      activeCourses:        0,
+      monthlyEnrollments:   0,
+      revenueGrowthPercent: kpis.completionRate ?? 0,
+      trends: { mrrChange, usersChange: 0, enrollmentsChange: 0 },
+    };
   }
 
-  // Legacy format (eski backend versiyasi uchun fallback)
-  const monthlyRevenue = kpis.monthlyRevenue ?? 0;
-  const revenueChange = kpis.revenueChangePercent ?? 0;
+  // Sparklines: backend revenueByMonth / userGrowth / studentGrowth dan hosil qilinadi
+  const revenueMonths = kpis.revenueByMonth ?? [];
+  const userMonths =
+    kpis.userGrowth?.map((m) => ({ value: m.count })) ??
+    kpis.studentGrowth?.map((m) => ({ value: m.count })) ??
+    [];
 
-  return {
-    mrr: monthlyRevenue,
-    arr: monthlyRevenue * 12,
-    totalUsers: (kpis.activeStudents ?? 0) + (kpis.teacherCount ?? 0),
-    totalBranches: 0, // Legacy formatda bu ma'lumot yo'q
-    activeCourses: 0,
-    monthlyEnrollments: 0,
-    revenueGrowthPercent: kpis.completionRate ?? 0,
-    trends: {
-      mrrChange: revenueChange,
-      usersChange: 0,
-      enrollmentsChange: 0,
-    },
-  };
+  const mrrSparkline: { value: number }[] =
+    revenueMonths.length >= 3
+      ? revenueMonths.slice(-7).map((m) => ({ value: m.amount }))
+      : generateSparkline(base.mrr, base.trends.mrrChange);
+
+  const usersSparkline: { value: number }[] =
+    userMonths.length >= 3
+      ? userMonths.slice(-7)
+      : generateSparkline(base.totalUsers, base.trends.usersChange);
+
+  const enrollmentsSparkline: { value: number }[] =
+    generateSparkline(base.monthlyEnrollments, base.trends.enrollmentsChange);
+
+  return { ...base, mrrSparkline, usersSparkline, enrollmentsSparkline };
 }
 
-// Maps backend GlobalAnalyticsDto → frontend MultiTenantChartData
-// Handles the field name mismatch: revenueByMonth[].amount → globalRevenue[].revenue
-//                                  studentGrowth[].count → userGrowth[].count
-//                                  branchComparison[]   → branchComparison[]
+// Backend GlobalAnalyticsDto → frontend MultiTenantChartData mapper.
+// Handles field name mismatch: revenueByMonth[].amount → globalRevenue[].revenue
+//                               userGrowth[{students,teachers}] → userGrowth[{count}]
 function mapBackendAnalyticsToChartData(data: BackendGlobalAnalytics): MultiTenantChartData {
   // globalRevenue: backend uses { month, amount }, frontend expects { month, revenue }
   const globalRevenue = (data.revenueByMonth ?? []).map((item) => ({
@@ -195,36 +255,29 @@ function mapBackendAnalyticsToChartData(data: BackendGlobalAnalytics): MultiTena
     revenue: item.amount,
   }));
 
-  // userGrowth: backend returns [] or [{month, students, teachers}]
-  // frontend expects [{month, count}] — sum students + teachers as total users
+  // userGrowth: backend returns [{month, students, teachers}]
+  // frontend expects [{month, count}] — students + teachers as total users
   const userGrowth = (data.userGrowth ?? []).map((item) => ({
     month: item.month,
     count: (item.students ?? 0) + (item.teachers ?? 0),
   }));
 
-  // If userGrowth is empty but studentGrowth exists, use studentGrowth as fallback
+  // userGrowth bo'sh bo'lsa studentGrowth fallback sifatida ishlatiladi
   const userGrowthFallback =
     userGrowth.length === 0
-      ? (data.studentGrowth ?? []).map((item) => ({
-          month: item.month,
-          count: item.count,
-        }))
+      ? (data.studentGrowth ?? []).map((item) => ({ month: item.month, count: item.count }))
       : userGrowth;
 
-  // enrollmentTrends: backend doesn't provide this directly
-  // Use studentGrowth as enrollment proxy
+  // enrollmentTrends: backend to'g'ridan-to'g'ri bermaydi — studentGrowth proxy sifatida
   const enrollmentTrends = (data.studentGrowth ?? []).map((item) => ({
     month: item.month,
     count: item.count,
   }));
 
-  // branchComparison: backend returns BranchComparisonDto[] or []
-  // Frontend BranchComparisonPoint requires { period: string; [branchName: string]: number | string }
-  // Convert [{branchName, revenue, ...}] → [{ period: 'Current', [branchName]: revenue }]
+  // branchComparison: [{branchName, revenue, ...}] → [{ period: 'Current', [branchName]: revenue }]
   const branchComparison: MultiTenantChartData['branchComparison'] =
     (data.branchComparison ?? []).length > 0
       ? (() => {
-          // BranchComparisonPoint: period is required string + index signature
           const row: { period: string; [key: string]: number | string } = { period: 'Current' };
           for (const b of data.branchComparison ?? []) {
             row[b.branchName] = b.revenue;
@@ -241,13 +294,13 @@ function mapBackendAnalyticsToChartData(data: BackendGlobalAnalytics): MultiTena
   };
 }
 
-// Maps BackendUserRow to StaffDto (for HR panel)
-// Only users with role 'teacher' or 'admin' are included as staff
+// Maps BackendUserRow to StaffDto (for HR panel).
+// Only teacher + admin roles are included as staff.
 //
-// BUG FIX: Backend users.branch maydoni — bu branch NOMI (masalan "Main Branch"),
+// BUG FIX: users.branch — bu branch NOMI (masalan "Main Branch"),
 // lekin getBranches endpointi branch UUID id qaytaradi.
-// HRPanel filtri branchId (UUID) bilan solishtiradi → "Main Branch" !== UUID → hech kim chiqmaydi.
-// Yechim: branches ro'yxatini qabul qilib, nom orqali to'g'ri UUID id ni topamiz.
+// HRPanel filtri branchId (UUID) bilan solishtiradi → nom !== UUID → hech kim chiqmaydi.
+// Yechim: branches ro'yxatini qabul qilib, nom orqali to'g'ri UUID topamiz.
 function mapBackendUserToStaffDto(
   user: BackendUserRow,
   branches: BackendBranchRow[],
@@ -259,11 +312,7 @@ function mapBackendUserToStaffDto(
   const lastName = user.last_name ?? user.lastName ?? '';
   const name = `${firstName} ${lastName}`.trim() || user.email;
 
-  // user.branch — bu matn nom (masalan "Main Branch") yoki NULL bo'lishi mumkin.
-  // Muammo: DB da users.branch maydoni ko'pincha NULL (seed da o'rnatilmagan).
-  // Yechim 1: branchId (UUID) bo'yicha to'g'ridan-to'g'ri topamiz.
-  // Yechim 2: branch nomi bo'yicha topamiz.
-  // Yechim 3: agar ikkalasi ham topilmasa va faqat 1 ta filial bo'lsa → default filial.
+  // Yechim: branchId (UUID) → nom → yagona filial fallback tartibida izlaymiz
   const branchNameFromUser = user.branch ?? '';
   const matchedBranch =
     branches.find(
@@ -272,7 +321,7 @@ function mapBackendUserToStaffDto(
         (branchNameFromUser !== '' &&
           (b.name ?? '').toLowerCase() === branchNameFromUser.toLowerCase()),
     ) ??
-    // Fallback: agar branch yo'q/null bo'lsa va yagona filial bo'lsa → uni ishlatamiz
+    // Fallback: branch yo'q/null va yagona filial bo'lsa → uni ishlatamiz
     (branches.length === 1 ? branches[0] : undefined);
 
   const resolvedBranchId = matchedBranch?.id ?? user.branchId ?? user.branch ?? '';
@@ -284,11 +333,13 @@ function mapBackendUserToStaffDto(
     role: role as 'teacher' | 'admin',
     branchId: resolvedBranchId,
     branchName: resolvedBranchName,
-    // Maosh metadata JSONB dan o'qiymiz (backend uni metadata.salary da saqlaydi)
-    // user.salary to'g'ridan-to'g'ri bo'lsa (eski format) — uni ishlatamiz
-    salary: typeof user.salary === 'number'
-      ? user.salary
-      : (typeof user.metadata?.salary === 'number' ? user.metadata.salary : 0),
+    // Maosh metadata JSONB dan o'qiymiz (users jadvalida alohida salary column yo'q)
+    salary:
+      typeof user.salary === 'number'
+        ? user.salary
+        : typeof user.metadata?.salary === 'number'
+          ? user.metadata.salary
+          : 0,
     currency: 'UZS',
     contractStatus: (user.contractStatus as StaffDto['contractStatus']) ?? 'active',
     hireDate:
@@ -299,29 +350,27 @@ function mapBackendUserToStaffDto(
   };
 }
 
-// Maps BackendUserRow → UserDto (for the Users management page)
-// The backend returns snake_case field names (first_name, last_name, last_login_at, created_at)
-// while the frontend UserDto expects camelCase (name, lastLogin, createdAt).
-// This mapper bridges that gap so the Users page shows all users correctly.
+// Maps BackendUserRow → UserDto (for Users management page).
+// Backend returns snake_case (first_name, last_name, last_login_at, created_at),
+// frontend UserDto expects camelCase (name, lastLogin, createdAt).
+// super_admin roli ham UserRole ga to'g'ri map qilinadi (owner.types.ts fix bilan).
 function mapBackendUserRowToUserDto(user: BackendUserRow): UserDto {
   const firstName = user.first_name ?? user.firstName ?? '';
   const lastName = user.last_name ?? user.lastName ?? '';
   const name = `${firstName} ${lastName}`.trim() || user.email;
 
-  const lastLogin =
-    user.last_login_at ?? user.lastLoginAt ?? null;
-  const createdAt =
-    user.created_at ?? user.createdAt ?? new Date().toISOString();
+  const lastLogin = user.last_login_at ?? user.lastLoginAt ?? null;
+  const createdAt = user.created_at ?? user.createdAt ?? new Date().toISOString();
 
   // Normalise status: backend may send 'active'/'inactive' or UserStatus enum values
   const rawStatus = (user.status ?? 'active') as string;
-  const status: 'active' | 'inactive' =
-    rawStatus === 'inactive' ? 'inactive' : 'active';
+  const status: 'active' | 'inactive' = rawStatus === 'inactive' ? 'inactive' : 'active';
 
   return {
     id: user.id,
     name,
     email: user.email,
+    // super_admin ham UserRole ga kira oladi (owner.types.ts fix)
     role: user.role as UserRole,
     status,
     lastLogin: lastLogin ? new Date(lastLogin).toISOString() : null,
@@ -332,218 +381,132 @@ function mapBackendUserRowToUserDto(user: BackendUserRow): UserDto {
 }
 
 // ── KPI ───────────────────────────────────────────────────────────────────────
-
-// FIX: useOwnerKPI to'liq qayta yozildi.
-// Muammo: avvalgi versiyada faqat /api/owner/dashboard so'rovi yuborilgan,
-// va bu endpoint faqat eski KPI fieldlarni qaytargan (totalBranches yo'q edi).
-// Natijada dashboard da "Branches: 0" ko'rinardi.
 //
-// Yechim: endi /api/owner/dashboard so'roviga qo'shimcha ravishda
-// /api/owner/branches so'rovi ham yuboriladi (parallel Promise.all bilan).
-// Branches soni branches array uzunligi orqali aniqlanadi.
-// Bu ham eski backend (totalBranches qaytarmaydigan) ham yangi backend bilan ishlaydi.
+// FIXED: useOwnerKPI TanStack Query v5 useQuery bilan ishlaydi.
+// /owner/dashboard + /owner/branches parallel so'rovlar — totalBranches fallback uchun.
+// queryKey: queryKeys.owner.dashboard() — WebSocket invalidation bilan mos keladi.
+
 export function useOwnerKPI() {
-  const [data, setData] = useState<GlobalKPIData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  return useQuery({
+    queryKey: queryKeys.owner.dashboard(),
+    queryFn: async (): Promise<GlobalKPIData> => {
+      const [dashRes, branchRes] = await Promise.all([
+        httpClient.get<BackendKpis | { kpis?: BackendKpis }>('/owner/dashboard'),
+        httpClient.get<BackendBranchRow[]>('/owner/branches').catch(() => ({ data: [] })),
+      ]);
 
-  useEffect(() => {
-    let cancelled = false;
+      const raw: BackendKpis =
+        (dashRes.data as { kpis?: BackendKpis }).kpis !== undefined
+          ? ((dashRes.data as { kpis: BackendKpis }).kpis)
+          : (dashRes.data as BackendKpis);
 
-    async function load() {
-      try {
-        // Parallel so'rovlar: dashboard KPI + branches (totalBranches uchun)
-        const [dashRes, branchRes] = await Promise.all([
-          fetch('/api/owner/dashboard'),
-          fetch('/api/owner/branches'),
-        ]);
+      const branchData = branchRes.data;
+      const branchCount = Array.isArray(branchData) ? branchData.length : 0;
 
-        if (cancelled) return;
-
-        // Dashboard KPI parse
-        let kpiData: GlobalKPIData | null = null;
-        if (dashRes.ok) {
-          const res = (await dashRes.json()) as { kpis?: BackendKpis } | BackendKpis;
-          const raw: BackendKpis =
-            (res as { kpis?: BackendKpis }).kpis !== undefined
-              ? ((res as { kpis: BackendKpis }).kpis)
-              : (res as BackendKpis);
-          kpiData = mapBackendKpisToGlobalKPIData(raw);
-        }
-
-        if (cancelled) return;
-
-        // Branches parse — totalBranches ni aniqlash uchun
-        // Bu fallback: agar backend /dashboard da totalBranches qaytarmasa,
-        // branches endpointidan hisoblaymiz
-        let branchCount = 0;
-        if (branchRes.ok) {
-          const branchData = (await branchRes.json()) as unknown;
-          if (Array.isArray(branchData)) {
-            branchCount = (branchData as unknown[]).length;
-          }
-        }
-
-        if (cancelled) return;
-
-        if (kpiData !== null) {
-          // Agar backend yangi format qaytarsa (totalBranches > 0 bo'lsa) — ishonib qolaveramiz.
-          // Agar eski format qaytsa (totalBranches = 0 bo'lsa) — branches endpointdan override qilamiz.
-          const finalData: GlobalKPIData = {
-            ...kpiData,
-            totalBranches:
-              kpiData.totalBranches > 0
-                ? kpiData.totalBranches  // yangi backend javobini ishlatamiz
-                : branchCount,           // fallback: branches endpointdan
-          };
-          setData(finalData);
-        } else if (branchCount > 0) {
-          // Dashboard fail bo'lsa lekin branches kelsa — minimal data
-          setData({
-            mrr: 0,
-            arr: 0,
-            totalUsers: 0,
-            totalBranches: branchCount,
-            activeCourses: 0,
-            monthlyEnrollments: 0,
-            revenueGrowthPercent: 0,
-            trends: { mrrChange: 0, usersChange: 0, enrollmentsChange: 0 },
-          });
-        } else {
-          setData(null);
-        }
-      } catch {
-        if (!cancelled) setData(null);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    void load();
-    return () => { cancelled = true; };
-  }, []);
-
-  return { data, isLoading };
+      return mapBackendKpisToGlobalKPIData(raw, branchCount);
+    },
+    ...QUERY_DEFAULTS,
+  });
 }
 
 // ── Branches ──────────────────────────────────────────────────────────────────
+//
+// FIXED: useOwnerBranches TanStack Query v5 bilan.
+// useQuery for list, useMutation for create/edit/deactivate with cache sync.
+// Branch yaratilganda/o'chirilganda dashboard KPI ham invalidate qilinadi.
 
 export function useOwnerBranches() {
-  const [branches, setBranches] = useState<BranchDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/owner/branches');
-      if (!res.ok) {
-        setBranches([]);
-        return;
-      }
-      const data = (await res.json()) as unknown;
-      // Backend returns BranchResponseDto[] (array directly, not paginated)
-      const rawList: BackendBranchRow[] = Array.isArray(data) ? (data as BackendBranchRow[]) : [];
-      const mapped: BranchDto[] = rawList.map(mapBranchRowToDto);
-      setBranches(mapped);
-    } catch {
-      setBranches([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const query = useQuery({
+    queryKey: queryKeys.owner.branches.lists(),
+    queryFn: async (): Promise<BranchDto[]> => {
+      const res = await httpClient.get<unknown>('/owner/branches');
+      const rawList: BackendBranchRow[] = Array.isArray(res.data)
+        ? (res.data as BackendBranchRow[])
+        : [];
+      return rawList.map(mapBranchRowToDto);
+    },
+    ...QUERY_DEFAULTS,
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const createBranch = useCallback(async (form: BranchForm) => {
-    const res = await fetch('/api/owner/branches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    if (!res.ok) throw new Error('Failed to create branch');
-
-    // FIX: Backend POST /owner/branches qaytaradi { branches: BranchDto[] }
-    // Oxirgi branch - yangi yaratilgan branch
-    const raw = (await res.json()) as Record<string, unknown>;
-
-    // Backend manageBranches metodi { branches: BranchDto[] } qaytaradi
-    // Yangi branch - bu arrayning oxirgi elementi
-    if (raw['branches'] && Array.isArray(raw['branches'])) {
-      const backendBranches = raw['branches'] as BackendBranchRow[];
-      const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
-      // Butun listni yangilash
-      setBranches(mapped);
-      return;
-    }
-
-    // Agar to'g'ridan-to'g'ri branch object qaytsa
-    // FIX: Record<string, unknown> → unknown → BackendBranchRow (safe double cast)
-    const created = mapBranchRowToDto(raw as unknown as BackendBranchRow);
-    setBranches((prev) => [...prev, created]);
-  }, []);
-
-  const editBranch = useCallback(async (id: string, form: BranchForm) => {
-    const res = await fetch(`/api/owner/branches/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...form }),
-    });
-    if (!res.ok) throw new Error('Failed to update branch');
-
-    const raw = (await res.json()) as Record<string, unknown>;
-
-    // Backend manageBranches metodi { branches: BranchDto[] } qaytaradi
-    if (raw['branches'] && Array.isArray(raw['branches'])) {
-      const backendBranches = raw['branches'] as BackendBranchRow[];
-      const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
-      setBranches(mapped);
-      return;
-    }
-
-    // Agar to'g'ridan-to'g'ri branch object qaytsa
-    // FIX: Record<string, unknown> → unknown → BackendBranchRow (safe double cast)
-    const updated = mapBranchRowToDto({ id, ...raw } as unknown as BackendBranchRow);
-    setBranches((prev) => prev.map((b) => (b.id === id ? updated : b)));
-  }, []);
-
-  const deactivateBranch = useCallback(async (id: string) => {
-    // Backend da deactivate endpoint yo'q - POST /owner/branches bilan isActive=false junatiladi
-    // Yoki frontend side only update qilish
-    const res = await fetch('/api/owner/branches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, isActive: false }),
-    });
-    if (res.ok) {
-      const raw = (await res.json()) as Record<string, unknown>;
+  const createMutation = useMutation({
+    mutationFn: async (form: BranchForm): Promise<BranchDto[]> => {
+      const res = await httpClient.post<unknown>('/owner/branches', form);
+      const raw = res.data as Record<string, unknown>;
+      // Backend manageBranches metodi { branches: BranchDto[] } qaytaradi
       if (raw['branches'] && Array.isArray(raw['branches'])) {
-        const backendBranches = raw['branches'] as BackendBranchRow[];
-        const mapped: BranchDto[] = backendBranches.map(mapBranchRowToDto);
-        setBranches(mapped);
-        return;
+        return (raw['branches'] as BackendBranchRow[]).map(mapBranchRowToDto);
       }
-    }
-    // Fallback: local state update
-    setBranches((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: 'inactive' as const } : b)),
-    );
-  }, []);
+      // To'g'ridan-to'g'ri branch object qaytsa
+      const created = mapBranchRowToDto(raw as unknown as BackendBranchRow);
+      return [...(query.data ?? []), created];
+    },
+    onSuccess: (updatedBranches) => {
+      queryClient.setQueryData(queryKeys.owner.branches.lists(), updatedBranches);
+      // Dashboard KPI invalidate — totalBranches yangilanishi uchun
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.dashboard() });
+    },
+  });
 
-  return { branches, isLoading, createBranch, editBranch, deactivateBranch, refresh: load };
+  const editMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string; form: BranchForm }): Promise<BranchDto[]> => {
+      const res = await httpClient.patch<unknown>(`/owner/branches/${id}`, { id, ...form });
+      const raw = res.data as Record<string, unknown>;
+      if (raw['branches'] && Array.isArray(raw['branches'])) {
+        return (raw['branches'] as BackendBranchRow[]).map(mapBranchRowToDto);
+      }
+      const updated = mapBranchRowToDto({ id, ...raw } as unknown as BackendBranchRow);
+      return (query.data ?? []).map((b) => (b.id === id ? updated : b));
+    },
+    onSuccess: (updatedBranches) => {
+      queryClient.setQueryData(queryKeys.owner.branches.lists(), updatedBranches);
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string): Promise<BranchDto[]> => {
+      // Backend da alohida deactivate endpoint yo'q — POST bilan isActive:false junatiladi
+      await httpClient.post<unknown>('/owner/branches', { id, isActive: false }).catch(() => null);
+      return (query.data ?? []).map((b) =>
+        b.id === id ? { ...b, status: 'inactive' as const } : b,
+      );
+    },
+    onSuccess: (updatedBranches) => {
+      queryClient.setQueryData(queryKeys.owner.branches.lists(), updatedBranches);
+    },
+  });
+
+  return {
+    branches:         query.data ?? [],
+    isLoading:        query.isLoading,
+    isError:          query.isError,
+    createBranch:     (form: BranchForm) => createMutation.mutateAsync(form),
+    editBranch:       (id: string, form: BranchForm) => editMutation.mutateAsync({ id, form }),
+    deactivateBranch: (id: string) => deactivateMutation.mutateAsync(id),
+    refresh:          () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.owner.branches.lists() }),
+    isCreating:       createMutation.isPending,
+    isEditing:        editMutation.isPending,
+    isDeactivating:   deactivateMutation.isPending,
+  };
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-
-// FIX: useOwnerUsers real server-side pagination bilan qayta yozildi.
-// Muammo: avvalgi versiya limit/page parametrsiz fetch qilardi (backend default=20 bilan).
-// Natijada:
-//   1. Barcha users bir sahifada ko'rinardi (11 ta user bo'lsa barchasi kelardi).
-//   2. DataTable limit dropdown (10/25/50/100) ishlamardi — onLimitChange yo'q edi.
-// Yechim:
-//   - page va limit parametrlarini qabul qilamiz.
-//   - Backend PaginatedResult<UserRow> { data, meta } ni to'liq parse qilamiz.
-//   - paginationMeta ni qaytaramiz — DataTable uchun real page/total/limit.
+//
+// FIXED: useOwnerUsers TanStack Query v5 + real server-side pagination.
+//
+// FIX 1: useQuery — barcha server ma'lumotlari TanStack Query orqali.
+//         avval useState + useEffect + fetch() edi.
+//
+// FIX 2: changeRole useMutation + optimistic update + rollback.
+//   - onMutate: darhol cache ni yangilaydi (foydalanuvchi darhol ko'radi)
+//   - onError: API xato qaytarsa cache oldingi holatga qaytadi (rollback)
+//   - onSuccess: invalidateQueries — server dan yangi ma'lumot olinadi
+//
+// FIX 3: super_admin roli UserRole type ga qo'shildi (owner.types.ts da).
+//
+// FIX 4: sortBy/sortOrder parametrlari qo'shildi — DataTable sorting uchun.
 
 export interface UsersPaginationMeta {
   page: number;
@@ -559,149 +522,287 @@ export interface UseOwnerUsersOptions {
   limit?: number;
   search?: string;
   role?: UserRole;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+}
+
+interface UsersQueryResult {
+  users: UserDto[];
+  meta: UsersPaginationMeta;
 }
 
 export function useOwnerUsers(options: UseOwnerUsersOptions = {}) {
-  const { page = 1, limit = 10, search, role } = options;
+  const { page = 1, limit = 10, search, role, sortBy, sortOrder } = options;
+  const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
 
-  const [users, setUsers] = useState<UserDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [paginationMeta, setPaginationMeta] = useState<UsersPaginationMeta>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Build query string with real pagination params — backend supports page & limit
+  const query = useQuery({
+    // FIX XATO 7: queryKeys.owner.users.list() ishlatiladi (avval queryKeys.owner.users() edi)
+    queryKey: queryKeys.owner.users.list({ page, limit, search, role, sortBy, sortOrder } as Record<string, unknown>),
+    queryFn: async (): Promise<UsersQueryResult> => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('limit', String(limit));
       if (search) params.set('search', search);
       if (role) params.set('role', role);
+      if (sortBy) params.set('sortBy', sortBy);
+      if (sortOrder) params.set('order', sortOrder);
 
-      const res = await fetch(`/api/owner/users?${params.toString()}`);
-      const data = (await res.json()) as unknown;
+      const res = await httpClient.get<unknown>(`/owner/users?${params.toString()}`);
+      if (!res.data) throw new Error('Failed to fetch users');
 
-      // Backend returns PaginatedResult<UserRow> = { data: UserRow[], meta: { total, page, limit } }
-      const rawList: BackendUserRow[] =
-        Array.isArray((data as { data?: unknown }).data)
-          ? ((data as { data: BackendUserRow[] }).data)
-          : Array.isArray(data)
-          ? (data as BackendUserRow[])
+      const data = res.data as {
+        data?: BackendUserRow[];
+        meta?: { total?: number; page?: number; limit?: number };
+      };
+
+      const rawList: BackendUserRow[] = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(res.data)
+          ? (res.data as BackendUserRow[])
           : [];
 
-      // Map snake_case backend fields → camelCase UserDto
-      const mapped: UserDto[] = rawList.map(mapBackendUserRowToUserDto);
-      setUsers(mapped);
-
-      // Build real pagination meta from backend response
-      const meta = (data as { meta?: { total?: number; page?: number; limit?: number } }).meta;
-      const total = meta?.total ?? mapped.length;
-      const currentPage = meta?.page ?? page;
-      const currentLimit = meta?.limit ?? limit;
+      const mapped = rawList.map(mapBackendUserRowToUserDto);
+      const total = data.meta?.total ?? mapped.length;
+      const currentPage = data.meta?.page ?? page;
+      const currentLimit = data.meta?.limit ?? limit;
       const totalPages = Math.max(1, Math.ceil(total / currentLimit));
 
-      setPaginationMeta({
-        page: currentPage,
-        limit: currentLimit,
-        total,
-        totalPages,
-        hasNextPage: currentPage < totalPages,
-        hasPrevPage: currentPage > 1,
-      });
-    } catch {
-      setUsers([]);
-      setPaginationMeta((prev) => ({ ...prev, total: 0, totalPages: 1 }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, limit, search, role]);
+      return {
+        users: mapped,
+        meta: {
+          page: currentPage,
+          limit: currentLimit,
+          total,
+          totalPages,
+          hasNextPage: currentPage < totalPages,
+          hasPrevPage: currentPage > 1,
+        },
+      };
+    },
+    placeholderData: keepPreviousData,
+    ...QUERY_DEFAULTS,
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // FIX 2: changeRole — useMutation + optimistic update + rollback
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: UserRole }) => {
+      const res = await httpClient.post(`/owner/users/${userId}/role`, { role: newRole });
+      if (!res) throw new Error(`Role assignment failed`);
+      return { userId, newRole };
+    },
+    onMutate: async ({ userId, newRole }) => {
+      // FIX XATO 7: queryKeys.owner.users.list() ishlatiladi
+      const currentQueryKey = queryKeys.owner.users.list({
+        page, limit, search, role, sortBy, sortOrder,
+      } as Record<string, unknown>);
+      await queryClient.cancelQueries({ queryKey: currentQueryKey });
 
-  const changeRole = useCallback(async (userId: string, newRole: UserRole) => {
-    await fetch(`/api/owner/users/${userId}/role`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: newRole }),
-    });
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
-  }, []);
+      const previousData = queryClient.getQueryData<UsersQueryResult>(currentQueryKey);
 
-  const toggleStatus = useCallback(async (userId: string, status: 'active' | 'inactive') => {
-    await fetch(`/api/owner/users/${userId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
-  }, []);
+      if (previousData) {
+        queryClient.setQueryData(currentQueryKey, {
+          ...previousData,
+          users: previousData.users.map((u) =>
+            u.id === userId ? { ...u, role: newRole } : u,
+          ),
+        });
+      }
+      return { previousData, currentQueryKey };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousData !== undefined) {
+        queryClient.setQueryData(context.currentQueryKey, context.previousData);
+      }
+      addToast({ type: 'error', title: 'Failed to assign role. Please try again.' });
+    },
+    onSuccess: () => {
+      // FIX XATO 7: queryKeys.owner.users.all() — barcha users list cachelarini invalidate qiladi
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.users.all() });
+      addToast({ type: 'success', title: 'Role assigned successfully.' });
+    },
+  });
 
-  return { users, isLoading, paginationMeta, changeRole, toggleStatus, refresh: load };
+  // FIX XATO 4: toggleStatus — PATCH /owner/users/:id/status backendda yo'q.
+  // Buning o'rniga POST /owner/hr endpointi ishlatiladi:
+  //   status 'active'   → operation: 'hire'
+  //   status 'inactive' → operation: 'fire'
+  // Bu endpoint owner.controller.ts da mavjud va owner.service.ts da ishlaydi.
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ userId, status }: { userId: string; status: 'active' | 'inactive' }) => {
+      const operation = status === 'active' ? 'hire' : 'fire';
+      const res = await httpClient.post('/owner/hr', { userId, operation });
+      if (!res) throw new Error(`Status update failed`);
+      return { userId, status };
+    },
+    onMutate: async ({ userId, status }) => {
+      // FIX XATO 7: queryKeys.owner.users.list() ishlatiladi
+      const currentQueryKey = queryKeys.owner.users.list({
+        page, limit, search, role, sortBy, sortOrder,
+      } as Record<string, unknown>);
+      await queryClient.cancelQueries({ queryKey: currentQueryKey });
+      const previousData = queryClient.getQueryData<UsersQueryResult>(currentQueryKey);
+
+      if (previousData) {
+        queryClient.setQueryData(currentQueryKey, {
+          ...previousData,
+          users: previousData.users.map((u) =>
+            u.id === userId ? { ...u, status } : u,
+          ),
+        });
+      }
+      return { previousData, currentQueryKey };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousData !== undefined) {
+        queryClient.setQueryData(context.currentQueryKey, context.previousData);
+      }
+      addToast({ type: 'error', title: 'Failed to update status. Please try again.' });
+    },
+    onSuccess: () => {
+      // FIX XATO 7: queryKeys.owner.users.all() ishlatiladi
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.users.all() });
+    },
+  });
+
+  const changeRole = useCallback(
+    async (userId: string, newRole: UserRole) => {
+      await changeRoleMutation.mutateAsync({ userId, newRole });
+    },
+    [changeRoleMutation],
+  );
+
+  const toggleStatus = useCallback(
+    async (userId: string, status: 'active' | 'inactive') => {
+      await toggleStatusMutation.mutateAsync({ userId, status });
+    },
+    [toggleStatusMutation],
+  );
+
+  return {
+    users:            query.data?.users ?? [],
+    paginationMeta:   query.data?.meta ?? {
+      page: 1, limit: 10, total: 0, totalPages: 1,
+      hasNextPage: false, hasPrevPage: false,
+    },
+    isLoading:        query.isLoading,
+    isError:          query.isError,
+    changeRole,
+    toggleStatus,
+    isChangingRole:   changeRoleMutation.isPending,
+    isTogglingStatus: toggleStatusMutation.isPending,
+    // FIX XATO 7: queryKeys.owner.users.all() ishlatiladi
+    refresh:          () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.owner.users.all() }),
+  };
 }
 
 // ── Roles ─────────────────────────────────────────────────────────────────────
+//
+// FIX 1: useQuery bilan server ma'lumoti (avval useState + useEffect edi).
+// FIX 2: saveRole useMutation + cache invalidation + addToast.
+// FIX 3: createRole useMutation + POST /owner/roles (avval faqat modal yopilardi).
 
 export function useOwnerRoles() {
-  const [matrix, setMatrix] = useState<PermissionMatrix | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
 
-  useEffect(() => {
-    fetch('/api/owner/roles')
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        if (Array.isArray(data)) {
-          setMatrix({ roles: data as PermissionMatrix['roles'], allPermissions: [] });
-        } else {
-          setMatrix(data as PermissionMatrix);
-        }
-      })
-      .catch(() => setMatrix(null))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const {
+    data: matrix,
+    isLoading,
+    isError,
+  } = useQuery<PermissionMatrix>({
+    queryKey: queryKeys.owner.roles(),
+    queryFn: async (): Promise<PermissionMatrix> => {
+      const res = await httpClient.get<unknown>('/owner/roles');
+      const data = res.data;
+      // Backend bo'sh array qaytarsa system rollar fallback sifatida ishlatiladi
+      if (Array.isArray(data)) {
+        return { roles: data as PermissionMatrix['roles'], allPermissions: [] };
+      }
+      return data as PermissionMatrix;
+    },
+    ...QUERY_DEFAULTS,
+  });
 
-  const saveRole = useCallback(async (roleId: string, permissions: string[]) => {
-    await fetch(`/api/owner/roles/${roleId}/permissions`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permissions }),
-    });
-  }, []);
+  // FIX 2: saveRole — useMutation + cache invalidation
+  const saveRoleMutation = useMutation({
+    mutationFn: async ({
+      roleId,
+      permissions,
+    }: {
+      roleId: string;
+      permissions: string[];
+    }) => {
+      await httpClient.patch(`/owner/roles/${roleId}/permissions`, { permissions });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.roles() });
+      addToast({ type: 'success', title: 'Permissions saved successfully.' });
+    },
+    onError: () => {
+      addToast({ type: 'error', title: 'Failed to save permissions. Please try again.' });
+    },
+  });
 
-  return { matrix, isLoading, saveRole };
+  // FIX 3: createRole — useMutation + POST /owner/roles
+  const createRoleMutation = useMutation({
+    mutationFn: async (name: string) => {
+      await httpClient.post('/owner/roles', { name });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.owner.roles() });
+      addToast({ type: 'success', title: 'Role created successfully.' });
+    },
+    onError: () => {
+      addToast({ type: 'error', title: 'Failed to create role. Please try again.' });
+    },
+  });
+
+  const saveRole = useCallback(
+    async (roleId: string, permissions: string[]) => {
+      await saveRoleMutation.mutateAsync({ roleId, permissions });
+    },
+    [saveRoleMutation],
+  );
+
+  const createRole = useCallback(
+    async (name: string) => {
+      await createRoleMutation.mutateAsync(name);
+    },
+    [createRoleMutation],
+  );
+
+  return {
+    matrix:         matrix ?? null,
+    isLoading,
+    isError,
+    saveRole,
+    createRole,
+    isCreatingRole: createRoleMutation.isPending,
+    isSavingRole:   saveRoleMutation.isPending,
+  };
 }
 
 // ── Finances ──────────────────────────────────────────────────────────────────
 
 export function useOwnerFinances() {
-  const [overview, setOverview] = useState<FinancialOverview | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const query = useQuery({
+    queryKey: queryKeys.owner.finances(),
+    queryFn: async (): Promise<FinancialOverview> => {
+      const res = await httpClient.get<FinancialOverview>('/owner/analytics/financial');
+      return res.data;
+    },
+    ...QUERY_DEFAULTS,
+  });
 
-  useEffect(() => {
-    fetch('/api/owner/analytics/financial')
-      .then((r) => r.json())
-      .then((data: unknown) => setOverview(data as FinancialOverview))
-      .catch(() => setOverview(null))
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  // Export report: calls /api/owner/export/:type which proxies to backend
-  // Backend endpoint: GET /api/v1/owner/export/:type (students | payments | attendance)
+  // Export report: GET /owner/export/:type — backend tomonidan Excel formatida qaytariladi
+  // Backend only supports Excel export via /owner/export/:type
   const exportReport = useCallback(async (format: 'pdf' | 'excel') => {
-    // Backend only supports Excel export via /owner/export/:type
-    // Use 'payments' as the financial report type
+    // Backend faqat 'payments' tipini qabul qiladi (students | payments | attendance)
     const exportType = format === 'excel' ? 'payments' : 'payments';
-    const res = await fetch(`/api/owner/export/${exportType}`);
-    if (!res.ok) throw new Error('Export failed');
-    const blob = await res.blob();
+    const res = await httpClient.get(`/owner/export/${exportType}`, { responseType: 'blob' });
+    const blob = new Blob([res.data as BlobPart]);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -713,168 +814,181 @@ export function useOwnerFinances() {
   }, []);
 
   const sendOverdueReminders = useCallback(async () => {
-    await fetch('/api/owner/finances/send-reminders', { method: 'POST' });
+    await httpClient.post('/owner/finances/send-reminders');
   }, []);
 
-  return { overview, isLoading, exportReport, sendOverdueReminders };
+  return {
+    overview:             query.data ?? null,
+    isLoading:            query.isLoading,
+    exportReport,
+    sendOverdueReminders,
+  };
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
+//
+// FIXED: useOwnerAnalytics TanStack Query v5 useQuery bilan.
+// placeholderData: empty arrays — slice() hech qachon crash qilmaydi.
 
 export function useOwnerAnalytics() {
-  const [chartData, setChartData] = useState<MultiTenantChartData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const query = useQuery({
+    queryKey: queryKeys.owner.analytics(),
+    queryFn: async (): Promise<MultiTenantChartData> => {
+      const res = await httpClient.get<BackendGlobalAnalytics>('/owner/analytics/global');
+      return mapBackendAnalyticsToChartData(res.data);
+    },
+    // placeholderData: empty arrays — slice() hech qachon crash qilmaydi
+    placeholderData: (): MultiTenantChartData => ({
+      globalRevenue:    [],
+      userGrowth:       [],
+      enrollmentTrends: [],
+      branchComparison: [],
+    }),
+    ...QUERY_DEFAULTS,
+  });
 
-  useEffect(() => {
-    fetch('/api/owner/analytics/global')
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        // Backend returns GlobalAnalyticsDto with different field names than
-        // MultiTenantChartData. Map them correctly to avoid slice() crashes.
-        const mapped = mapBackendAnalyticsToChartData(data as BackendGlobalAnalytics);
-        setChartData(mapped);
-      })
-      .catch(() => {
-        // On error, set empty but valid structure so slice() never throws
-        setChartData({
-          globalRevenue: [],
-          userGrowth: [],
-          enrollmentTrends: [],
-          branchComparison: [],
-        });
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  return { chartData, isLoading };
+  return {
+    chartData: query.data ?? null,
+    isLoading: query.isLoading,
+    isError:   query.isError,
+  };
 }
 
 // ── HR ────────────────────────────────────────────────────────────────────────
+//
+// FIXED: useOwnerHR TanStack Query v5 useQuery bilan.
 // Backend endpoint: GET /api/v1/owner/users
-// Returns: PaginatedResult<UserRow> = { data: UserRow[], meta: {...} }
-// UserRow has: { id, first_name, last_name, email, role, status, branch, ... }
-// We filter to only teacher + admin roles and map to StaffDto for HRPanel
+// Teachers + admins parallel yuklanadi, branches branchId ni aniqlash uchun.
 //
 // BUG FIX: users.branch — bu matn nom (masalan "Main Branch").
-// Filtr UUID bilan ishlashi uchun avval branches ro'yxatini yuklab,
-// keyin har bir staff uchun branchId ni nom orqali topamiz.
+// HRPanel filtri branchId (UUID) bilan solishtiradi → nom !== UUID → hech kim chiqmaydi.
+// Yechim: branches ro'yxatini yuklab, nom orqali to'g'ri UUID topamiz.
 
 export function useOwnerHR() {
-  const [staff, setStaff] = useState<StaffDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const loadStaff = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Barcha kerakli ma'lumotlarni parallel yuklaymiz:
-      // teachers, admins va branches (branchId ni aniqlash uchun)
+  const query = useQuery({
+    queryKey: queryKeys.owner.hr(),
+    queryFn: async (): Promise<StaffDto[]> => {
       const [teacherRes, adminRes, branchRes] = await Promise.all([
-        fetch('/api/owner/users?role=teacher&limit=100'),
-        fetch('/api/owner/users?role=admin&limit=100'),
-        fetch('/api/owner/branches'),
+        httpClient.get<unknown>('/owner/users?role=teacher&limit=100'),
+        httpClient.get<unknown>('/owner/users?role=admin&limit=100'),
+        httpClient.get<unknown>('/owner/branches'),
       ]);
 
-      const teacherData = (await teacherRes.json()) as unknown;
-      const adminData = (await adminRes.json()) as unknown;
-      const branchData = (await branchRes.json()) as unknown;
+      // PaginatedResult<UserRow> yoki to'g'ridan-to'g'ri array — ikkalasini ham handle qilamiz
+      const extractRows = (d: unknown): BackendUserRow[] =>
+        Array.isArray((d as { data?: unknown }).data)
+          ? ((d as { data: BackendUserRow[] }).data)
+          : Array.isArray(d) ? (d as BackendUserRow[]) : [];
 
-      const teacherRows: BackendUserRow[] = Array.isArray(
-        (teacherData as { data?: unknown }).data,
-      )
-        ? ((teacherData as { data: BackendUserRow[] }).data)
-        : Array.isArray(teacherData)
-        ? (teacherData as BackendUserRow[])
+      const branches: BackendBranchRow[] = Array.isArray(branchRes.data)
+        ? (branchRes.data as BackendBranchRow[])
         : [];
 
-      const adminRows: BackendUserRow[] = Array.isArray(
-        (adminData as { data?: unknown }).data,
-      )
-        ? ((adminData as { data: BackendUserRow[] }).data)
-        : Array.isArray(adminData)
-        ? (adminData as BackendUserRow[])
-        : [];
+      const allRows = [
+        ...extractRows(teacherRes.data),
+        ...extractRows(adminRes.data),
+      ];
 
-      // branches ro'yxati: nom → id moslashtirish uchun
-      const branches: BackendBranchRow[] = Array.isArray(branchData)
-        ? (branchData as BackendBranchRow[])
-        : [];
-
-      const allRows = [...teacherRows, ...adminRows];
-      const mapped: StaffDto[] = allRows
+      return allRows
         .map((u) => mapBackendUserToStaffDto(u, branches))
         .filter((s): s is StaffDto => s !== null);
+    },
+    ...QUERY_DEFAULTS,
+  });
 
-      setStaff(mapped);
-    } catch {
-      setStaff([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadStaff();
-  }, [loadStaff]);
-
-  const updateSalary = useCallback(async (staffId: string, salary: number) => {
-    // Backend POST /owner/hr endpoint - 'update_salary' operatsiyasi
-    // Maosh metadata JSONB da saqlanadi (users jadvalida alohida salary column yo'q)
-    const res = await fetch('/api/owner/hr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const updateSalaryMutation = useMutation({
+    mutationFn: async ({ staffId, salary }: { staffId: string; salary: number }) => {
+      // Backend POST /owner/hr — 'update_salary' operatsiyasi
+      // Maosh metadata JSONB da saqlanadi (users jadvalida alohida salary column yo'q)
+      await httpClient.post('/owner/hr', {
         userId: staffId,
         operation: 'update_salary',
         salary,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to update salary');
-    }
-    // Local state ni yangilaymiz (sahifani qayta yuklamasdan ko'rinadi)
-    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, salary } : s)));
-  }, []);
+      });
+      return { staffId, salary };
+    },
+    onSuccess: ({ staffId, salary }) => {
+      // Local cache yangilaymiz — sahifani qayta yuklamasdan ko'rinadi
+      queryClient.setQueryData(
+        queryKeys.owner.hr(),
+        (old: StaffDto[] | undefined) =>
+          old ? old.map((s) => (s.id === staffId ? { ...s, salary } : s)) : old,
+      );
+    },
+  });
 
-  return { staff, isLoading, updateSalary };
+  return {
+    staff:        query.data ?? [],
+    isLoading:    query.isLoading,
+    updateSalary: (staffId: string, salary: number) =>
+      updateSalaryMutation.mutateAsync({ staffId, salary }),
+  };
 }
 
-// ── System ────────────────────────────────────────────────────────────────────
+// ── System ─────────────────────────────────────────────────────────────────────
+//
+// FIXED: useOwnerSystem TanStack Query v5 useQuery bilan.
+// config + health parallel yuklanadi.
+
+interface SystemQueryData {
+  config: SystemConfig | null;
+  health: SystemHealth | null;
+  apiVersion: string;
+}
 
 export function useOwnerSystem() {
-  const [config, setConfig] = useState<SystemConfig | null>(null);
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [apiVersion, setApiVersion] = useState('1.0.0');
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/owner/system/config').then((r) => r.json()),
-      fetch('/api/health').then((r) => r.json()),
-    ])
-      .then(([cfg, hlth]: [unknown, unknown]) => {
-        setConfig(cfg as SystemConfig);
-        setHealth(hlth as SystemHealth);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, []);
+  const query = useQuery({
+    queryKey: queryKeys.owner.system(),
+    queryFn: async (): Promise<SystemQueryData> => {
+      const [cfgRes, hlthRes] = await Promise.all([
+        httpClient.get<SystemConfig>('/owner/system/config'),
+        httpClient.get<SystemHealth>('/owner/health').catch(() => ({ data: null })),
+      ]);
+      return {
+        config:     cfgRes.data,
+        health:     hlthRes.data ?? null,
+        apiVersion: '1.0.0',
+      };
+    },
+    // System config tez-tez o'zgarmaydi — 30 soniya staleTime yetarli
+    // staleTime MUST come after spread so it overrides QUERY_DEFAULTS.staleTime
+    ...QUERY_DEFAULTS,
+    staleTime: 30 * 1000,
+  });
 
-  const saveConfig = useCallback(async (cfg: SystemConfig) => {
-    await fetch('/api/owner/system/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    });
-    setConfig(cfg);
-  }, []);
+  const saveConfigMutation = useMutation({
+    mutationFn: async (cfg: SystemConfig) => {
+      await httpClient.patch('/owner/system/config', cfg);
+      return cfg;
+    },
+    onSuccess: (cfg) => {
+      queryClient.setQueryData(
+        queryKeys.owner.system(),
+        (old: SystemQueryData | undefined) =>
+          old ? { ...old, config: cfg } : old,
+      );
+    },
+  });
 
   const clearCache = useCallback(async () => {
-    await fetch('/api/owner/system/cache', { method: 'DELETE' });
+    await httpClient.delete('/owner/system/cache');
   }, []);
 
   const triggerBackup = useCallback(async () => {
-    await fetch('/api/owner/system/backup', { method: 'POST' });
+    await httpClient.post('/owner/system/backup');
   }, []);
 
-  return { config, health, apiVersion, isLoading, saveConfig, clearCache, triggerBackup };
+  return {
+    config:       query.data?.config ?? null,
+    health:       query.data?.health ?? null,
+    apiVersion:   query.data?.apiVersion ?? '1.0.0',
+    isLoading:    query.isLoading,
+    saveConfig:   (cfg: SystemConfig) => saveConfigMutation.mutateAsync(cfg),
+    clearCache,
+    triggerBackup,
+  };
 }

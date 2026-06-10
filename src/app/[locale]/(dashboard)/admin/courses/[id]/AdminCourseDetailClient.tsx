@@ -21,7 +21,7 @@
  *  - Zero "any" TypeScript types
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,21 +35,15 @@ import {
   Trash2,
   Edit2,
   Clock,
-  Calendar,
-  Tag,
   BarChart2,
   ListChecks,
   Settings,
   ChevronDown,
   ChevronRight,
-  UserPlus,
-  UserMinus,
 } from 'lucide-react';
-import { useLocale } from 'next-intl';
 import {
   useCourseDetail,
   useCourseLessons,
-  useCourseEnrollments,
   useUpdateCourse,
   useDeleteCourse,
   usePublishCourse,
@@ -495,7 +489,7 @@ function CurriculumTab({
 // Settings Tab
 function SettingsTab({
   course,
-  locale,
+  locale: _locale,
   s,
   onDeleteRequest,
 }: {
@@ -626,7 +620,7 @@ export function AdminCourseDetailClient({
   const s = I18N[(locale as Locale) in I18N ? (locale as Locale) : 'en'];
   const isMobile = useIsMobile();
   const router = useRouter();
-  const { addToast } = useUIStore();
+  const { addToast: _addToast } = useUIStore();
 
   const [activeTab, setActiveTab] = useState<TabKey>(
     startInEditMode ? 'settings' : 'overview'

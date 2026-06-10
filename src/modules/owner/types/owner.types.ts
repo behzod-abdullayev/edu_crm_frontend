@@ -1,3 +1,18 @@
+// FIX XATO 3 + XATO 15: super_admin roli qo'shildi.
+// Avval: 'student' | 'teacher' | 'admin' | 'owner'
+// Endi:  'student' | 'teacher' | 'admin' | 'owner' | 'super_admin'
+// Bu fix bir vaqtda:
+//   - owner.types.ts dagi UserRole type ni to'g'irlaydi (XATO 3)
+//   - middleware.ts va page.tsx dagi super_admin route guard uchun type bazasini ta'minlaydi (XATO 15)
+//   - OwnerUsersClient dagi ROLE_BADGE_CLASSES va ALL_ROLES ni to'g'irlashga imkon beradi (XATO 3)
+export type UserRole = 'student' | 'teacher' | 'admin' | 'owner' | 'super_admin';
+
+export type ContractStatus = 'active' | 'expired' | 'pending';
+
+// ---------------------------------------------------------------------------
+// KPI & Trends
+// ---------------------------------------------------------------------------
+
 export interface GlobalKPIData {
   mrr: number;
   arr: number;
@@ -7,6 +22,10 @@ export interface GlobalKPIData {
   monthlyEnrollments: number;
   revenueGrowthPercent: number;
   trends: OwnerTrends;
+  // Sparkline mini-chart data (optional — populated from analytics endpoint when available)
+  mrrSparkline?: { value: number }[];
+  usersSparkline?: { value: number }[];
+  enrollmentsSparkline?: { value: number }[];
 }
 
 export interface OwnerTrends {
@@ -14,6 +33,10 @@ export interface OwnerTrends {
   usersChange: number;
   enrollmentsChange: number;
 }
+
+// ---------------------------------------------------------------------------
+// Branch
+// ---------------------------------------------------------------------------
 
 export interface BranchDto {
   id: string;
@@ -36,6 +59,10 @@ export interface BranchForm {
   managerId: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// User
+// ---------------------------------------------------------------------------
+
 export interface UserDto {
   id: string;
   name: string;
@@ -48,7 +75,9 @@ export interface UserDto {
   createdAt: string;
 }
 
-export type UserRole = 'student' | 'teacher' | 'admin' | 'owner';
+// ---------------------------------------------------------------------------
+// Roles & Permissions
+// ---------------------------------------------------------------------------
 
 export interface RoleDto {
   id: string;
@@ -72,6 +101,10 @@ export interface Permission {
   label: string;
 }
 
+// ---------------------------------------------------------------------------
+// Staff
+// ---------------------------------------------------------------------------
+
 export interface StaffDto {
   id: string;
   name: string;
@@ -84,7 +117,9 @@ export interface StaffDto {
   hireDate: string;
 }
 
-export type ContractStatus = 'active' | 'expired' | 'pending';
+// ---------------------------------------------------------------------------
+// Financials
+// ---------------------------------------------------------------------------
 
 export interface FinancialOverview {
   mrr: number;
@@ -116,18 +151,29 @@ export interface TopStudent {
   currency: string;
 }
 
+// ---------------------------------------------------------------------------
+// System
+// ---------------------------------------------------------------------------
+
 export interface SystemHealth {
   status: 'healthy' | 'degraded' | 'down';
   apiVersion: string;
   dbStatus: 'connected' | 'error';
   cacheStatus: 'connected' | 'error';
   uptime: number;
+  services: { name: string; status: 'up' | 'down'; latencyMs?: number }[];
+  timestamp: string;
 }
 
 export interface SystemConfig {
   maintenanceMode: boolean;
   featureFlags: GlobalFeatureFlags;
   emailSmtp: SmtpConfig;
+  registrationEnabled: boolean;
+  maxStudentsPerClass: number;
+  defaultCurrency: string;
+  timezone: string;
+  supportEmail: string;
 }
 
 export interface GlobalFeatureFlags {
@@ -138,12 +184,18 @@ export interface GlobalFeatureFlags {
   analytics: boolean;
 }
 
+// XATO 6 FIX: password maydoni qo'shildi
 export interface SmtpConfig {
   host: string;
   port: number;
   user: string;
+  password: string; // ← XATO 6 FIX: avval yo'q edi
   secure: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Charts
+// ---------------------------------------------------------------------------
 
 export interface MultiTenantChartData {
   globalRevenue: GlobalRevenuePoint[];

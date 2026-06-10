@@ -98,6 +98,22 @@ export const queryKeys = {
       details: () => [...queryKeys.owner.tenants.all(), 'detail'] as const,
       detail: (id: string) => [...queryKeys.owner.tenants.details(), id] as const,
     },
+    branches: {
+      all: () => [...queryKeys.owner.all, 'branches'] as const,
+      lists: () => [...queryKeys.owner.branches.all(), 'list'] as const,
+      list: (p?: PaginationParams) => [...queryKeys.owner.branches.lists(), p] as const,
+      detail: (id: string) => [...queryKeys.owner.branches.all(), 'detail', id] as const,
+    },
+    roles: () => [...queryKeys.owner.all, 'roles'] as const,
+    users: {
+      all: () => [...queryKeys.owner.all, 'users'] as const,
+      list: (p?: PaginationParams & { role?: string }) =>
+        [...queryKeys.owner.users.all(), p] as const,
+    },
+    finances: () => [...queryKeys.owner.all, 'finances'] as const,
+    hr: (p?: PaginationParams) => [...queryKeys.owner.all, 'hr', p] as const,
+    system: () => [...queryKeys.owner.all, 'system'] as const,
+    systemConfig: () => [...queryKeys.owner.all, 'system-config'] as const,
     billing: (p?: PaginationParams) =>
       [...queryKeys.owner.all, 'billing', p] as const,
     health: () => [...queryKeys.owner.all, 'health'] as const,

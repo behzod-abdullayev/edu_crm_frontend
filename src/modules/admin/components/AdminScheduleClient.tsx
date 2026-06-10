@@ -305,7 +305,7 @@ export function AdminScheduleClient() {
     setFormMode('create');
   }, []);
 
-  const handleEditEvent = useCallback(
+  const _handleEditEvent = useCallback(
     (id: string, _form: ScheduleEventForm) => {
       const event = events.find((e) => e.id === id);
       if (event !== undefined) {

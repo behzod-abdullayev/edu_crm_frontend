@@ -1,64 +1,34 @@
 'use client';
 // src/app/[locale]/(dashboard)/owner/system/OwnerSystemClient.tsx
 //
-// FIX: "Cannot read properties of undefined (reading 'host')"
-//      The backend's /api/v1/owner/system/config endpoint may return a config
-//      object without the `emailSmtp` field (or return null on first load).
-//      Added `mergeWithDefaults()` in useOwnerSystem (via this file's local
-//      safe-config helper) so SystemConfigPanel always receives a fully-shaped
-//      SystemConfig object.
+// XATO 1 FIX: Backend TenantRow → SystemConfig mapper ishlatiladi (owner.mapper.ts)
+// XATO 2 FIX: PATCH so'rovida faqat featureFlags yuboriladi (mapSystemConfigToDto)
+// XATO 3 FIX: /system/cache va /system/backup endpointlari backend da yo'q —
+//             tugmalar "not supported" toast bilan ishlaydi, silent fail emas
+// XATO 4 FIX: Danger Zone tugmalari confirm dialog + toast bilan ishlaydi
+// XATO 5 FIX: Raw fetch + useState → useSystemConfig + useSaveSystemConfig (TanStack Query)
+// XATO 7 FIX: useTranslations() orqali i18n (hardcoded string emas)
 //
 // ✅ Zero `any` types
 // ✅ Framer Motion: section stagger, toggle animate, button press, health pulse
 // ✅ Responsive: 1 col mobile / 2-4 col desktop
 // ✅ Light/dark via CSS variables only
 // ✅ ARIA: role="switch", aria-checked, role="alertdialog", role="status"
-// ✅ SystemConfigPanel + health display + action buttons
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 import { SystemConfigPanel } from '@/modules/owner/components/SystemConfigPanel';
-import type { SystemConfig, SystemHealth, GlobalFeatureFlags } from '@/modules/owner/types/owner.types';
+import {
+  useSystemConfig,
+  useSaveSystemConfig,
+} from '@/services/query/owner.queries';
+import { useUIStore } from '@/store/ui.store';
+import type { SystemConfig, SystemHealth } from '@/modules/owner/types/owner.types';
 import { cn } from '@/shared/utils/cn';
 
-// ─── Safe config defaults ─────────────────────────────────────────────────────
-// When the backend hasn't configured SMTP or feature flags yet, provide
-// safe defaults so SystemConfigPanel never crashes on undefined access.
-
-const DEFAULT_FEATURE_FLAGS: GlobalFeatureFlags = {
-  payments: true,
-  chat: true,
-  certificates: true,
-  exams: true,
-  analytics: true,
-};
-
-const DEFAULT_CONFIG: SystemConfig = {
-  maintenanceMode: false,
-  featureFlags: DEFAULT_FEATURE_FLAGS,
-  emailSmtp: {
-    host: '',
-    port: 587,
-    user: '',
-    secure: false,
-  },
-};
-
-function mergeWithDefaults(raw: Partial<SystemConfig> | null | undefined): SystemConfig {
-  if (!raw) return { ...DEFAULT_CONFIG };
-  return {
-    maintenanceMode: raw.maintenanceMode ?? DEFAULT_CONFIG.maintenanceMode,
-    featureFlags: {
-      ...DEFAULT_FEATURE_FLAGS,
-      ...(raw.featureFlags ?? {}),
-    },
-    emailSmtp: {
-      ...DEFAULT_CONFIG.emailSmtp,
-      ...(raw.emailSmtp ?? {}),
-    },
-  };
-}
+// ─── Safe defaults ────────────────────────────────────────────────────────────
 
 const DEFAULT_HEALTH: SystemHealth = {
   status: 'healthy',
@@ -66,102 +36,32 @@ const DEFAULT_HEALTH: SystemHealth = {
   dbStatus: 'connected',
   cacheStatus: 'connected',
   uptime: 0,
+  services: [],
+  timestamp: new Date(0).toISOString(),
 };
 
-// ─── Local useOwnerSystem hook (safe version) ─────────────────────────────────
-
-function useOwnerSystemSafe() {
-  const [config, setConfig] = useState<SystemConfig | null>(null);
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [apiVersion, setApiVersion] = useState('1.0.0');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-
-    Promise.all([
-      fetch('/api/owner/system/config')
-        .then((r) => {
-          if (!r.ok) throw new Error(`Config fetch failed: ${r.status}`);
-          return r.json();
-        })
-        .catch(() => null),
-      fetch('/api/health')
-        .then((r) => r.json())
-        .catch(() => null),
-    ])
-      .then(([rawConfig, rawHealth]) => {
-        // Merge raw config with safe defaults — prevents undefined.host crash
-        const safeConfig = mergeWithDefaults(
-          rawConfig as Partial<SystemConfig> | null,
-        );
-        setConfig(safeConfig);
-
-        // Map /api/health response to SystemHealth shape
-        if (rawHealth && typeof rawHealth === 'object') {
-          const h = rawHealth as Record<string, unknown>;
-          setHealth({
-            status:
-              h['status'] === 'ok' || h['status'] === 'healthy'
-                ? 'healthy'
-                : typeof h['status'] === 'string'
-                ? (h['status'] as SystemHealth['status'])
-                : 'healthy',
-            apiVersion: typeof h['version'] === 'string' ? h['version'] : '1.0.0',
-            dbStatus: 'connected',
-            cacheStatus: 'connected',
-            uptime: typeof h['uptime'] === 'number' ? (h['uptime'] as number) : 0,
-          });
-          if (typeof h['version'] === 'string') {
-            setApiVersion(h['version'] as string);
-          }
-        } else {
-          // Backend down or health endpoint not accessible — show safe defaults
-          setHealth({ ...DEFAULT_HEALTH });
-        }
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Failed to load system config');
-        // Still set safe defaults so the panel renders without crashing
-        setConfig({ ...DEFAULT_CONFIG });
-        setHealth({ ...DEFAULT_HEALTH });
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  const saveConfig = useCallback(async (cfg: SystemConfig) => {
-    const res = await fetch('/api/owner/system/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    });
-    if (!res.ok) throw new Error('Failed to save config');
-    // Merge saved config with defaults to guarantee shape integrity
-    const saved = mergeWithDefaults((await res.json()) as Partial<SystemConfig>);
-    setConfig(saved);
-  }, []);
-
-  const clearCache = useCallback(async () => {
-    await fetch('/api/owner/system/cache', { method: 'DELETE' });
-  }, []);
-
-  const triggerBackup = useCallback(async () => {
-    await fetch('/api/owner/system/backup', { method: 'POST' });
-  }, []);
-
-  return {
-    config,
-    health,
-    apiVersion,
-    isLoading,
-    error,
-    saveConfig,
-    clearCache,
-    triggerBackup,
-  };
-}
+const DEFAULT_CONFIG: SystemConfig = {
+  maintenanceMode: false,
+  featureFlags: {
+    payments: true,
+    chat: true,
+    certificates: true,
+    exams: true,
+    analytics: true,
+  },
+  emailSmtp: {
+    host: '',
+    port: 587,
+    user: '',
+    password: '',
+    secure: false,
+  },
+  registrationEnabled: true,
+  maxStudentsPerClass: 30,
+  defaultCurrency: 'USD',
+  timezone: 'UTC',
+  supportEmail: '',
+};
 
 // ─── Health indicator ─────────────────────────────────────────────────────────
 
@@ -172,12 +72,7 @@ interface HealthIndicatorProps {
   index: number;
 }
 
-function HealthIndicator({
-  label,
-  value,
-  isOk,
-  index,
-}: HealthIndicatorProps) {
+function HealthIndicator({ label, value, isOk, index }: HealthIndicatorProps) {
   return (
     <motion.div
       className="rounded-xl border p-4"
@@ -189,20 +84,14 @@ function HealthIndicator({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.25 }}
     >
-      <p
-        className="text-xs font-medium"
-        style={{ color: 'var(--text-muted)' }}
-      >
+      <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
         {label}
       </p>
       <div className="mt-2 flex items-center gap-2">
-        {/* Animated health dot */}
         <motion.span
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{
-            background: isOk
-              ? 'var(--success-solid)'
-              : 'var(--error-solid)',
+            background: isOk ? 'var(--success-solid)' : 'var(--error-solid)',
           }}
           animate={isOk ? { scale: [1, 1.3, 1] } : { scale: 1 }}
           transition={{ duration: 1.5, repeat: Infinity }}
@@ -285,6 +174,7 @@ interface ConfirmDialogProps {
   title: string;
   description: string;
   confirmLabel: string;
+  cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
   dangerous?: boolean;
@@ -294,6 +184,7 @@ function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel,
   onConfirm,
   onCancel,
   dangerous = false,
@@ -316,9 +207,7 @@ function ConfirmDialog({
         className="w-full max-w-md rounded-2xl border p-6 shadow-xl"
         style={{
           background: 'var(--bg-surface)',
-          borderColor: dangerous
-            ? 'var(--error-border)'
-            : 'var(--border-default)',
+          borderColor: dangerous ? 'var(--error-border)' : 'var(--border-default)',
         }}
         initial={{ scale: 0.95, y: 24 }}
         animate={{ scale: 1, y: 0 }}
@@ -341,10 +230,7 @@ function ConfirmDialog({
         >
           {title}
         </h3>
-        <p
-          className="text-sm mb-6"
-          style={{ color: 'var(--text-secondary)' }}
-        >
+        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
           {description}
         </p>
         <div className="flex gap-3">
@@ -353,9 +239,7 @@ function ConfirmDialog({
             onClick={onConfirm}
             className="flex-1 rounded-lg py-2.5 text-sm font-semibold min-h-[44px] text-white"
             style={{
-              background: dangerous
-                ? 'var(--error-solid)'
-                : 'var(--brand-primary)',
+              background: dangerous ? 'var(--error-solid)' : 'var(--brand-primary)',
             }}
             whileTap={{ scale: 0.97 }}
           >
@@ -371,7 +255,7 @@ function ConfirmDialog({
             }}
             whileTap={{ scale: 0.97 }}
           >
-            Cancel
+            {cancelLabel}
           </motion.button>
         </div>
       </motion.div>
@@ -379,67 +263,195 @@ function ConfirmDialog({
   );
 }
 
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+function SystemSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading system config…">
+      {/* Health cards skeleton */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-20 rounded-xl animate-pulse"
+            style={{ background: 'var(--bg-surface-hover)' }}
+          />
+        ))}
+      </div>
+      {/* Config sections skeleton */}
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-xl border p-6 animate-pulse"
+          style={{
+            background: 'var(--bg-surface)',
+            borderColor: 'var(--border-default)',
+            height: 120,
+          }}
+          aria-hidden="true"
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function OwnerSystemClient() {
-  const {
-    config,
-    health,
-    apiVersion,
-    isLoading,
-    error,
-    saveConfig,
-    clearCache,
-    triggerBackup,
-  } = useOwnerSystemSafe();
+  // XATO 5 FIX: TanStack Query hooks (raw fetch + useState yerine)
+  const { data: config, isLoading, isError, error } = useSystemConfig();
+  const saveConfigMutation = useSaveSystemConfig();
+  const { addToast } = useUIStore();
 
+  // XATO 7 FIX: i18n translations
+  const t = useTranslations('owner.system');
+
+  // Dialog states
   const [showCacheConfirm, setShowCacheConfirm] = useState(false);
   const [showBackupConfirm, setShowBackupConfirm] = useState(false);
+  const [showResetFlagsConfirm, setShowResetFlagsConfirm] = useState(false);
+  const [showForceLogoutConfirm, setShowForceLogoutConfirm] = useState(false);
+
+  // Action states
   const [cacheCleared, setCacheCleared] = useState(false);
   const [backupTriggered, setBackupTriggered] = useState(false);
 
+  // Health is static for now (derived from config load success/failure)
+  const health: SystemHealth = {
+    status: isError ? 'degraded' : 'healthy',
+    apiVersion: '1.0.0',
+    dbStatus: 'connected',
+    cacheStatus: 'connected',
+    uptime: 0,
+    services: [],
+    timestamp: new Date().toISOString(),
+  };
+
+  // XATO 5 FIX: saveConfig TanStack Query mutation ishlatadi
+  const handleSaveConfig = async (cfg: SystemConfig): Promise<void> => {
+    await saveConfigMutation.mutateAsync(cfg);
+  };
+
+  // XATO 3 FIX: /system/cache endpoint backendda yo'q — toast bilan xabar beramiz
   const handleClearCache = async () => {
     setShowCacheConfirm(false);
-    await clearCache();
-    setCacheCleared(true);
-    setTimeout(() => setCacheCleared(false), 5000);
+    try {
+      const res = await fetch('/api/owner/system/cache', { method: 'DELETE' });
+      if (res.ok) {
+        setCacheCleared(true);
+        setTimeout(() => setCacheCleared(false), 5000);
+        addToast({ type: 'success', title: t('actions.cacheClearedSuccess') });
+      } else {
+        // XATO 3 FIX: 404 kelsa — "not supported" xabarini ko'rsatamiz (silent fail emas)
+        addToast({
+          type: 'warning',
+          title: t('actions.cacheNotSupported'),
+        });
+      }
+    } catch {
+      addToast({
+        type: 'warning',
+        title: t('actions.cacheNotSupported'),
+      });
+    }
   };
 
+  // XATO 3 FIX: /system/backup endpoint backendda yo'q — toast bilan xabar beramiz
   const handleTriggerBackup = async () => {
     setShowBackupConfirm(false);
-    await triggerBackup();
-    setBackupTriggered(true);
-    setTimeout(() => setBackupTriggered(false), 5000);
+    try {
+      const res = await fetch('/api/owner/system/backup', { method: 'POST' });
+      if (res.ok) {
+        setBackupTriggered(true);
+        setTimeout(() => setBackupTriggered(false), 5000);
+        addToast({ type: 'success', title: t('actions.backupTriggeredSuccess') });
+      } else {
+        // XATO 3 FIX: 404 kelsa — "not supported" xabarini ko'rsatamiz
+        addToast({
+          type: 'warning',
+          title: t('actions.backupNotSupported'),
+        });
+      }
+    } catch {
+      addToast({
+        type: 'warning',
+        title: t('actions.backupNotSupported'),
+      });
+    }
   };
 
+  // XATO 4 FIX: Reset Flags — confirm dialog + toast (no-op emas)
+  const handleResetFlags = async () => {
+    setShowResetFlagsConfirm(false);
+    try {
+      const res = await fetch('/api/owner/system/reset-flags', { method: 'POST' });
+      if (res.ok) {
+        addToast({ type: 'success', title: t('dangerZone.resetFlagsSuccess') });
+      } else {
+        // Backend endpoint yo'q — xabar ko'rsatamiz
+        addToast({
+          type: 'warning',
+          title: t('dangerZone.resetFlagsNotSupported'),
+        });
+      }
+    } catch {
+      addToast({
+        type: 'warning',
+        title: t('dangerZone.resetFlagsNotSupported'),
+      });
+    }
+  };
+
+  // XATO 4 FIX: Force Logout All — confirm dialog + toast (no-op emas)
+  const handleForceLogout = async () => {
+    setShowForceLogoutConfirm(false);
+    try {
+      const res = await fetch('/api/owner/system/force-logout', { method: 'POST' });
+      if (res.ok) {
+        addToast({ type: 'success', title: t('dangerZone.forceLogoutSuccess') });
+      } else {
+        // Backend endpoint yo'q — xabar ko'rsatamiz
+        addToast({
+          type: 'warning',
+          title: t('dangerZone.forceLogoutNotSupported'),
+        });
+      }
+    } catch {
+      addToast({
+        type: 'warning',
+        title: t('dangerZone.forceLogoutNotSupported'),
+      });
+    }
+  };
+
+  const errorMessage =
+    error instanceof Error ? error.message : 'Failed to load system config';
+
+  const displayConfig = config ?? DEFAULT_CONFIG;
+
   return (
-    <div
-      className="space-y-8 pb-8"
-      style={{ padding: 'var(--space-6)' }}
-    >
+    <div className="space-y-8 pb-8" style={{ padding: 'var(--space-6)' }}>
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
       >
+        {/* XATO 7 FIX: t() orqali tarjima */}
         <h1
           className="text-2xl font-bold sm:text-3xl"
           style={{ color: 'var(--text-primary)' }}
         >
-          System Configuration
+          {t('pageTitle')}
         </h1>
-        <p
-          className="mt-1 text-sm"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          Health monitoring, feature flags, SMTP, and platform operations
+        <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {t('pageDesc')}
         </p>
       </motion.div>
 
       {/* ── Load error banner ────────────────────────────────────────────── */}
       <AnimatePresence>
-        {error && (
+        {isError && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -452,9 +464,8 @@ export function OwnerSystemClient() {
           >
             <span>⚠️</span>
             <span>
-              Could not reach the backend — showing cached or default values.
-              {' '}
-              <span className="opacity-70 text-xs">({error})</span>
+              {t('errorBanner')}{' '}
+              <span className="opacity-70 text-xs">({errorMessage})</span>
             </span>
           </motion.div>
         )}
@@ -462,7 +473,7 @@ export function OwnerSystemClient() {
 
       {/* ── Health dashboard ──────────────────────────────────────────── */}
       <motion.section
-        aria-label="System health"
+        aria-label={t('health.title')}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32 }}
@@ -472,9 +483,9 @@ export function OwnerSystemClient() {
             className="text-sm font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
-            System Health
+            {t('health.title')}
           </h2>
-          {!isLoading && health && (
+          {!isLoading && (
             <span
               className="text-xs font-medium rounded-full px-3 py-1"
               style={{
@@ -495,10 +506,10 @@ export function OwnerSystemClient() {
               aria-live="polite"
             >
               {health.status === 'healthy'
-                ? '● All systems operational'
+                ? `● ${t('health.allOperational')}`
                 : health.status === 'degraded'
-                ? '● Degraded performance'
-                : '● Service disruption'}
+                ? `● ${t('health.degraded')}`
+                : `● ${t('health.disruption')}`}
             </span>
           )}
         </div>
@@ -517,28 +528,28 @@ export function OwnerSystemClient() {
               />
             ))}
           </div>
-        ) : health ? (
+        ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <HealthIndicator
-              label="API Status"
+              label={t('health.apiStatus')}
               value={health.status}
               isOk={health.status === 'healthy'}
               index={0}
             />
             <HealthIndicator
-              label="Database"
+              label={t('health.database')}
               value={health.dbStatus}
               isOk={health.dbStatus === 'connected'}
               index={1}
             />
             <HealthIndicator
-              label="Cache"
+              label={t('health.cache')}
               value={health.cacheStatus}
               isOk={health.cacheStatus === 'connected'}
               index={2}
             />
             <HealthIndicator
-              label="Uptime"
+              label={t('health.uptime')}
               value={`${Math.floor(health.uptime / 3600)}h ${Math.floor(
                 (health.uptime % 3600) / 60,
               )}m`}
@@ -546,27 +557,12 @@ export function OwnerSystemClient() {
               index={3}
             />
           </div>
-        ) : null}
-
-        {!isLoading && apiVersion && (
-          <p
-            className="mt-2 text-xs"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            API Version:{' '}
-            <code
-              className="font-mono"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {apiVersion}
-            </code>
-          </p>
         )}
       </motion.section>
 
       {/* ── Quick actions ────────────────────────────────────────────────── */}
       <motion.section
-        aria-label="System actions"
+        aria-label={t('actions.title')}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, delay: 0.1 }}
@@ -575,7 +571,7 @@ export function OwnerSystemClient() {
           className="text-sm font-semibold mb-4"
           style={{ color: 'var(--text-primary)' }}
         >
-          System Actions
+          {t('actions.title')}
         </h2>
 
         <div
@@ -585,32 +581,33 @@ export function OwnerSystemClient() {
             borderColor: 'var(--border-default)',
           }}
         >
+          {/* XATO 3 FIX: Confirm dialog + toast (silent fail emas) */}
           <SysActionBtn
             onClick={() => setShowCacheConfirm(true)}
-            ariaLabel="Clear application cache"
+            ariaLabel={t('actions.clearCacheAriaLabel')}
           >
-            {cacheCleared ? '✓ Cache Cleared' : '🗑 Clear Cache'}
+            {cacheCleared ? `✓ ${t('actions.cacheClearedLabel')}` : `🗑 ${t('actions.clearCache')}`}
           </SysActionBtn>
 
           <SysActionBtn
             onClick={() => setShowBackupConfirm(true)}
-            ariaLabel="Trigger database backup"
+            ariaLabel={t('actions.triggerBackupAriaLabel')}
           >
-            {backupTriggered ? '✓ Backup Triggered' : '💾 Trigger Backup'}
+            {backupTriggered ? `✓ ${t('actions.backupTriggeredLabel')}` : `💾 ${t('actions.triggerBackup')}`}
           </SysActionBtn>
 
           <SysActionBtn
             onClick={() => window.location.reload()}
-            ariaLabel="Reload system status"
+            ariaLabel={t('actions.refreshAriaLabel')}
           >
-            🔄 Refresh Status
+            🔄 {t('actions.refreshStatus')}
           </SysActionBtn>
         </div>
       </motion.section>
 
       {/* ── System Config Panel ──────────────────────────────────────────── */}
       <motion.section
-        aria-label="Configuration settings"
+        aria-label={t('configuration')}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.2 }}
@@ -619,32 +616,18 @@ export function OwnerSystemClient() {
           className="text-sm font-semibold mb-4"
           style={{ color: 'var(--text-primary)' }}
         >
-          Configuration
+          {t('configuration')}
         </h2>
 
-        {isLoading || !config ? (
-          <div className="space-y-4" aria-busy="true" aria-label="Loading config…">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-xl border p-6 animate-pulse"
-                style={{
-                  background: 'var(--bg-surface)',
-                  borderColor: 'var(--border-default)',
-                  height: 120,
-                }}
-                aria-hidden="true"
-              />
-            ))}
-          </div>
+        {isLoading ? (
+          <SystemSkeleton />
         ) : (
-          // FIX: config is guaranteed to have emailSmtp with all fields thanks
-          // to mergeWithDefaults() — no more undefined.host crash
+          // XATO 1 FIX: config mapper orqali keladi, hech qachon undefined bo'lmaydi
           <SystemConfigPanel
-            config={config}
+            config={displayConfig}
             health={health ?? DEFAULT_HEALTH}
-            apiVersion={apiVersion}
-            onSaveConfig={saveConfig}
+            apiVersion={health.apiVersion}
+            onSaveConfig={handleSaveConfig}
             onClearCache={handleClearCache}
             onTriggerBackup={handleTriggerBackup}
           />
@@ -653,7 +636,7 @@ export function OwnerSystemClient() {
 
       {/* ── Danger zone ──────────────────────────────────────────────────── */}
       <motion.section
-        aria-label="Danger zone"
+        aria-label={t('dangerZone.title')}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, delay: 0.3 }}
@@ -662,7 +645,7 @@ export function OwnerSystemClient() {
           className="text-sm font-semibold mb-4"
           style={{ color: 'var(--error-text)' }}
         >
-          ⚠️ Danger Zone
+          ⚠️ {t('dangerZone.title')}
         </h2>
         <div
           className="rounded-xl border p-5 space-y-4"
@@ -671,32 +654,29 @@ export function OwnerSystemClient() {
             background: 'var(--error-bg)',
           }}
         >
+          {/* Reset Flags — XATO 4 FIX: no-op emas, confirm dialog + toast */}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p
                 className="text-sm font-semibold"
                 style={{ color: 'var(--error-text)' }}
               >
-                Reset All Feature Flags
+                {t('dangerZone.resetFlags')}
               </p>
-              <p
-                className="text-xs mt-0.5"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                Disables all optional features for all tenants globally
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                {t('dangerZone.resetFlagsDesc')}
               </p>
             </div>
             <SysActionBtn
-              onClick={() => {
-                // Intentionally no-op in UI — requires backend action
-              }}
-              ariaLabel="Reset all feature flags to default"
+              onClick={() => setShowResetFlagsConfirm(true)}
+              ariaLabel={t('dangerZone.resetFlagsAriaLabel')}
               variant="danger"
             >
-              Reset Flags
+              {t('dangerZone.resetFlagsBtn')}
             </SysActionBtn>
           </div>
 
+          {/* Force Logout — XATO 4 FIX: no-op emas, confirm dialog + toast */}
           <div
             className="border-t pt-4 flex flex-wrap items-start justify-between gap-4"
             style={{ borderColor: 'var(--error-border)' }}
@@ -706,23 +686,18 @@ export function OwnerSystemClient() {
                 className="text-sm font-semibold"
                 style={{ color: 'var(--error-text)' }}
               >
-                Force Logout All Users
+                {t('dangerZone.forceLogout')}
               </p>
-              <p
-                className="text-xs mt-0.5"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                Invalidates all active sessions immediately
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                {t('dangerZone.forceLogoutDesc')}
               </p>
             </div>
             <SysActionBtn
-              onClick={() => {
-                // Intentionally no-op in UI — requires backend action
-              }}
-              ariaLabel="Force logout all active sessions"
+              onClick={() => setShowForceLogoutConfirm(true)}
+              ariaLabel={t('dangerZone.forceLogoutAriaLabel')}
               variant="danger"
             >
-              Force Logout All
+              {t('dangerZone.forceLogoutBtn')}
             </SysActionBtn>
           </div>
         </div>
@@ -732,9 +707,10 @@ export function OwnerSystemClient() {
       <AnimatePresence>
         {showCacheConfirm && (
           <ConfirmDialog
-            title="Clear Application Cache?"
-            description="This will clear all cached data across the platform. Users may experience slightly slower load times for a few minutes while the cache rebuilds."
-            confirmLabel="Clear Cache"
+            title={t('actions.clearCacheConfirmTitle')}
+            description={t('actions.clearCacheConfirmDesc')}
+            confirmLabel={t('actions.clearCache')}
+            cancelLabel={t('cancel')}
             onConfirm={handleClearCache}
             onCancel={() => setShowCacheConfirm(false)}
           />
@@ -744,11 +720,41 @@ export function OwnerSystemClient() {
       <AnimatePresence>
         {showBackupConfirm && (
           <ConfirmDialog
-            title="Trigger Database Backup?"
-            description="A full database backup will be initiated. This process typically takes 2–5 minutes and will not affect normal operation."
-            confirmLabel="Start Backup"
+            title={t('actions.backupConfirmTitle')}
+            description={t('actions.backupConfirmDesc')}
+            confirmLabel={t('actions.triggerBackup')}
+            cancelLabel={t('cancel')}
             onConfirm={handleTriggerBackup}
             onCancel={() => setShowBackupConfirm(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* XATO 4 FIX: Danger Zone confirm dialogs */}
+      <AnimatePresence>
+        {showResetFlagsConfirm && (
+          <ConfirmDialog
+            title={t('dangerZone.resetFlagsConfirmTitle')}
+            description={t('dangerZone.resetFlagsConfirmDesc')}
+            confirmLabel={t('dangerZone.resetFlagsBtn')}
+            cancelLabel={t('cancel')}
+            onConfirm={handleResetFlags}
+            onCancel={() => setShowResetFlagsConfirm(false)}
+            dangerous
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showForceLogoutConfirm && (
+          <ConfirmDialog
+            title={t('dangerZone.forceLogoutConfirmTitle')}
+            description={t('dangerZone.forceLogoutConfirmDesc')}
+            confirmLabel={t('dangerZone.forceLogoutBtn')}
+            cancelLabel={t('cancel')}
+            onConfirm={handleForceLogout}
+            onCancel={() => setShowForceLogoutConfirm(false)}
+            dangerous
           />
         )}
       </AnimatePresence>

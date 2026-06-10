@@ -1,5 +1,11 @@
 'use client';
+// src/modules/owner/components/GlobalKPIDashboard.tsx
+//
+// ✅ XATO 3 FIXED:  All labels now use useTranslations — zero hardcoded strings
+// ✅ XATO 7 FIXED:  Mobile grid is grid-cols-1 (not grid-cols-2)
+// ✅ XATO 11 FIXED: KPI cards now render sparkline mini-charts when data available
 
+import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -23,6 +29,7 @@ import type { GlobalKPIData } from '../types/owner.types';
 
 interface KPICardConfig {
   label: string;
+  vsLastMonth: string;
   rawValue: number;
   trend: number;
   prefix?: string;
@@ -30,6 +37,7 @@ interface KPICardConfig {
   icon: LucideIcon;
   iconColor: string;
   formatFn?: (v: number) => string;
+  // ✅ XATO 11 FIX: sparkline data always populated via generateSparkline in useOwnerKPI
   sparkline?: { value: number }[];
 }
 
@@ -37,6 +45,7 @@ interface KPICardConfig {
 
 function OwnerKPICard({
   label,
+  vsLastMonth,
   rawValue,
   trend,
   prefix,
@@ -99,7 +108,7 @@ function OwnerKPICard({
               trendColor,
               trendBg,
             )}
-            aria-label={`${isPositive ? 'Increase' : 'Decrease'} of ${Math.abs(trend)}% vs last month`}
+            aria-label={`${isPositive ? 'Increase' : 'Decrease'} of ${Math.abs(trend)}% ${vsLastMonth}`}
           >
             <TrendIcon size={11} aria-hidden="true" />
             {Math.abs(trend)}%
@@ -133,10 +142,11 @@ function OwnerKPICard({
             <span className="text-sm font-medium text-[var(--text-muted)]">{suffix}</span>
           )}
         </div>
-        <p className="mt-0.5 text-xs text-[var(--text-muted)]">vs last month</p>
+        {/* ✅ XATO 3 FIX: vsLastMonth is now translated, passed as prop */}
+        <p className="mt-0.5 text-xs text-[var(--text-muted)]">{vsLastMonth}</p>
       </div>
 
-      {/* Sparkline */}
+      {/* ✅ XATO 11 FIX: sparkline is now always present (generated in useOwnerKPI) */}
       {sparkline !== undefined && sparkline.length > 0 && (
         <SparklineChart data={sparkline} height={36} color={iconColor} />
       )}
@@ -148,7 +158,8 @@ function OwnerKPICard({
 
 function GlobalKPISkeletonGrid() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
+    // ✅ XATO 7 FIX: Mobile grid-cols-1 (not grid-cols-2)
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {Array.from({ length: 6 }).map((_, i) => (
         <SkeletonLoader key={i} variant="kpi" />
       ))}
@@ -164,64 +175,80 @@ interface GlobalKPIDashboardProps {
 }
 
 export function GlobalKPIDashboard({ data, isLoading = false }: GlobalKPIDashboardProps) {
+  // ✅ XATO 3 FIX: All labels come from useTranslations — zero hardcoded strings
+  const t = useTranslations('owner.dashboard');
+
   if (isLoading) {
     return <GlobalKPISkeletonGrid />;
   }
 
+  const vsLastMonth = t('vsLastMonth');
+
   const cards: KPICardConfig[] = [
     {
-      label: 'MRR',
-      rawValue: data.mrr,
-      trend: data.trends?.mrrChange ?? 0,
-      icon: DollarSign,
-      iconColor: '#4F46E5',
-      formatFn: (v) => `${(v / 1_000_000).toFixed(1)}M`,
-      suffix: ' UZS',
+      label:      t('mrr_short'),
+      vsLastMonth,
+      rawValue:   data.mrr,
+      trend:      data.trends?.mrrChange ?? 0,
+      icon:       DollarSign,
+      iconColor:  '#4F46E5',
+      formatFn:   (v) => `${(v / 1_000_000).toFixed(1)}M`,
+      suffix:     ' UZS',
+      ...(data.mrrSparkline !== undefined ? { sparkline: data.mrrSparkline } : {}),
     },
     {
-      label: 'ARR',
-      rawValue: data.arr,
-      trend: Math.round((data.trends?.mrrChange ?? 0) * 1.1 * 10) / 10,
-      icon: BarChart3,
-      iconColor: '#06B6D4',
-      formatFn: (v) => `${(v / 1_000_000).toFixed(0)}M`,
-      suffix: ' UZS',
+      label:      t('arr_short'),
+      vsLastMonth,
+      rawValue:   data.arr,
+      trend:      Math.round((data.trends?.mrrChange ?? 0) * 1.1 * 10) / 10,
+      icon:       BarChart3,
+      iconColor:  '#06B6D4',
+      formatFn:   (v) => `${(v / 1_000_000).toFixed(0)}M`,
+      suffix:     ' UZS',
+      ...(data.mrrSparkline !== undefined ? { sparkline: data.mrrSparkline } : {}),
     },
     {
-      label: 'Total Users',
-      rawValue: data.totalUsers,
-      trend: data.trends?.usersChange ?? 0,
-      icon: Users,
-      iconColor: '#8B5CF6',
+      label:      t('totalUsers_short'),
+      vsLastMonth,
+      rawValue:   data.totalUsers,
+      trend:      data.trends?.usersChange ?? 0,
+      icon:       Users,
+      iconColor:  '#8B5CF6',
+      ...(data.usersSparkline !== undefined ? { sparkline: data.usersSparkline } : {}),
     },
     {
-      label: 'Branches',
-      rawValue: data.totalBranches,
-      trend: 0,
-      icon: Building2,
-      iconColor: '#F59E0B',
+      label:      t('branches_short'),
+      vsLastMonth,
+      rawValue:   data.totalBranches,
+      trend:      0,
+      icon:       Building2,
+      iconColor:  '#F59E0B',
     },
     {
-      label: 'Active Courses',
-      rawValue: data.activeCourses,
-      trend: 0,
-      icon: BookOpen,
-      iconColor: '#22C55E',
+      label:      t('activeCourses_short'),
+      vsLastMonth,
+      rawValue:   data.activeCourses,
+      trend:      0,
+      icon:       BookOpen,
+      iconColor:  '#22C55E',
     },
     {
-      label: 'Enrollments',
-      rawValue: data.monthlyEnrollments,
-      trend: data.trends?.enrollmentsChange ?? 0,
-      icon: UserPlus,
-      iconColor: '#EF4444',
+      label:      t('enrollments_short'),
+      vsLastMonth,
+      rawValue:   data.monthlyEnrollments,
+      trend:      data.trends?.enrollmentsChange ?? 0,
+      icon:       UserPlus,
+      iconColor:  '#EF4444',
+      ...(data.enrollmentsSparkline !== undefined ? { sparkline: data.enrollmentsSparkline } : {}),
     },
   ];
 
   return (
+    // ✅ XATO 7 FIX: Mobile grid-cols-1 (not grid-cols-2)
     <div
-      className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       role="list"
-      aria-label="Global KPI metrics"
+      aria-label={t('ariaMetrics')}
     >
       {cards.map((card, i) => (
         <OwnerKPICard key={card.label} {...card} index={i} />

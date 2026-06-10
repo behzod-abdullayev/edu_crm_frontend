@@ -110,7 +110,7 @@ function emptyForm(): ScheduleEventForm {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-function Shimmer({ className }: { className?: string }) {
+function _Shimmer({ className }: { className?: string }) {
   return (
     <div
       className={cn('overflow-hidden rounded', className)}

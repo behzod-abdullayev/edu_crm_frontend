@@ -1,6 +1,6 @@
 'use client';
 
-import { PaymentStatus } from '../types/payment.types';
+import type { PaymentStatus } from '../types/payment.types';
 
 const STATUS_LABELS: Record<PaymentStatus, string> = {
   paid: 'Paid',

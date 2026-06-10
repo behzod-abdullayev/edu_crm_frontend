@@ -1,22 +1,9 @@
 'use client';
 
-/**
- * OwnerUsersClient — /[locale]/owner/users
- *
- * FIX 1: Real server-side pagination implemented.
- *         - [page, limit] state managed in this component.
- *         - useOwnerUsers({ page, limit, search, role }) receives params.
- *         - Backend sends only the requested page/limit — no more showing all 11 users.
- *
- * FIX 2: DataTable onLimitChange prop now wired up.
- *         - Selecting 25/50/100 from the dropdown resets page to 1 and refetches.
- *         - paginationMeta from hook feeds real total/totalPages into DataTable.
- *
- * FIX 3: Client-side filter removed — search & role filters sent as query params
- *         to the backend so filtering + pagination work together correctly.
- */
-
 import { useState, useCallback, useMemo, useId, type ReactNode } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import {
@@ -28,43 +15,321 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
+  UserPlus,
+  Download,
+  UserX,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// ── Owner module hook (routes through Next.js API proxy) ──────────────────────
 import {
   useOwnerUsers,
 } from '@/modules/owner/hooks/useOwner';
 import type { UserDto, UserRole } from '@/modules/owner/types/owner.types';
 
-// ── Shared components ─────────────────────────────────────────────────────────
 import { DataTable, type ColumnDef } from '@/shared/components/data-display/DataTable';
 import { MobileCardList } from '@/shared/components/mobile/MobileCardList';
 import { AvatarWithRole } from '@/shared/components/data-display/AvatarWithRole';
 
-// ── Shared hooks & utils ──────────────────────────────────────────────────────
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useIsMobile } from '@/shared/hooks/useMediaQuery';
 import { useToast } from '@/shared/hooks/useToast';
 import { cn } from '@/shared/utils/cn';
+import { httpClient } from '@/services/api/axios.instance';
 import type { UserProfile as SharedUserProfile } from '@/shared/types';
+
+// ─── Invite User Zod schema ───────────────────────────────────────────────────
+
+const inviteSchema = z.object({
+  email:     z.string().min(1).email(),
+  role:      z.enum(['student', 'teacher', 'admin', 'owner', 'super_admin'] as const),
+  firstName: z.string().optional(),
+  lastName:  z.string().optional(),
+});
+
+type InviteFormValues = z.infer<typeof inviteSchema>;
+
+// ─── Invite User Dialog ───────────────────────────────────────────────────────
+// FIX XATO 6: Avval: faqat email input, submit hech narsa qilmasdi.
+// Endi: React Hook Form v7 + Zod v3, role tanlash, POST /owner/users/invite
+
+interface InviteUserDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function InviteUserDialog({ open: _open, onClose, onSuccess }: InviteUserDialogProps) {
+  const t = useTranslations();
+  const tOwner = useTranslations('owner.users');
+  const reduced = useReducedMotion() ?? false;
+  const isMobile = useIsMobile();
+  const titleId = useId();
+  const { toast } = useToast();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: '', role: 'student', firstName: '', lastName: '' },
+  });
+
+  const onSubmit = async (values: InviteFormValues) => {
+    try {
+      await httpClient.post('/owner/users/invite', {
+        email:     values.email,
+        role:      values.role,
+        firstName: values.firstName || undefined,
+        lastName:  values.lastName  || undefined,
+      });
+      reset();
+      onSuccess();
+    } catch {
+      toast.error(tOwner('roleAssignFailed'));
+    }
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const overlayMotion = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit:    { opacity: 0 },
+    transition: { duration: 0.2 },
+  };
+
+  const panelMotion = isMobile
+    ? {
+        initial: reduced ? {} : { y: '100%' as const },
+        animate: { y: 0 },
+        exit:    reduced ? {} : { y: '100%' as const },
+        transition: reduced ? { duration: 0 } : { type: 'spring' as const, stiffness: 380, damping: 36 },
+      }
+    : {
+        initial: reduced ? {} : { opacity: 0, scale: 0.95, y: 8 },
+        animate: { opacity: 1, scale: 1, y: 0 },
+        exit:    reduced ? {} : { opacity: 0, scale: 0.95, y: 8 },
+        transition: reduced ? { duration: 0 } : { duration: 0.2 },
+      };
+
+  const inputCls = (hasError: boolean) => cn(
+    'h-11 min-h-[44px] w-full rounded-lg border px-4',
+    'bg-[var(--bg-surface)] text-sm text-[var(--text-primary)]',
+    'outline-none transition-colors duration-[var(--transition-fast)]',
+    'focus:ring-2 focus:ring-[var(--border-focus)]/20',
+    hasError
+      ? 'border-[var(--error-border)] focus:border-[var(--error-border)]'
+      : 'border-[var(--border-default)] focus:border-[var(--border-focus)]',
+  );
+
+  return (
+    <motion.div
+      {...overlayMotion}
+      className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center"
+      style={{ background: 'var(--bg-overlay)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+      role="presentation"
+    >
+      <motion.div
+        {...panelMotion}
+        className={cn(
+          'relative w-full bg-[var(--bg-surface)]',
+          'rounded-t-[var(--radius-2xl)] sm:rounded-[var(--radius-xl)]',
+          'sm:max-w-md sm:mx-4',
+          'shadow-[var(--shadow-xl)]',
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pb-1 pt-3 sm:hidden" aria-hidden="true">
+          <div className="h-1 w-10 rounded-full bg-[var(--border-strong)]" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-4">
+          <h2 id={titleId} className="text-base font-bold text-[var(--text-primary)]">
+            {tOwner('invite')}
+          </h2>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={t('common.close')}
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg',
+              'text-[var(--text-muted)] transition-colors',
+              'hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+            )}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Form — no <form> tag per Claude artifact rules; use onSubmit via button */}
+        <div className="space-y-4 px-6 py-5">
+          {/* Email (required) */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="invite-email" className="text-sm font-semibold text-[var(--text-primary)]">
+              {t('common.email')} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="invite-email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="user@example.com"
+              aria-required="true"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'invite-email-error' : undefined}
+              className={inputCls(!!errors.email)}
+              {...register('email')}
+            />
+            {errors.email && (
+              <p id="invite-email-error" role="alert" className="text-xs text-[var(--error-text)]">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
+
+          {/* Role (required) */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="invite-role" className="text-sm font-semibold text-[var(--text-primary)]">
+              {tOwner('roleColumn')} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            </label>
+            <select
+              id="invite-role"
+              aria-required="true"
+              aria-invalid={!!errors.role}
+              className={cn(inputCls(!!errors.role), 'cursor-pointer capitalize')}
+              {...register('role')}
+            >
+              {(['student', 'teacher', 'admin', 'owner', 'super_admin'] as const).map((r) => (
+                <option key={r} value={r} className="capitalize">
+                  {tOwner(r)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* First name + Last name (optional, side by side on sm+) */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="invite-first-name" className="text-sm font-semibold text-[var(--text-primary)]">
+                {t('common.firstName')}
+              </label>
+              <input
+                id="invite-first-name"
+                type="text"
+                autoComplete="given-name"
+                className={inputCls(false)}
+                {...register('firstName')}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="invite-last-name" className="text-sm font-semibold text-[var(--text-primary)]">
+                {t('common.lastName')}
+              </label>
+              <input
+                id="invite-last-name"
+                type="text"
+                autoComplete="family-name"
+                className={inputCls(false)}
+                {...register('lastName')}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="flex items-center gap-3 border-t border-[var(--border-default)] px-6 py-4"
+          style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+        >
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className={cn(
+              'flex flex-1 min-h-[48px] items-center justify-center rounded-lg border',
+              'border-[var(--border-default)] bg-[var(--bg-surface)]',
+              'text-sm font-semibold text-[var(--text-primary)]',
+              'hover:bg-[var(--bg-surface-hover)]',
+              'transition-colors duration-[var(--transition-fast)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+            )}
+          >
+            {t('common.cancel')}
+          </button>
+          <motion.button
+            type="button"
+            onClick={() => void handleSubmit(onSubmit)()}
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+            whileTap={reduced ? {} : { scale: 0.97 }}
+            className={cn(
+              'flex flex-1 min-h-[48px] items-center justify-center gap-2 rounded-lg',
+              'bg-[var(--brand-primary)] text-white',
+              'text-sm font-bold',
+              'hover:bg-[var(--brand-primary-hover)]',
+              'transition-colors duration-[var(--transition-fast)]',
+              'focus-visible:outline-none focus-visible:ring-2',
+              'focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-1',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+            )}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} aria-hidden="true" className="animate-spin" />
+                <span>{t('common.saving')}</span>
+              </>
+            ) : (
+              <>
+                <Download size={14} aria-hidden="true" />
+                {tOwner('sendInvite')}
+              </>
+            )}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// FIX XATO 3: super_admin ROLE_OPTIONS ga qo'shildi
 const ROLE_OPTIONS: Array<{ value: UserRole | undefined; label: string }> = [
-  { value: undefined, label: 'All Roles' },
-  { value: 'student', label: 'Student' },
-  { value: 'teacher', label: 'Teacher' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'owner', label: 'Owner' },
+  { value: undefined,      label: 'allRoles' },
+  { value: 'student',      label: 'student' },
+  { value: 'teacher',      label: 'teacher' },
+  { value: 'admin',        label: 'admin' },
+  { value: 'owner',        label: 'owner' },
+  { value: 'super_admin',  label: 'super_admin' },
 ];
 
+// FIX XATO 3: super_admin ROLE_BADGE_CLASSES ga qo'shildi
+// Avval: faqat student/teacher/admin/owner — super_admin kulrang (fallback) ko'rinar edi
+// Endi: super_admin uchun brand-primary rang badge
 const ROLE_BADGE_CLASSES: Record<string, string> = {
-  student: 'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]',
-  teacher: 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]',
-  admin:   'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]',
-  owner:   'bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]',
+  student:     'bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--info-border)]',
+  teacher:     'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]',
+  admin:       'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]',
+  owner:       'bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]',
+  super_admin: 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] border-[var(--brand-primary)]/30',
 };
+
+// Super Admin is a platform-level role above tenant Owner — Owner can view it
+// (ROLE_OPTIONS/ROLE_BADGE_CLASSES) but cannot assign it to anyone, and cannot
+// change the role of a user who is already a Super Admin (see AssignRoleDialog).
+const ALL_ROLES: UserRole[] = ['student', 'teacher', 'admin', 'owner'];
 
 // ── Helper: adapt UserDto to AvatarWithRole's expected shape ──────────────────
 function toAvatarUser(
@@ -88,15 +353,18 @@ interface RoleBadgeProps {
 }
 
 function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
+  const tOwner = useTranslations('owner.users');
   return (
     <span
       className={cn(
         'inline-flex items-center rounded-full border font-semibold capitalize',
         size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
+        // FIX XATO 3: super_admin uchun to'g'ri rang (avval kulrang fallback edi)
         ROLE_BADGE_CLASSES[role] ??
           'bg-[var(--bg-surface-hover)] text-[var(--text-muted)] border-[var(--border-default)]',
       )}
-      aria-label={`Role: ${role}`}
+      // FIX XATO 9: aria-label tOwner orqali — i18n qo'llab-quvvatlaydi
+      aria-label={tOwner('roleBadgeAriaLabel', { role })}
     >
       <Shield
         size={size === 'sm' ? 9 : 11}
@@ -108,7 +376,7 @@ function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
   );
 }
 
-// ── Assign Role Sheet / Modal ─────────────────────────────────────────────────
+// ── Assign Role Dialog / Bottom Sheet ─────────────────────────────────────────
 
 interface AssignRoleDialogProps {
   user: UserDto | null;
@@ -117,8 +385,6 @@ interface AssignRoleDialogProps {
   onAssign: (userId: string, role: UserRole) => Promise<void>;
 }
 
-const ALL_ROLES: UserRole[] = ['student', 'teacher', 'admin', 'owner'];
-
 function AssignRoleDialog({
   user,
   open,
@@ -126,6 +392,8 @@ function AssignRoleDialog({
   onAssign,
 }: AssignRoleDialogProps) {
   const t = useTranslations();
+  // FIX XATO 4: tOwner — 'owner.users' namespace dan tarjimalar
+  const tOwner = useTranslations('owner.users');
   const reduced = useReducedMotion() ?? false;
   const isMobile = useIsMobile();
   const titleId = useId();
@@ -139,6 +407,10 @@ function AssignRoleDialog({
   useMemo(() => {
     if (currentUserRole) setSelectedRole(currentUserRole);
   }, [currentUserRole]);
+
+  // Super Admin is a platform-level role above tenant Owner — Owner cannot
+  // change a Super Admin's role at all (backend rejects this with 403).
+  const isTargetSuperAdmin = currentUserRole === 'super_admin';
 
   async function handleSubmit() {
     if (!user) return;
@@ -212,7 +484,8 @@ function AssignRoleDialog({
                 id={titleId}
                 className="text-base font-bold text-[var(--text-primary)]"
               >
-                Assign Role
+                {/* FIX XATO 4: hardcoded "Assign Role" → tOwner('assignRole') */}
+                {tOwner('assignRole')}
               </h2>
               <button
                 type="button"
@@ -243,45 +516,62 @@ function AssignRoleDialog({
             </div>
 
             <div className="space-y-3 p-6">
-              <p className="text-sm font-semibold text-[var(--text-primary)]">
-                Select new role
-              </p>
-              <div
-                className="grid grid-cols-2 gap-2"
-                role="radiogroup"
-                aria-label="User role selection"
-              >
-                {ALL_ROLES.map((role) => {
-                  const isSelected = selectedRole === role;
-                  return (
-                    <motion.button
-                      key={role}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => setSelectedRole(role)}
-                      whileTap={reduced ? {} : { scale: 0.97 }}
-                      className={cn(
-                        'flex min-h-[48px] items-center justify-between gap-2 rounded-lg border px-4 py-3',
-                        'text-sm font-semibold capitalize',
-                        'transition-colors duration-[var(--transition-fast)]',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
-                        isSelected
-                          ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                          : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Shield size={14} aria-hidden="true" />
-                        {role}
-                      </span>
-                      {isSelected && (
-                        <CheckCircle size={16} aria-hidden="true" />
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
+              {isTargetSuperAdmin ? (
+                <p
+                  role="alert"
+                  className={cn(
+                    'rounded-lg border px-4 py-3 text-sm font-semibold',
+                    'border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]',
+                  )}
+                >
+                  {tOwner('cannotChangeSuperAdmin')}
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">
+                    {/* FIX XATO 4: hardcoded "Select new role" → tOwner('selectRole') */}
+                    {tOwner('selectRole')}
+                  </p>
+                  <div
+                    className="grid grid-cols-2 gap-2"
+                    role="radiogroup"
+                    // FIX XATO 9: aria-label i18n orqali
+                    aria-label={tOwner('roleSelectionAriaLabel')}
+                  >
+                    {/* Owner cannot assign the platform-level Super Admin role */}
+                    {ALL_ROLES.map((role) => {
+                      const isSelected = selectedRole === role;
+                      return (
+                        <motion.button
+                          key={role}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          onClick={() => setSelectedRole(role)}
+                          whileTap={reduced ? {} : { scale: 0.97 }}
+                          className={cn(
+                            'flex min-h-[48px] items-center justify-between gap-2 rounded-lg border px-4 py-3',
+                            'text-sm font-semibold capitalize',
+                            'transition-colors duration-[var(--transition-fast)]',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+                            isSelected
+                              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                              : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Shield size={14} aria-hidden="true" />
+                            {role.replace('_', ' ')}
+                          </span>
+                          {isSelected && (
+                            <CheckCircle size={16} aria-hidden="true" />
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <div
@@ -309,7 +599,7 @@ function AssignRoleDialog({
               <motion.button
                 type="button"
                 onClick={handleSubmit}
-                disabled={isPending || selectedRole === user.role}
+                disabled={isPending || isTargetSuperAdmin || selectedRole === user.role}
                 aria-busy={isPending}
                 whileTap={reduced ? {} : { scale: 0.97 }}
                 className={cn(
@@ -325,12 +615,8 @@ function AssignRoleDialog({
               >
                 {isPending ? (
                   <>
-                    <Loader2
-                      size={16}
-                      aria-hidden="true"
-                      className="animate-spin"
-                    />
-                    <span>Saving…</span>
+                    <Loader2 size={16} aria-hidden="true" className="animate-spin" />
+                    <span>{t('common.saving')}</span>
                   </>
                 ) : (
                   t('common.save')
@@ -353,11 +639,13 @@ interface UserCardProps {
 }
 
 function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
+  const tOwner = useTranslations('owner.users');
   const reduced = useReducedMotion() ?? false;
 
+  // FIX XATO 4: "Never" → tOwner('never')
   const lastLogin = user.lastLogin
     ? format(new Date(user.lastLogin), 'MMM d, yyyy')
-    : 'Never';
+    : tOwner('never');
 
   return (
     <motion.div
@@ -369,7 +657,8 @@ function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
         'bg-[var(--bg-surface)] transition-colors duration-[var(--transition-fast)]',
         isSelected && 'bg-[var(--brand-primary)]/5',
       )}
-      aria-label={`User: ${user.name}, role: ${user.role}`}
+      // FIX XATO 9: aria-label i18n orqali
+      aria-label={tOwner('userRowAriaLabel', { name: user.name, role: user.role })}
     >
       <AvatarWithRole user={toAvatarUser(user)} size="md" showRole={false} />
 
@@ -380,17 +669,30 @@ function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
         <p className="truncate text-xs text-[var(--text-muted)]">
           {user.email}
         </p>
+        {/* FIX XATO 4: "Last login: {lastLogin}" → tOwner('lastLogin') */}
         <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-          Last login: {lastLogin}
+          {tOwner('lastLoginLabel')}: {lastLogin}
         </p>
       </div>
 
+      {/* FIX XATO 6: Status badge — active/inactive ko'rsatiladi */}
       <div className="flex shrink-0 flex-col items-end gap-2">
         <RoleBadge role={user.role} size="sm" />
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+            user.status === 'active'
+              ? 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]'
+              : 'bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]',
+          )}
+        >
+          {user.status === 'active' ? tOwner('active') : tOwner('inactive')}
+        </span>
         <button
           type="button"
           onClick={() => onAssignRole(user)}
-          aria-label={`Change role for ${user.name}`}
+          // FIX XATO 9: aria-label i18n orqali
+          aria-label={tOwner('changeRoleFor', { name: user.name })}
           className={cn(
             'flex h-8 min-h-[32px] items-center gap-1 rounded-lg border border-[var(--border-default)]',
             'px-2.5 text-[11px] font-semibold text-[var(--text-secondary)]',
@@ -400,7 +702,8 @@ function UserCard({ user, isSelected, onAssignRole }: UserCardProps) {
           )}
         >
           <Shield size={11} aria-hidden="true" />
-          Change
+          {/* FIX XATO 4: hardcoded "Change" → tOwner('change') */}
+          {tOwner('change')}
         </button>
       </div>
     </motion.div>
@@ -413,21 +716,29 @@ interface OwnerUsersClientProps {
   locale: string;
 }
 
-// Widen UserDto for DataTable (which requires Record<string,unknown>)
 type UserRow = UserDto & Record<string, unknown>;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const t = useTranslations();
+  const tOwner = useTranslations('owner.users');
   const isMobile = useIsMobile();
   const reduced = useReducedMotion() ?? false;
   const { toast } = useToast();
 
   // ── Pagination state ───────────────────────────────────────────────────────
-  // FIX: page va limit state bu yerda saqlanadi va hook ga uzatiladi
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+
+  // ── Sort state ─────────────────────────────────────────────────────────────
+  // FIX XATO 10: sortBy va sortOrder state qo'shildi
+  const [sortBy, setSortBy] = useState<string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+
+  // ── Selection state ────────────────────────────────────────────────────────
+  // FIX XATO 11: selectedUsers state — bulk actions uchun
+  const [, setSelectedUsers] = useState<UserRow[]>([]);
 
   // ── Filter state ───────────────────────────────────────────────────────────
   const [searchRaw, setSearchRaw] = useState('');
@@ -438,27 +749,31 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // FIX XATO 7: Invite User dialog state
+  const [inviteOpen, setInviteOpen] = useState(false);
+
   // ── Role filter dropdown ───────────────────────────────────────────────────
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const roleFilterId = useId();
 
-  // ── Data fetching — real server-side pagination ────────────────────────────
-  // FIX: hook endi page, limit, search, role parametrlarini qabul qiladi.
-  // Backend faqat so'ralgan sahifani qaytaradi — hammasi emas.
+  // ── Data fetching ──────────────────────────────────────────────────────────
+  // FIX XATO 10: sortBy, sortOrder parametrlari hook ga uzatiladi
   const {
     users,
     isLoading,
+    isError: queryError,
     paginationMeta,
     changeRole,
-    refresh,
+    toggleStatus,
   } = useOwnerUsers({
     page,
     limit,
     ...(search ? { search } : {}),
     ...(roleFilter ? { role: roleFilter } : {}),
+    sortBy,
+    sortOrder,
   });
 
-  // FIX: Real pagination meta — DataTable ga uzatiladi
   const pagination = useMemo(
     () => ({
       page: paginationMeta.page,
@@ -471,7 +786,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
     [paginationMeta],
   );
 
-  const [loadError, setLoadError] = useState<Error | null>(null);
+  const loadError = queryError ? new Error(t('errors.serverError')) : null;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleOpenAssignRole = useCallback((user: UserDto) => {
@@ -488,53 +803,111 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
     async (userId: string, role: UserRole) => {
       try {
         await changeRole(userId, role);
-        toast.success('Role assigned successfully');
+        // FIX XATO 4: hardcoded 'Role assigned successfully' → tOwner('roleAssigned')
+        // (toast useOwner.ts da ham chiqadi — bu component toast ni hook dan emas,
+        //  o'z ichida boshqaradi chunki dialog close kerak)
       } catch {
-        toast.error('Failed to assign role. Please try again.');
+        // FIX XATO 4: hardcoded 'Failed to assign role...' → tOwner('roleAssignFailed')
+        toast.error(tOwner('roleAssignFailed'));
         throw new Error('Role assignment failed');
       }
     },
-    [changeRole, toast],
+    [changeRole, toast, tOwner],
   );
 
-  const handleRefresh = useCallback(async () => {
-    setLoadError(null);
-    try {
-      await refresh();
-    } catch (e) {
-      setLoadError(e instanceof Error ? e : new Error('Refresh failed'));
+  // FIX XATO 5: handleLoadMore — mobile infinite scroll uchun
+  // Avval onLoadMore prop MobileCardList ga berilmagan edi
+  const handleLoadMore = useCallback(() => {
+    if (paginationMeta.hasNextPage) {
+      setPage((prev) => prev + 1);
     }
-  }, [refresh]);
+  }, [paginationMeta.hasNextPage]);
+
+  const handleRefresh = useCallback(async () => {
+    setPage(1);
+  }, []);
 
   const handleSearch = useCallback((v: string) => {
     setSearchRaw(v);
-    setPage(1); // Search o'zgarganda 1-sahifaga qaytamiz
+    setPage(1);
   }, []);
 
   const handleRoleFilter = useCallback(
     (role: UserRole | undefined) => {
       setRoleFilter(role);
       setRoleDropdownOpen(false);
-      setPage(1); // Filter o'zgarganda 1-sahifaga qaytamiz
+      setPage(1);
     },
     [],
   );
 
-  // FIX: onPageChange — sahifalar orasida o'tish
   const handlePageChange = useCallback((newPage: number) => {
     setPage(newPage);
   }, []);
 
-  // FIX: onLimitChange — qatorlar soni (10/25/50/100) o'zgarganda
-  // Avvalgi versiyada bu prop DataTable ga umuman berilmagan edi!
   const handleLimitChange = useCallback((newLimit: number) => {
     setLimit(newLimit);
-    setPage(1); // Limit o'zgarganda 1-sahifaga qaytamiz
+    setPage(1);
   }, []);
 
-  // ── Desktop table columns ─────────────────────────────────────────────────
-  const tOwner = useTranslations('owner.users');
+  // FIX XATO 10: handleSort — server-side sort
+  // Avval onSort DataTable ga berilmagan edi → real sort ishlamardi
+  const handleSort = useCallback((col: string, order: 'asc' | 'desc') => {
+    setSortBy(col);
+    setSortOrder(order.toUpperCase() as 'ASC' | 'DESC');
+    setPage(1);
+  }, []);
 
+  // FIX XATO 11: handleRowSelect — bulk actions uchun
+  // Avval onRowSelect DataTable ga berilmagan edi → checkbox ko'rinmasdi
+  const handleRowSelect = useCallback((rows: UserRow[]) => {
+    setSelectedUsers(rows);
+  }, []);
+
+  // FIX XATO 5: handleExport — fetch('/api/owner/export/users') o'rniga
+  // httpClient.get('/owner/export/users') ishlatiladi.
+  // Backend GET /owner/export/:type endpointi mavjud va Excel qaytaradi.
+  // Avval: fetch('/api/owner/export/users?format=...') → 404 (Next.js route yo'q)
+  // Endi:  httpClient.get('/owner/export/users', { responseType: 'blob' }) → to'g'ri
+  const handleExport = useCallback(async (fmt: 'csv' | 'excel') => {
+    try {
+      // Backend faqat xlsx formatini qo'llab-quvvatlaydi ('users' tipida)
+      const res = await httpClient.get('/owner/export/users', {
+        responseType: 'blob',
+        params: { format: fmt },
+      });
+      const blob = new Blob([res.data as BlobPart]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `users.${fmt === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(tOwner('exportSuccess'));
+    } catch {
+      toast.error(tOwner('exportFailed'));
+    }
+  }, [toast, tOwner]);
+
+  // FIX XATO 11: bulkActions — bulk deactivate va bulk role assign
+  // Avval bulkActions DataTable ga berilmagan edi
+  const bulkActions = useMemo(() => [
+    {
+      key: 'bulk-deactivate',
+      label: tOwner('deactivate'),
+      icon: UserX,
+      variant: 'destructive' as const,
+      onClick: async (rows: UserRow[]) => {
+        await Promise.all(rows.map((r) => toggleStatus(r.id, 'inactive')));
+        toast.success(tOwner('bulkDeactivateSuccess', { count: rows.length }));
+        setSelectedUsers([]);
+      },
+    },
+  ], [tOwner, toggleStatus, toast]);
+
+  // ── Desktop table columns ──────────────────────────────────────────────────
   const columns = useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
@@ -560,19 +933,44 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         key: 'role',
         header: tOwner('roleColumn'),
         accessor: (row): ReactNode => (
+          // FIX XATO 3: RoleBadge endi super_admin ni ham to'g'ri ko'rsatadi
           <RoleBadge role={(row as UserDto).role} />
         ),
         sortable: true,
-        width: '120px',
+        width: '130px',
+      },
+      // FIX XATO 6: Status ustuni qo'shildi
+      // Avval jadvalda status ustuni umuman yo'q edi — active/inactive ko'rinmasdi
+      {
+        key: 'status',
+        header: tOwner('statusColumn'),
+        accessor: (row): ReactNode => {
+          const u = row as UserDto;
+          return (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
+                u.status === 'active'
+                  ? 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]'
+                  : 'bg-[var(--error-bg)] text-[var(--error-text)] border-[var(--error-border)]',
+              )}
+            >
+              {u.status === 'active' ? tOwner('active') : tOwner('inactive')}
+            </span>
+          );
+        },
+        width: '110px',
+        hideOnTablet: true,
       },
       {
         key: 'lastLogin',
         header: tOwner('lastLoginColumn'),
         accessor: (row): ReactNode => {
           const u = row as UserDto;
+          // FIX XATO 4: hardcoded '—' o'rniga tOwner('never')
           return u.lastLogin
             ? format(new Date(u.lastLogin), 'MMM d, yyyy')
-            : '—';
+            : tOwner('never');
         },
         width: '140px',
       },
@@ -585,7 +983,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             type="button"
             onClick={() => handleOpenAssignRole(row as UserDto)}
             whileTap={reduced ? {} : { scale: 0.95 }}
-            aria-label={`Change role for ${(row as UserDto).name}`}
+            // FIX XATO 9: aria-label i18n orqali
+            aria-label={tOwner('changeRoleFor', { name: (row as UserDto).name })}
             className={cn(
               'flex h-9 min-h-[36px] items-center gap-1.5 rounded-lg border',
               'border-[var(--border-default)] bg-[var(--bg-surface)]',
@@ -613,7 +1012,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
       className="flex flex-col gap-6 px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6"
-      aria-label="Users management"
+      aria-label={tOwner('pageAriaLabel')}
     >
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -627,16 +1026,36 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             {t('nav.users')}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            {paginationMeta.total.toLocaleString()} total users
+            {/* FIX XATO 4: hardcoded "total users" → tOwner('totalUsers') */}
+            {tOwner('totalUsers', { count: paginationMeta.total.toLocaleString() })}
           </p>
         </div>
+
+        {/* FIX XATO 7: Invite User tugmasi qo'shildi
+            Avval header da bu tugma umuman yo'q edi — yangi user qo'shib bo'lmasdi */}
+        <motion.button
+          type="button"
+          onClick={() => setInviteOpen(true)}
+          whileTap={reduced ? {} : { scale: 0.97 }}
+          className={cn(
+            'flex min-h-[44px] items-center gap-2 rounded-lg',
+            'bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white',
+            'hover:bg-[var(--brand-primary-hover)]',
+            'transition-colors duration-[var(--transition-fast)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+          )}
+        >
+          <UserPlus size={16} aria-hidden="true" />
+          {tOwner('invite')}
+        </motion.button>
       </div>
 
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div
         className="flex flex-wrap items-center gap-3"
         role="toolbar"
-        aria-label="User filters"
+        // FIX XATO 9: aria-label i18n orqali
+        aria-label={tOwner('filtersAriaLabel')}
       >
         {/* Search */}
         <div className="relative min-w-[180px] flex-1 max-w-sm">
@@ -649,8 +1068,10 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             type="search"
             value={searchRaw}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder={`${t('common.search')} users…`}
-            aria-label="Search users by name or email"
+            // FIX XATO 4: hardcoded "users…" suffiksi → tOwner('searchPlaceholder')
+            placeholder={tOwner('searchPlaceholder')}
+            // FIX XATO 9: aria-label i18n orqali
+            aria-label={tOwner('searchAriaLabel')}
             className={cn(
               'h-10 min-h-[44px] w-full rounded-lg border border-[var(--border-default)]',
               'bg-[var(--bg-surface)] py-2 pl-9 pr-4',
@@ -663,7 +1084,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             <button
               type="button"
               onClick={() => handleSearch('')}
-              aria-label="Clear search"
+              aria-label={t('common.clearSearch')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               <X size={14} aria-hidden="true" />
@@ -679,7 +1100,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             onClick={() => setRoleDropdownOpen((v) => !v)}
             aria-haspopup="listbox"
             aria-expanded={roleDropdownOpen}
-            aria-label={`Filter by role: ${roleFilter ?? 'All Roles'}`}
+            // FIX XATO 9: aria-label i18n orqali
+            aria-label={tOwner('filterByRoleAriaLabel', { role: roleFilter ?? tOwner('allRoles') })}
             className={cn(
               'flex h-10 min-h-[44px] items-center gap-2 rounded-lg border px-4',
               'text-sm font-medium',
@@ -691,7 +1113,12 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             )}
           >
             <Shield size={15} aria-hidden="true" />
-            <span className="capitalize">{roleFilter ?? 'All Roles'}</span>
+            {/* FIX XATO 4: hardcoded 'All Roles' → tOwner('allRoles') */}
+            <span className="capitalize">
+              {roleFilter
+                ? roleFilter.replace('_', ' ')
+                : tOwner('allRoles')}
+            </span>
             <ChevronDown
               size={14}
               aria-hidden="true"
@@ -718,11 +1145,12 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
                   role="listbox"
                   aria-labelledby={roleFilterId}
                   className={cn(
-                    'absolute left-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden',
+                    'absolute left-0 top-full z-20 mt-1 min-w-[180px] overflow-hidden',
                     'rounded-[var(--radius-lg)] border border-[var(--border-default)]',
                     'bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]',
                   )}
                 >
+                  {/* FIX XATO 3: ROLE_OPTIONS endi super_admin ni ham o'z ichiga oladi */}
                   {ROLE_OPTIONS.map(({ value, label }) => (
                     <li
                       key={label}
@@ -734,7 +1162,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
                         onClick={() => handleRoleFilter(value)}
                         className={cn(
                           'flex w-full items-center gap-2 px-4 py-2.5',
-                          'text-sm text-[var(--text-primary)]',
+                          'text-sm text-[var(--text-primary)] capitalize',
                           'transition-colors duration-[var(--transition-fast)]',
                           'hover:bg-[var(--bg-surface-hover)]',
                           'focus-visible:outline-none focus-visible:bg-[var(--bg-surface-hover)]',
@@ -751,7 +1179,10 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
                         ) : (
                           <span className="w-[14px]" aria-hidden="true" />
                         )}
-                        {label}
+                        {/* FIX XATO 4: hardcoded 'All Roles' → tOwner('allRoles') */}
+                        {value === undefined
+                          ? tOwner('allRoles')
+                          : value.replace('_', ' ')}
                       </button>
                     </li>
                   ))}
@@ -770,7 +1201,7 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
               setRoleFilter(undefined);
               setPage(1);
             }}
-            aria-label="Clear all filters"
+            aria-label={tOwner('clearFiltersAriaLabel')}
             className={cn(
               'flex h-10 min-h-[44px] items-center gap-1.5 rounded-lg border',
               'border-[var(--border-default)] px-3 text-sm text-[var(--text-muted)]',
@@ -780,7 +1211,8 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
             )}
           >
             <X size={14} aria-hidden="true" />
-            Clear filters
+            {/* FIX XATO 4: hardcoded "Clear filters" → tOwner('clearFilters') */}
+            {tOwner('clearFilters')}
           </button>
         )}
       </div>
@@ -812,20 +1244,24 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Desktop: DataTable | Mobile: card list ───────────────────── */}
+      {/* ── Desktop: DataTable | Mobile: card list ───────────────────────── */}
       {isMobile ? (
         <MobileCardList
           data={users as (UserDto & { id: string })[]}
           isLoading={isLoading}
           error={loadError}
           hasMore={paginationMeta.hasNextPage}
+          // FIX XATO 5: onLoadMore qo'shildi
+          // Avval bu prop umuman berilmagan edi — mobile da keyingi sahifa yuklanmasdi
+          onLoadMore={handleLoadMore}
           onRefresh={handleRefresh}
           emptyState={{
-            title: 'No users found',
+            // FIX XATO 4: hardcoded string lardan i18n ga o'tkazildi
+            title: tOwner('noUsers'),
             description:
               searchRaw || roleFilter
-                ? 'Try adjusting your search or filters.'
-                : 'No users have been added yet.',
+                ? tOwner('noUsersFiltered')
+                : tOwner('noUsersDesc'),
             icon: Users,
           }}
           renderCard={(user, isSelected) => (
@@ -847,12 +1283,23 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
           onPageChange={handlePageChange}
           onLimitChange={handleLimitChange}
           rowKey="id"
+          // FIX XATO 10: onSort qo'shildi — server-side sort endi ishlaydi
+          // Avval onSort berilmagan edi → Role ustunini bosish hech narsa qilmasdi
+          onSort={handleSort}
+          // FIX XATO 11: onRowSelect + bulkActions qo'shildi
+          // Avval berilmagan edi → checkbox ko'rinmasdi, bulk actions yo'q edi
+          onRowSelect={handleRowSelect}
+          bulkActions={bulkActions}
+          // FIX XATO 8: onExport qo'shildi — CSV/Excel export tugmasi paydo bo'ladi
+          // Avval berilmagan edi → export imkoni yo'q edi
+          onExport={handleExport}
           emptyState={{
-            title: 'No users found',
+            // FIX XATO 4: hardcoded string lardan i18n ga o'tkazildi
+            title: tOwner('noUsers'),
             description:
               searchRaw || roleFilter
-                ? 'Try adjusting your search or filters.'
-                : 'No users have been added yet.',
+                ? tOwner('noUsersFiltered')
+                : tOwner('noUsersDesc'),
           }}
         />
       )}
@@ -864,6 +1311,23 @@ export function OwnerUsersClient({ locale: _locale }: OwnerUsersClientProps) {
         onClose={handleCloseDialog}
         onAssign={handleAssignRole}
       />
+
+      {/* FIX XATO 6: Invite User modal — React Hook Form + Zod bilan to'liq implement.
+          Avval: faqat bitta email input, React Hook Form yo'q, submit tugmasi hech narsa qilmasdi.
+          Endi:  email (required, email format) + role (select) + firstName + lastName
+                 Zod validation + field-level error ko'rsatish + POST /owner/users/invite */}
+      <AnimatePresence>
+        {inviteOpen && (
+          <InviteUserDialog
+            open={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            onSuccess={() => {
+              setInviteOpen(false);
+              toast.success(tOwner('sendInvite'));
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.main>
   );
 }

@@ -75,22 +75,36 @@ export default function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(loginUrl);
   }
 
+  // FIX XATO 15: super_admin rolePrefixes va defaultRoutes ga qo'shildi.
+  //
+  // Avvalgi versiya (NOTO'G'RI):
+  //   const rolePrefixes = { student, teacher, admin, owner }
+  //   const defaultRoutes = { student, teacher, admin, owner }
+  //   — super_admin yo'q edi → allowedPrefix = undefined → defaultRoute = undefined
+  //   → super@gmail.com login bo'lsa middleware redirect qila olmasdi
+  //   → sahifa yuklanmasdi yoki noto'g'ri xulosa chiqardi
+  //
+  // Yangi versiya (TO'G'RI):
+  //   super_admin → /owner prefix va /owner/dashboard ga yo'naltiriladi
+  //   Bu mantiqan to'g'ri: super_admin owner panel huquqlariga ega
   const rolePrefixes: Record<string, string> = {
-    student: '/student',
-    teacher: '/teacher',
-    admin:   '/admin',
-    owner:   '/owner',
+    student:     '/student',
+    teacher:     '/teacher',
+    admin:       '/admin',
+    owner:       '/owner',
+    super_admin: '/owner',   // ← FIX XATO 15: qo'shildi
   };
 
   const defaultRoutes: Record<string, string> = {
-    student: '/student/dashboard',
-    teacher: '/teacher/dashboard',
-    admin:   '/admin/dashboard',
-    owner:   '/owner/dashboard',
+    student:     '/student/dashboard',
+    teacher:     '/teacher/dashboard',
+    admin:       '/admin/dashboard',
+    owner:       '/owner/dashboard',
+    super_admin: '/owner/dashboard', // ← FIX XATO 15: qo'shildi
   };
 
-  const allowedPrefix  = rolePrefixes[role];
-  const defaultRoute   = defaultRoutes[role];
+  const allowedPrefix = rolePrefixes[role];
+  const defaultRoute  = defaultRoutes[role];
 
   if (pathWithoutLocale === '/' || pathWithoutLocale === '') {
     if (defaultRoute) {
@@ -100,7 +114,8 @@ export default function middleware(request: NextRequest): NextResponse {
   }
 
   if (allowedPrefix && !pathWithoutLocale.startsWith(allowedPrefix)) {
-    if (role === 'owner') {
+    // owner va super_admin — /owner/* va barcha boshqa yo'llar uchun ruxsat
+    if (role === 'owner' || role === 'super_admin') {
       return intlMiddleware(request);
     }
     const locale = pathname.match(/^\/(uz|en|ru)/)?.[1] ?? i18nConfig.defaultLocale;

@@ -1,4 +1,4 @@
-import { test, expect, devices } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 const CREDENTIALS = {
   student: { email: 'student@test.com', password: 'TestPass123!' },

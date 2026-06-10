@@ -191,8 +191,10 @@ describe('LoginPage', () => {
         user: {
           id: '1', email: 'admin@test.com', firstName: 'Admin',
           lastName: 'User', role: 'admin', permissions: [],
-          tenantId: 'tenant-1', isActive: true,
-          createdAt: '', updatedAt: '',
+          tenantId: 'tenant-1', status: 'active',
+          profilePictureUrl: null, phone: null,
+          preferredLanguage: 'en', twoFactorEnabled: false,
+          isActive: true, createdAt: '', updatedAt: '',
         },
       });
 

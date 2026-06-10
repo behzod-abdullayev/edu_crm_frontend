@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { useUIStore } from '@/store/ui.store';
-import type { Toast } from '@/store/ui.store';
-
 // Toast interface: { id, type, title, description?, duration?, action? }
 // "message" maydoni yo'q — "title" ishlatiladi
 

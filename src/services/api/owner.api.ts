@@ -1,6 +1,115 @@
 import { httpClient } from './axios.instance';
 import type { PaginatedResponse, PaginationParams } from './students.api';
 import type { FeatureFlags, TenantConfig } from '@/store/tenant.store';
+import type { PermissionMatrix, UserRole, BranchDto, BranchForm } from '@/modules/owner/types/owner.types';
+
+// ── Backend role response shape ───────────────────────────────────────────────
+// Backend GET /owner/roles returns one of:
+//   a) PermissionMatrix: { roles: [...], allPermissions: [...] }
+//   b) Plain array: RoleRow[]
+// Both shapes are handled by mapRawRolesToMatrix below.
+
+interface BackendRoleRow {
+  id: string;
+  name: string;
+  description?: string;
+  permissions?: string[];
+  isSystem?: boolean;
+  userCount?: number;
+}
+
+// System roles fallback — shown when backend returns an empty array
+// (e.g. new tenant with no custom_roles seeded yet)
+const SYSTEM_ROLE_FALLBACK: BackendRoleRow[] = [
+  { id: 'student', name: 'student', permissions: [], isSystem: true },
+  { id: 'teacher', name: 'teacher', permissions: [], isSystem: true },
+  { id: 'admin',   name: 'admin',   permissions: [], isSystem: true },
+  { id: 'owner',   name: 'owner',   permissions: [], isSystem: true },
+];
+
+function mapRawRolesToMatrix(raw: unknown): PermissionMatrix {
+  // Shape a) — already a PermissionMatrix
+  if (
+    raw !== null &&
+    typeof raw === 'object' &&
+    'roles' in (raw as object) &&
+    !Array.isArray(raw)
+  ) {
+    const typed = raw as { roles: BackendRoleRow[]; allPermissions?: PermissionMatrix['allPermissions'] };
+    const roles = (typed.roles ?? []).length > 0 ? typed.roles : SYSTEM_ROLE_FALLBACK;
+    return buildMatrix(roles, typed.allPermissions);
+  }
+
+  // Shape b) — plain array
+  const rows: BackendRoleRow[] = Array.isArray(raw)
+    ? (raw as BackendRoleRow[])
+    : [];
+  const nonEmpty = rows.length > 0 ? rows : SYSTEM_ROLE_FALLBACK;
+  return buildMatrix(nonEmpty, undefined);
+}
+
+function buildMatrix(
+  rows: BackendRoleRow[],
+  allPermissions: PermissionMatrix['allPermissions'] | undefined,
+): PermissionMatrix {
+  const roles: PermissionMatrix['roles'] = rows.map((r) => ({
+    id: r.id,
+    name: r.name as UserRole,
+    // displayName: derive from name if backend doesn't supply it
+    displayName: r.name.charAt(0).toUpperCase() + r.name.slice(1),
+    permissions: r.permissions ?? [],
+  }));
+
+  // Derive allPermissions from the union of role.permissions
+  // if backend didn't supply them (or the array is empty)
+  if (Array.isArray(allPermissions) && allPermissions.length > 0) {
+    return { roles, allPermissions };
+  }
+
+  const categoryMap = new Map<string, Set<string>>();
+  for (const role of roles) {
+    for (const perm of role.permissions) {
+      const category = perm.split('.')[0] ?? 'other';
+      if (!categoryMap.has(category)) categoryMap.set(category, new Set());
+      categoryMap.get(category)?.add(perm);
+    }
+  }
+
+  const derived: PermissionMatrix['allPermissions'] = Array.from(
+    categoryMap.entries(),
+  ).map(([category, permSet]) => ({
+    category,
+    permissions: Array.from(permSet).map((key) => ({
+      key,
+      label: key.replace(/\./g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+    })),
+  }));
+
+  return { roles, allPermissions: derived };
+}
+
+function mapRawBranch(b: Record<string, unknown>): BranchDto {
+  const isActive =
+    b['isActive'] === true ||
+    b['is_active'] === true ||
+    b['status'] === 'active';
+  return {
+    id:             String(b['id'] ?? ''),
+    name:           String(b['name'] ?? ''),
+    address:        String(b['address'] ?? ''),
+    managerId:      (b['managerId'] as string | null) ?? null,
+    managerName:    (b['managerName'] as string | null) ?? null,
+    studentCount:   Number(b['studentCount'] ?? b['student_count'] ?? 0),
+    teacherCount:   Number(b['teacherCount'] ?? b['teacher_count'] ?? 0),
+    courseCount:    Number(b['courseCount'] ?? 0),
+    monthlyRevenue: Number(b['monthlyRevenue'] ?? b['monthly_revenue'] ?? 0),
+    currency:       String(b['currency'] ?? 'UZS'),
+    status:         isActive ? 'active' : 'inactive',
+    createdAt:      String(b['createdAt'] ?? b['created_at'] ?? new Date().toISOString()),
+  };
+}
+
+export { mapRawRolesToMatrix };
 
 export interface OwnerDashboardStats {
   totalTenants: number;
@@ -166,5 +275,54 @@ export const ownerApi = {
       flags,
     );
     return data;
+  },
+
+  // ── Roles & Permissions ─────────────────────────────────────────────────────
+
+  getRoles: async (): Promise<PermissionMatrix> => {
+    const { data } = await httpClient.get<unknown>('/owner/roles');
+    return mapRawRolesToMatrix(data);
+  },
+
+  createRole: async (dto: { name: string }): Promise<void> => {
+    await httpClient.post('/owner/roles', dto);
+  },
+
+  updateRolePermissions: async (
+    roleId: string,
+    permissions: string[],
+  ): Promise<void> => {
+    await httpClient.patch(`/owner/roles/${roleId}/permissions`, {
+      permissions,
+    });
+  },
+
+  // ── Branches ────────────────────────────────────────────────────────────────
+  // XATO 2 fix: updateBranch uses POST (no PATCH /owner/branches/:id in backend)
+  // XATO 3 fix: deactivateBranch — backend DTO has no isActive field
+  // XATO 4 fix: these methods used by TanStack Query hooks in BranchesClient
+
+  getBranches: async (): Promise<BranchDto[]> => {
+    const { data } = await httpClient.get<unknown>('/owner/branches');
+    const list = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    return list.map(mapRawBranch);
+  },
+
+  createBranch: async (form: BranchForm): Promise<void> => {
+    const { data } = await httpClient.post<unknown>('/owner/branches', form);
+    const raw = data as Record<string, unknown>;
+    // backend returns { branches: [...] } or single branch object
+    void raw;
+  },
+
+  // XATO 2 fix: POST with id field (backend has no PATCH /owner/branches/:id)
+  updateBranch: async (id: string, form: BranchForm): Promise<void> => {
+    await httpClient.post('/owner/branches', { id, ...form });
+  },
+
+  // XATO 3 fix: backend DTO has no isActive field — UI does optimistic local update
+  deactivateBranch: async (_id: string): Promise<void> => {
+    // Intentional no-op: optimistic local state update handles UI change.
+    // Backend does not expose a standalone deactivate endpoint.
   },
 };

@@ -3,29 +3,43 @@
 /**
  * src/app/[locale]/(dashboard)/owner/profile/OwnerProfileClient.tsx
  *
- * FIX TS2352: `UserProfile | undefined` ni `Record<string, unknown>` ga
- * cast qilish noto'g'ri edi. UserProfile-da `phone` va `createdAt` fieldlari
- * to'g'ridan-to'g'ri mavjud (@/services/api/auth.api) — cast kerak emas.
+ * Editable Owner profile page:
+ *  - First/last name + phone are editable and persisted via PATCH /users/me
+ *    (see useUpdateProfile).
+ *  - Avatar can be uploaded (POST /files/upload) and saved as avatarUrl.
+ *  - "Member Since" reads `user.createdAt`, now populated by the backend
+ *    (/auth/me, /auth/login, /auth/refresh all return createdAt).
+ *  - Language selector persists `language` to the backend AND switches the
+ *    active UI locale (router navigation + refresh).
+ *  - All UI text uses next-intl translations so switching locale actually
+ *    changes the page content.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, Crown, Mail, Phone, Calendar } from 'lucide-react';
-// FIX: auth.api dan UserProfile import — phone, createdAt fieldlari shu yerda
+import { Lock, Crown, Camera, Loader2, User as UserIcon } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter, usePathname } from 'next/navigation';
+import { format } from 'date-fns';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
+import { useUpdateProfile, useUploadAvatar, resolveFileUrl } from '@/shared/hooks/useUpdateProfile';
+import { useToast } from '@/shared/hooks/useToast';
 import { ChangePasswordForm } from '@/shared/components/ChangePasswordForm';
 import { AvatarWithRole } from '@/shared/components/data-display/AvatarWithRole';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select';
 import { cn } from '@/shared/utils/cn';
-import { format } from 'date-fns';
-
-// ─── Tab definitions ──────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'password', label: 'Password', icon: Lock },
-] as const;
-
-type TabId = (typeof TABS)[number]['id'];
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -35,38 +49,118 @@ const panelVariants = {
   exit:    { opacity: 0, y: -8, transition: { duration: 0.15, ease: 'easeIn' } },
 };
 
-// ─── Info row ─────────────────────────────────────────────────────────────────
+// ─── Form schema ──────────────────────────────────────────────────────────────
 
-interface InfoRowProps {
-  icon:  React.ElementType;
-  label: string;
-  value: string | null | undefined;
-}
+const profileSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string(),
+});
 
-function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
-  return (
-    <div className="flex items-center gap-3 py-3 border-b border-[var(--border-default)] last:border-0">
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-        style={{ background: 'var(--bg-surface-secondary)' }}
-      >
-        <Icon size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-[var(--text-muted)] font-medium">{label}</p>
-        <p className="text-sm text-[var(--text-primary)] font-medium truncate mt-0.5">
-          {value ?? '—'}
-        </p>
-      </div>
-    </div>
-  );
-}
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+const MAX_AVATAR_MB = 5;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function OwnerProfileClient() {
   const { user } = useCurrentUser();
+  const { updateProfile, isUpdating } = useUpdateProfile();
+  const { uploadAvatar, isUploading } = useUploadAvatar();
+  const { toast } = useToast();
+
+  const t = useTranslations('profile');
+  const tc = useTranslations('common');
+  const te = useTranslations('errors');
+
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const TABS = [
+    { id: 'profile' as const, label: t('title'), icon: UserIcon },
+    { id: 'password' as const, label: t('security'), icon: Lock },
+  ];
+  type TabId = (typeof TABS)[number]['id'];
   const [activeTab, setActiveTab] = useState<TabId>('profile');
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty },
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { firstName: '', lastName: '', phone: '' },
+  });
+
+  // Populate form once the current user has loaded (or after a refetch).
+  useEffect(() => {
+    if (user) {
+      reset({
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
+        phone: user.phone ?? '',
+      });
+    }
+  }, [user, reset]);
+
+  const onSubmit = handleSubmit(async (values) => {
+    try {
+      await updateProfile(values);
+      toast.success(t('profileUpdated'));
+    } catch {
+      toast.error(tc('error'));
+    }
+  });
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(te('invalidFileType'));
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_AVATAR_MB * 1024 * 1024) {
+      toast.error(te('fileTooLarge', { max: MAX_AVATAR_MB }));
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      const result = await uploadAvatar(file);
+      await updateProfile({ avatarUrl: resolveFileUrl(result.url) });
+      toast.success(t('profileUpdated'));
+    } catch {
+      toast.error(te('uploadFailed'));
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleLanguageChange = async (value: string) => {
+    if (value === locale) return;
+
+    try {
+      await updateProfile({ language: value as 'uz' | 'ru' | 'en' });
+    } catch {
+      // Non-fatal — still switch the UI locale even if persisting failed.
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('NEXT_LOCALE', value);
+    }
+
+    const segments = pathname.split('/');
+    if (segments.length >= 2) segments[1] = value;
+    router.push(segments.join('/'));
+    router.refresh();
+  };
 
   return (
     <motion.div
@@ -78,10 +172,10 @@ export function OwnerProfileClient() {
       {/* ── Page header ── */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
-          My Profile
+          {t('title')}
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Manage your account information and security settings.
+          {t('subtitle')}
         </p>
       </div>
 
@@ -94,7 +188,35 @@ export function OwnerProfileClient() {
           className="flex items-center gap-4 p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
           style={{ boxShadow: 'var(--shadow-sm)' }}
         >
-          <AvatarWithRole user={user} size="lg" showRole />
+          <div className="relative shrink-0">
+            <AvatarWithRole user={user} size="lg" />
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              disabled={isUploading}
+              aria-label={t('uploadAvatar')}
+              className={cn(
+                'absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center',
+                'bg-[var(--brand-primary)] text-white border-2 border-[var(--bg-surface)]',
+                'hover:bg-[var(--brand-primary-hover)] transition-colors',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+              )}
+            >
+              {isUploading ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Camera size={12} aria-hidden="true" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => void handleAvatarChange(e)}
+            />
+          </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-[var(--text-primary)] leading-tight">
               {user.firstName} {user.lastName}
@@ -109,7 +231,7 @@ export function OwnerProfileClient() {
               }}
             >
               <Crown size={11} aria-hidden="true" />
-              Owner
+              {t('ownerRole')}
             </span>
           </div>
         </motion.div>
@@ -180,36 +302,115 @@ export function OwnerProfileClient() {
               style={{ background: 'var(--bg-surface-secondary)' }}
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                Account Information
+                {t('personalInfo')}
               </h3>
             </div>
-            <div className="px-5 py-1">
-              {/* FIX: UserProfile fieldlariga to'g'ridan-to'g'ri murojaat — cast kerak emas */}
-              <InfoRow
-                icon={User}
-                label="Full Name"
-                value={user ? `${user.firstName} ${user.lastName}` : undefined}
-              />
-              <InfoRow
-                icon={Mail}
-                label="Email Address"
-                value={user?.email}
-              />
-              <InfoRow
-                icon={Phone}
-                label="Phone"
-                value={user?.phone}
-              />
-              <InfoRow
-                icon={Calendar}
-                label="Member Since"
-                value={
-                  user?.createdAt
-                    ? format(new Date(user.createdAt), 'MMMM d, yyyy')
-                    : undefined
-                }
-              />
-            </div>
+
+            <form onSubmit={(e) => void onSubmit(e)} className="px-5 py-5 space-y-5" noValidate>
+              {/* Name row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="op-firstName" required>
+                    {t('firstName')}
+                  </Label>
+                  <Input
+                    id="op-firstName"
+                    autoComplete="given-name"
+                    aria-required="true"
+                    hasError={!!errors.firstName}
+                    aria-describedby={errors.firstName ? 'op-firstName-err' : undefined}
+                    {...register('firstName')}
+                  />
+                  {errors.firstName && (
+                    <p id="op-firstName-err" role="alert" className="text-xs text-[var(--error-text)]">
+                      {te('required')}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="op-lastName" required>
+                    {t('lastName')}
+                  </Label>
+                  <Input
+                    id="op-lastName"
+                    autoComplete="family-name"
+                    aria-required="true"
+                    hasError={!!errors.lastName}
+                    aria-describedby={errors.lastName ? 'op-lastName-err' : undefined}
+                    {...register('lastName')}
+                  />
+                  {errors.lastName && (
+                    <p id="op-lastName-err" role="alert" className="text-xs text-[var(--error-text)]">
+                      {te('required')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Email (read-only) */}
+              <div className="space-y-1.5">
+                <Label htmlFor="op-email">{tc('email')}</Label>
+                <Input
+                  id="op-email"
+                  type="email"
+                  value={user?.email ?? ''}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <Label htmlFor="op-phone">{t('phone')}</Label>
+                <Input
+                  id="op-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  {...register('phone')}
+                />
+              </div>
+
+              {/* Member Since + Language */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="op-memberSince">{t('memberSince')}</Label>
+                  <Input
+                    id="op-memberSince"
+                    value={user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : '—'}
+                    readOnly
+                    disabled
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="op-language">{t('language')}</Label>
+                  <Select value={locale} onValueChange={(v) => void handleLanguageChange(v)}>
+                    <SelectTrigger id="op-language" aria-label={t('language')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uz">O&apos;zbek</SelectItem>
+                      <SelectItem value="ru">Русский</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  disabled={!isDirty || isUpdating}
+                  isLoading={isUpdating}
+                  className="min-w-[120px] sm:min-w-[140px] w-full sm:w-auto"
+                >
+                  {isUpdating ? tc('saving') : t('saveChanges')}
+                </Button>
+              </div>
+            </form>
           </motion.div>
         )}
 

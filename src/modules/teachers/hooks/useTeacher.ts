@@ -28,7 +28,7 @@ import type {
 
 export type { GroupDto, HomeworkDto, LessonDto };
 
-export interface TeacherDto extends Teacher {}
+export type TeacherDto = Teacher;
 
 export interface HomeworkSubmissionDto {
   id: string;

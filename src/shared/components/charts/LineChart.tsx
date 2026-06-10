@@ -11,7 +11,6 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
 } from 'recharts';
-import { useTranslations } from 'next-intl';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
 import { useIsMobile } from '@shared/hooks/useIsMobile';

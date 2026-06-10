@@ -1,14 +1,10 @@
 'use client';
 // src/app/[locale]/(dashboard)/owner/dashboard/OwnerDashboardClient.tsx
 //
-// ✅ Zero TypeScript errors (strict: true, no `any`)
-// ✅ Framer Motion: KPI count-up, stagger cards, chart fade-in
-// ✅ Responsive: 1-col mobile / 2-col tablet / 4-6 col desktop
-// ✅ WebSocket: payment & notification real-time patching
-// ✅ Light/dark via CSS variables only
-// ✅ ARIA: aria-live, aria-busy, role="status"
-// ✅ All data from useOwner* hooks — no manual fetch
-// ✅ i18n: useTranslations — ZERO hardcoded strings
+// ✅ XATO 2 FIXED:  WebSocket invalidation now uses queryKeys.owner.dashboard()
+// ✅ XATO 5 FIXED:  BranchRow status text uses i18n (t('statusActive') / t('statusInactive'))
+// ✅ XATO 13 FIXED: Greeting uses user?.firstName from useAuthStore
+// ✅ Hooks imported from @/modules/owner/hooks/useOwner (TanStack Query)
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -23,9 +19,11 @@ import {
 } from '@/modules/owner/hooks/useOwner';
 import { GlobalKPIDashboard } from '@/modules/owner/components/GlobalKPIDashboard';
 import { useToast } from '@/shared/hooks/useToast';
+import { useAuthStore } from '@/store/auth.store';
 
 import { SocketEvent } from '@/services/websocket/socket.events';
 import { useSocketEvent } from '@/shared/hooks/useWebSocket';
+import { queryKeys } from '@/services/query/keys.factory';
 import { cn } from '@/shared/utils/cn';
 
 // ─── Lazy-loaded heavy charts ─────────────────────────────────────────────────
@@ -149,9 +147,11 @@ interface BranchRowProps {
   status: 'active' | 'inactive';
   index: number;
   studentLabel: string;
+  // ✅ XATO 5 FIX: Accept translated status label instead of raw backend value
+  statusLabel: string;
 }
 
-function BranchRow({ name, students, revenue, status, index, studentLabel }: BranchRowProps) {
+function BranchRow({ name, students, revenue, status, index, studentLabel, statusLabel }: BranchRowProps) {
   return (
     <motion.div
       className="flex items-center gap-3 py-3 border-b last:border-b-0"
@@ -188,6 +188,7 @@ function BranchRow({ name, students, revenue, status, index, studentLabel }: Bra
         >
           {revenue}
         </p>
+        {/* ✅ XATO 5 FIX: statusLabel is already translated, never shows raw "active"/"inactive" */}
         <span
           className="text-xs font-medium rounded-full px-2 py-0.5"
           style={{
@@ -201,8 +202,9 @@ function BranchRow({ name, students, revenue, status, index, studentLabel }: Bra
                 : 'var(--error-text)',
           }}
           role="status"
+          aria-label={statusLabel}
         >
-          {status}
+          {statusLabel}
         </span>
       </div>
     </motion.div>
@@ -217,13 +219,17 @@ export function OwnerDashboardClient() {
   const t = useTranslations('owner.dashboard');
   const locale = useLocale();
 
+  // ✅ XATO 13 FIX: Get user from auth store to show real name in greeting
+  const { user } = useAuthStore();
+
   const { data: kpi, isLoading: kpiLoading } = useOwnerKPI();
   const { branches, isLoading: branchesLoading } = useOwnerBranches();
   const { chartData, isLoading: chartsLoading } = useOwnerAnalytics();
 
   // ── Real-time WebSocket events ───────────────────────────────────────────
+  // ✅ XATO 2 FIX: Use queryKeys.owner.dashboard() — not ['owner', 'kpi']
   useSocketEvent(SocketEvent.PAYMENT_RECEIVED, () => {
-    void queryClient.invalidateQueries({ queryKey: ['owner', 'kpi'] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.owner.dashboard() });
     toast.success(t('newPayment') as string);
   });
 
@@ -305,7 +311,8 @@ export function OwnerDashboardClient() {
           className="text-2xl font-bold sm:text-3xl"
           style={{ color: 'var(--text-primary)' }}
         >
-          {t(getGreetingKey())}, {t('owner')} 👋
+          {/* ✅ XATO 13 FIX: Show real user name, fallback to t('owner') */}
+          {t(getGreetingKey())}, {user?.firstName ?? t('owner')} 👋
         </h1>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           {dateLabel}
@@ -315,10 +322,11 @@ export function OwnerDashboardClient() {
       {/* ── Global KPI cards ───────────────────────────────────────────── */}
       <Section title={t('keyMetrics')}>
         {kpiLoading ? (
+          // ✅ XATO 7 FIX: grid-cols-1 on mobile (not grid-cols-2)
           <div
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6"
             aria-busy="true"
-            aria-label="Loading KPI metrics"
+            aria-label={t('ariaMetrics')}
           >
             {Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -362,7 +370,7 @@ export function OwnerDashboardClient() {
           <div
             className="grid gap-4 lg:grid-cols-2"
             aria-busy="true"
-            aria-label="Loading analytics charts"
+            aria-label={t('platformAnalytics')}
           >
             {[1, 2, 3, 4].map((i) => (
               <div
@@ -417,7 +425,7 @@ export function OwnerDashboardClient() {
             <div
               className="space-y-3"
               aria-busy="true"
-              aria-label="Loading branches"
+              aria-label={t('branchesOverview')}
             >
               {[1, 2, 3].map((i) => (
                 <div
@@ -445,6 +453,8 @@ export function OwnerDashboardClient() {
                   status={b.status}
                   index={i}
                   studentLabel={t('studentLabel')}
+                  // ✅ XATO 5 FIX: Pass translated status label
+                  statusLabel={b.status === 'active' ? t('statusActive') : t('statusInactive')}
                 />
               ))}
             </div>

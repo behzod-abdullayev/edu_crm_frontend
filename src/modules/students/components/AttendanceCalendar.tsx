@@ -228,7 +228,7 @@ export function AttendanceCalendar({
   onMonthChange,
   className,
 }: AttendanceCalendarProps) {
-  const t = useTranslations('student.attendance');
+  const _t = useTranslations('student.attendance');
   const reduced = useReducedMotion() ?? false;
 
   const now = new Date();

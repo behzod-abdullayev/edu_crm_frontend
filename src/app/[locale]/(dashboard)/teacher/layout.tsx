@@ -8,7 +8,6 @@ async function getServerUser() {
 }
 
 const ALLOWED_ROLES = ['teacher', 'admin', 'owner'] as const;
-type AllowedRole = (typeof ALLOWED_ROLES)[number];
 
 export const metadata: Metadata = {
   title: {

@@ -4,12 +4,10 @@ import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
-  ChevronRight,
   CheckCircle2,
   Play,
   FileText,
   HelpCircle,
-  Lock,
 } from 'lucide-react';
 import { cn } from '@shared/utils/cn';
 import type { ModuleWithLessons, LessonItem } from '../types/course.types';

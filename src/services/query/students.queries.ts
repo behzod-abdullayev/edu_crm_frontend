@@ -4,7 +4,6 @@ import {
   useQuery,
   useMutation,
   useQueryClient,
-  type QueryClient,
 } from '@tanstack/react-query';
 import { queryKeys } from './keys.factory';
 import {
@@ -13,7 +12,6 @@ import {
   type StudentListParams,
   type CreateStudentDto,
   type UpdateStudentDto,
-  type PaginatedResponse,
 } from '@/services/api/students.api';
 import { useUIStore } from '@/store/ui.store';
 import { parseApiError } from '@/shared/utils/api-error';

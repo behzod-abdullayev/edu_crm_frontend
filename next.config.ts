@@ -30,7 +30,8 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' blob: data: https:",
+      // Development: backendda yuklangan avatar/fayllarni (http://localhost:4001/uploads/...) ko'rsatish uchun http ham ruxsat
+      "img-src 'self' blob: data: https: http://localhost:* http://127.0.0.1:*",
       // Development: localhost backend ga ulanish uchun http ham ruxsat
       "connect-src 'self' ws: wss: https: http://localhost:* http://127.0.0.1:*",
       "media-src 'self' blob: https:",

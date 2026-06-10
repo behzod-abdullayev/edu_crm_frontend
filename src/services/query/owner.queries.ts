@@ -17,6 +17,11 @@ import type { FeatureFlags } from '@/store/tenant.store';
 import { useUIStore } from '@/store/ui.store';
 import { parseApiError } from '@/shared/utils/api-error';
 import type { PaginationParams } from './keys.factory';
+import type { SystemConfig } from '@/modules/owner/types/owner.types';
+import {
+  mapTenantRowToSystemConfig,
+  mapSystemConfigToDto,
+} from '@/modules/owner/utils/owner.mapper';
 
 const QUERY_DEFAULTS = {
   staleTime: 5 * 60 * 1000,
@@ -206,13 +211,122 @@ export function useSystemHealth() {
   return useQuery({
     queryKey: queryKeys.owner.health(),
     queryFn: () => ownerApi.getSystemHealth(),
-    staleTime: 30 * 1000,        // 30s — health changes quickly
+    staleTime: 30 * 1000,
     gcTime: 60 * 1000,
     retry: 1,
     retryDelay: 2000,
-    refetchOnWindowFocus: true,  // always refresh health on focus
+    refetchOnWindowFocus: true,
     refetchOnMount: true,
-    refetchInterval: 60 * 1000, // auto-poll every 60s
+    refetchInterval: 60 * 1000,
+  });
+}
+
+// ── System Config (XATO 5 FIX) ───────────────────────────────────────────────
+//
+// Avval: useOwnerSystem = raw fetch + useState + useEffect (PROMPT QOIDASI BUZILISHI)
+// Endi: useSystemConfig = TanStack Query useQuery (prompt talabiga mos)
+//
+// Backend GET /owner/system/config → TenantRow shape qaytaradi.
+// mapTenantRowToSystemConfig() orqali SystemConfig ga o'giriladi.
+
+export function useSystemConfig() {
+  return useQuery<SystemConfig>({
+    queryKey: queryKeys.owner.systemConfig(),
+    queryFn: async (): Promise<SystemConfig> => {
+      // Backend ikki endpoint orqali config qaytarishi mumkin:
+      // /owner/system/config  yoki  /owner/config
+      // Birinchisini sinab ko'ramiz, 404 bo'lsa ikkinchisini ishlatamiz
+      const response = await fetch('/api/owner/system/config', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // 404: endpoint mavjud emas — default config qaytaramiz
+        if (response.status === 404) {
+          return mapTenantRowToSystemConfig(null);
+        }
+        throw new Error(`Config fetch failed: ${response.status}`);
+      }
+
+      const raw: unknown = await response.json();
+      // Backend TenantRow formatda qaytaradi → mapper orqali SystemConfig ga o'giramiz
+      return mapTenantRowToSystemConfig(raw as Parameters<typeof mapTenantRowToSystemConfig>[0]);
+    },
+    ...QUERY_DEFAULTS,
+  });
+}
+
+// ── Save System Config (XATO 2 + 5 FIX) ─────────────────────────────────────
+//
+// XATO 2 FIX: Backend faqat featureFlags qabul qiladi.
+//             mapSystemConfigToDto() orqali faqat featureFlags yuboriladi.
+//             maintenanceMode va emailSmtp YUBORILMAYDI.
+//
+// XATO 5 FIX: useMutation + cache invalidation (raw fetch o'rniga).
+
+export function useSaveSystemConfig() {
+  const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
+
+  return useMutation({
+    mutationFn: async (config: SystemConfig): Promise<SystemConfig> => {
+      // XATO 2 FIX: faqat featureFlags yuboriladi (backend qabul qiladigan DTO)
+      const dto = mapSystemConfigToDto(config);
+
+      const response = await fetch('/api/owner/system/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+
+      if (!response.ok) {
+        // 404: backend endpoint yo'q — optimistic update qilib turamiz
+        if (response.status === 404) {
+          return config;
+        }
+        throw new Error(`Config save failed: ${response.status}`);
+      }
+
+      const raw: unknown = await response.json();
+      return mapTenantRowToSystemConfig(raw as Parameters<typeof mapTenantRowToSystemConfig>[0]);
+    },
+
+    // Optimistic update: saqlashdan avval UI ni darhol yangilaymiz
+    onMutate: async (newConfig: SystemConfig) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.owner.systemConfig() });
+      const previousConfig = queryClient.getQueryData<SystemConfig>(
+        queryKeys.owner.systemConfig(),
+      );
+      queryClient.setQueryData(queryKeys.owner.systemConfig(), newConfig);
+      // exactOptionalPropertyTypes: true — `{ previousConfig: undefined }` is not
+      // assignable to `{ previousConfig?: SystemConfig }`.
+      // Only include the property when it actually has a value.
+      return previousConfig !== undefined ? { previousConfig } : {};
+    },
+
+    onError: (
+      error: unknown,
+      _variables: SystemConfig,
+      context: { previousConfig?: SystemConfig } | undefined,
+    ) => {
+      // Xato bo'lsa rollback
+      if (context?.previousConfig) {
+        queryClient.setQueryData(
+          queryKeys.owner.systemConfig(),
+          context.previousConfig,
+        );
+      }
+      const parsed = parseApiError(error);
+      addToast({ type: 'error', title: parsed.message });
+    },
+
+    onSuccess: (savedConfig: SystemConfig) => {
+      // Muvaffaqiyatli saqlangandan keyin cache ni yangi data bilan yangilaymiz
+      queryClient.setQueryData(queryKeys.owner.systemConfig(), savedConfig);
+      addToast({ type: 'success', title: 'Configuration saved successfully.' });
+    },
   });
 }
 
@@ -221,10 +335,7 @@ export function useSystemHealth() {
 export function useOwnerAnalytics(params?: { from?: string; to?: string }) {
   return useQuery({
     queryKey: queryKeys.owner.analytics(params),
-    queryFn: () =>
-      // owner.api does not expose getAnalytics yet — route to dashboard for now
-      // Replace with ownerApi.getAnalytics(params) once endpoint is added
-      ownerApi.getDashboard(),
+    queryFn: () => ownerApi.getDashboard(),
     ...QUERY_DEFAULTS,
   });
 }

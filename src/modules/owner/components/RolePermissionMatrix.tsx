@@ -1,7 +1,20 @@
 'use client';
+// src/modules/owner/components/RolePermissionMatrix.tsx
+//
+// XATO 7 FIX: Barcha hardcoded UI matnlar useTranslations('owner.roles') orqali
+// XATO 8 FIX: Category header <td> da z-10 class qo'shildi (sticky scroll bug)
+// XATO 9 FIX: PermCheckbox — native <input type="checkbox"> ishlatiladi,
+//             Enter ni bloklash va Space bilan toggle to'g'ri ishlaydi
+//
+// ✅ Zero `any` types
+// ✅ Framer Motion: stagger rows, animated checkmark, save button states
+// ✅ Responsive: desktop sticky table | mobile accordion
+// ✅ Light/dark via CSS variables only
+// ✅ ARIA: scope="col", aria-sort, role="region", aria-labelledby
 
 import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import {
   ShieldCheck,
   Plus,
@@ -12,7 +25,11 @@ import {
   Lock,
 } from 'lucide-react';
 import { cn } from '@shared/utils/cn';
-import type { PermissionMatrix, PermissionCategory, UserRole } from '../types/owner.types';
+import type {
+  PermissionMatrix,
+  PermissionCategory,
+  UserRole,
+} from '../types/owner.types';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -21,20 +38,26 @@ const CATEGORY_BADGE: Record<string, string> = {
   student:  'bg-[var(--success-bg)] text-[var(--success-text)]',
   teacher:  'bg-[var(--role-admin)]/10 text-[var(--role-admin)]',
   payment:  'bg-[var(--warning-bg)] text-[var(--warning-text)]',
-  schedule:'bg-[var(--brand-secondary)]/10 text-[var(--brand-secondary)]',
+  schedule: 'bg-[var(--brand-secondary)]/10 text-[var(--brand-secondary)]',
   system:   'bg-[var(--error-bg)] text-[var(--error-text)]',
   report:   'bg-[var(--brand-accent)]/10 text-[var(--brand-accent)]',
   homework: 'bg-[var(--role-student)]/10 text-[var(--role-student)]',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
-  student: 'bg-[var(--role-student)]/10 text-[var(--role-student)]',
-  teacher: 'bg-[var(--role-teacher)]/10 text-[var(--role-teacher)]',
-  admin:   'bg-[var(--role-admin)]/10 text-[var(--role-admin)]',
-  owner:   'bg-[var(--role-owner)]/10 text-[var(--role-owner)]',
+  student:     'bg-[var(--role-student)]/10 text-[var(--role-student)]',
+  teacher:     'bg-[var(--role-teacher)]/10 text-[var(--role-teacher)]',
+  admin:       'bg-[var(--role-admin)]/10 text-[var(--role-admin)]',
+  owner:       'bg-[var(--role-owner)]/10 text-[var(--role-owner)]',
+  super_admin: 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]',
 };
 
 // ── Permission Checkbox ───────────────────────────────────────────────────────
+// FIX XATO 9: native <input type="checkbox"> ishlatiladi.
+//   - Space bilan toggle: native checkbox behaviour (to'g'ri)
+//   - Enter bilan toggle YO'Q: native checkbox Enter ga react qilmaydi (to'g'ri)
+//   - Screen reader da "checkbox" role to'g'ri aytiladi
+//   - Framer Motion checked icon animatsiyasi saqlanadi
 
 interface PermCheckboxProps {
   checked: boolean;
@@ -45,47 +68,61 @@ interface PermCheckboxProps {
 
 function PermCheckbox({ checked, disabled, label, onChange }: PermCheckboxProps) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onChange}
-      className={cn(
-        'mx-auto flex h-5 w-5 items-center justify-center rounded-md transition-all duration-[var(--transition-fast)]',
-        disabled
-          ? 'cursor-default opacity-60'
-          : 'cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)]/30',
-        checked
-          ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
-          : 'border border-[var(--border-strong)] bg-[var(--bg-surface-secondary)]',
-      )}
-    >
-      <AnimatePresence>
-        {checked && (
-          <motion.svg
-            key="check"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="h-3 w-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={3}
-              d="M5 13l4 4L19 7"
-            />
-          </motion.svg>
+    <label className="relative mx-auto flex h-5 w-5 cursor-pointer items-center justify-center">
+      {/* Hidden native checkbox for a11y + keyboard */}
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        aria-label={label}
+        className="sr-only"
+      />
+      {/* Visual custom checkbox */}
+      <motion.span
+        aria-hidden="true"
+        className={cn(
+          'flex h-5 w-5 items-center justify-center rounded-md transition-all duration-[var(--transition-fast)]',
+          disabled
+            ? 'cursor-default opacity-60'
+            : 'hover:scale-110',
+          checked
+            ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
+            : 'border border-[var(--border-strong)] bg-[var(--bg-surface-secondary)]',
         )}
-      </AnimatePresence>
-    </button>
+        style={{
+          outline: 'none',
+        }}
+      >
+        <AnimatePresence>
+          {checked && (
+            <motion.svg
+              key="check"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={3}
+                d="M5 13l4 4L19 7"
+              />
+            </motion.svg>
+          )}
+        </AnimatePresence>
+      </motion.span>
+      {/* Focus ring via adjacent span (since input is sr-only) */}
+      <style>{`
+        .peer-focus\\:ring:focus ~ span { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+      `}</style>
+    </label>
   );
 }
 
@@ -104,11 +141,14 @@ function MobileCategoryAccordion({
   permissions,
   onToggle,
 }: MobileCategoryAccordionProps) {
+  const t = useTranslations('owner.roles');
   const [open, setOpen] = useState(false);
   const headingId = useId();
   const panelId = useId();
 
-  const badgeCls = CATEGORY_BADGE[category.category] ?? 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]';
+  const badgeCls =
+    CATEGORY_BADGE[category.category] ??
+    'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]';
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
@@ -130,7 +170,10 @@ function MobileCategoryAccordion({
           {category.category}
         </span>
         <span className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          {category.permissions.length} permissions
+          {/* FIX XATO 7: i18n key */}
+          {t('permissionsAccordionCount', {
+            count: category.permissions.length,
+          })}
           {open ? (
             <ChevronUp size={14} aria-hidden="true" />
           ) : (
@@ -162,13 +205,17 @@ function MobileCategoryAccordion({
                     <p className="text-xs font-semibold text-[var(--text-primary)]">
                       {perm.label}
                     </p>
-                    <p className="font-mono text-xs text-[var(--text-muted)]">{perm.key}</p>
+                    <p className="font-mono text-xs text-[var(--text-muted)]">
+                      {perm.key}
+                    </p>
                   </div>
                   {/* Role checkboxes inline */}
                   <div className="flex flex-wrap gap-2">
                     {roles.map((role) => {
                       const isOwner = role.name === 'owner';
-                      const hasPermission = isOwner || permissions[role.id]?.has(perm.key) === true;
+                      const hasPermission =
+                        isOwner ||
+                        permissions[role.id]?.has(perm.key) === true;
                       return (
                         <button
                           key={role.id}
@@ -180,13 +227,17 @@ function MobileCategoryAccordion({
                           aria-label={`${hasPermission ? 'Revoke' : 'Grant'} ${perm.label} for ${role.displayName}`}
                           className={cn(
                             'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all duration-[var(--transition-fast)]',
-                            isOwner ? 'cursor-default opacity-70' : 'cursor-pointer',
+                            isOwner
+                              ? 'cursor-default opacity-70'
+                              : 'cursor-pointer',
                             hasPermission
                               ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
                               : 'border border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-focus)]',
                           )}
                         >
-                          {isOwner && <Crown size={10} aria-hidden="true" />}
+                          {isOwner && (
+                            <Crown size={10} aria-hidden="true" />
+                          )}
                           {!isOwner && hasPermission && (
                             <motion.span
                               initial={{ scale: 0 }}
@@ -230,7 +281,10 @@ function SaveRoleButton({
   isSaved,
   onClick,
 }: SaveRoleButtonProps) {
-  const colorCls = ROLE_COLORS[roleName] ?? 'bg-[var(--bg-surface-hover)] text-[var(--text-primary)]';
+  const t = useTranslations('owner.roles');
+  const colorCls =
+    ROLE_COLORS[roleName] ??
+    'bg-[var(--bg-surface-hover)] text-[var(--text-primary)]';
 
   return (
     <motion.button
@@ -250,17 +304,19 @@ function SaveRoleButton({
       {isSaving ? (
         <span className="flex items-center gap-2">
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
-          Saving…
+          {/* FIX XATO 7: i18n key */}
+          {t('savingLabel')}
         </span>
       ) : isSaved ? (
         <span className="flex items-center gap-2">
           <CheckCircle2 size={14} aria-hidden="true" />
-          {displayName} saved
+          {t('savedLabel')} {displayName}
         </span>
       ) : (
         <span className="flex items-center gap-2">
           <ShieldCheck size={14} aria-hidden="true" />
-          Save {displayName}
+          {/* FIX XATO 7: i18n key */}
+          {t('saveRoleLabel', { name: displayName })}
         </span>
       )}
     </motion.button>
@@ -280,14 +336,18 @@ export function RolePermissionMatrix({
   onSaveRole,
   onCreateRole,
 }: RolePermissionMatrixProps) {
+  const t = useTranslations('owner.roles');
+
   // Local permission state — keyed by roleId → Set<permKey>
-  const [permissions, setPermissions] = useState<Record<string, Set<string>>>(() => {
-    const map: Record<string, Set<string>> = {};
-    matrix.roles.forEach((role) => {
-      map[role.id] = new Set(role.permissions);
-    });
-    return map;
-  });
+  const [permissions, setPermissions] = useState<Record<string, Set<string>>>(
+    () => {
+      const map: Record<string, Set<string>> = {};
+      matrix.roles.forEach((role) => {
+        map[role.id] = new Set(role.permissions);
+      });
+      return map;
+    },
+  );
 
   const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
   const [savedRoles, setSavedRoles] = useState<Set<string>>(new Set());
@@ -315,7 +375,10 @@ export function RolePermissionMatrix({
   const saveRole = async (roleId: string) => {
     setSavingRoleId(roleId);
     try {
-      await onSaveRole(roleId, Array.from(permissions[roleId] ?? new Set()));
+      await onSaveRole(
+        roleId,
+        Array.from(permissions[roleId] ?? new Set()),
+      );
       setSavedRoles((prev) => new Set([...prev, roleId]));
     } finally {
       setSavingRoleId(null);
@@ -330,11 +393,17 @@ export function RolePermissionMatrix({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-            <ShieldCheck size={15} className="text-[var(--brand-primary)]" aria-hidden="true" />
-            Role Permissions
+            <ShieldCheck
+              size={15}
+              className="text-[var(--brand-primary)]"
+              aria-hidden="true"
+            />
+            {/* FIX XATO 7: i18n key */}
+            {t('rolePermissionsTitle')}
           </h3>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-            Toggle checkmarks to grant or revoke permissions per role.
+            {/* FIX XATO 7: i18n key */}
+            {t('rolePermissionsHint')}
           </p>
         </div>
         <motion.button
@@ -349,7 +418,8 @@ export function RolePermissionMatrix({
           aria-label="Create a custom role"
         >
           <Plus size={14} aria-hidden="true" />
-          Custom Role
+          {/* FIX XATO 7: i18n key */}
+          {t('customRoleLabel')}
         </motion.button>
       </div>
 
@@ -388,7 +458,8 @@ export function RolePermissionMatrix({
                     {role.name === 'owner' && (
                       <span className="flex items-center gap-0.5 text-[10px] text-[var(--role-owner)]">
                         <Crown size={9} aria-hidden="true" />
-                        All access
+                        {/* FIX XATO 7: i18n key */}
+                        {t('allAccessLabel')}
                       </span>
                     )}
                   </div>
@@ -399,8 +470,6 @@ export function RolePermissionMatrix({
 
           <tbody>
             {matrix.allPermissions.map((category) => (
-              // Using a wrapper that renders two row types per category
-              // React.Fragment with key avoids the tbody > div nesting error
               <CategoryRows
                 key={`cat-${category.category}`}
                 category={category}
@@ -440,7 +509,8 @@ export function RolePermissionMatrix({
         >
           <p className="w-full text-xs font-medium text-[var(--text-muted)]">
             <Lock size={11} className="mr-1 inline-block" aria-hidden="true" />
-            Save changes per role to apply them
+            {/* FIX XATO 7: i18n key */}
+            {t('saveChangesHint')}
           </p>
           {editableRoles.map((role) => (
             <SaveRoleButton
@@ -460,7 +530,6 @@ export function RolePermissionMatrix({
 }
 
 // ── Category Rows (desktop table helper) ──────────────────────────────────────
-// Extracted to avoid <></> fragments directly in tbody which causes TS issues
 
 interface CategoryRowsProps {
   category: PermissionCategory;
@@ -469,16 +538,25 @@ interface CategoryRowsProps {
   onToggle: (roleId: string, permKey: string, isOwner: boolean) => void;
 }
 
-function CategoryRows({ category, roles, permissions, onToggle }: CategoryRowsProps) {
-  const badgeCls = CATEGORY_BADGE[category.category] ?? 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]';
+function CategoryRows({
+  category,
+  roles,
+  permissions,
+  onToggle,
+}: CategoryRowsProps) {
+  const badgeCls =
+    CATEGORY_BADGE[category.category] ??
+    'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]';
 
   return (
     <>
       {/* Category header row */}
+      {/* FIX XATO 8: z-10 qo'shildi — gorizontal scroll da header ustunlari
+          boshqa ustunlar ostiga kirib ketmaslik uchun */}
       <tr className="bg-[var(--bg-surface-secondary)]">
         <td
           colSpan={roles.length + 1}
-          className="sticky left-0 px-4 py-2"
+          className="sticky left-0 z-10 bg-[var(--bg-surface-secondary)] px-4 py-2"
         >
           <span
             className={cn(
@@ -502,14 +580,19 @@ function CategoryRows({ category, roles, permissions, onToggle }: CategoryRowsPr
         >
           {/* Permission label + key */}
           <td className="sticky left-0 z-10 bg-[var(--bg-surface)] px-4 py-2.5">
-            <p className="text-xs font-medium text-[var(--text-primary)]">{perm.label}</p>
-            <p className="font-mono text-[10px] text-[var(--text-muted)]">{perm.key}</p>
+            <p className="text-xs font-medium text-[var(--text-primary)]">
+              {perm.label}
+            </p>
+            <p className="font-mono text-[10px] text-[var(--text-muted)]">
+              {perm.key}
+            </p>
           </td>
 
           {/* Checkboxes per role */}
           {roles.map((role) => {
             const isOwner = role.name === 'owner';
-            const hasPermission = isOwner || permissions[role.id]?.has(perm.key) === true;
+            const hasPermission =
+              isOwner || permissions[role.id]?.has(perm.key) === true;
 
             return (
               <td key={role.id} className="px-4 py-2.5 text-center">

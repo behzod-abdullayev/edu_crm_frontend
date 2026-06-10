@@ -1,5 +1,4 @@
 import type { CourseFormValues, LessonItem, ModuleWithLessons } from '../types/course.types';
-import type { Course } from '@/services/api/courses.api';
 
 // Local DTO shapes (generated models are incomplete for this module)
 export interface CourseDto {

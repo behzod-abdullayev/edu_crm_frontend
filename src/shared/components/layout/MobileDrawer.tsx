@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';

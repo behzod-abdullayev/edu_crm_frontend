@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
-import { motion } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
 
 export const Tabs = TabsPrimitive.Root;
@@ -55,7 +54,7 @@ TabsTrigger.displayName = 'TabsTrigger';
 export const AnimatedTabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { activeValue?: string }
->(({ className, children, activeValue, ...props }, ref) => (
+>(({ className, children, activeValue: _activeValue, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
     className={cn(

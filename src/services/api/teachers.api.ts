@@ -67,7 +67,7 @@ export interface TeacherSalary {
 }
 
 export interface TeacherAnalytics {
-  avgGrade(avgGrade: any): number | undefined;
+  avgGrade(avgGrade: unknown): number | undefined;
   totalStudents: number;
   activeCourses: number;
   averageAttendance: number;

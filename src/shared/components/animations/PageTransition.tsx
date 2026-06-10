@@ -1,8 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { useEffect, useReducer, useRef } from 'react';
-import { cn } from '@shared/utils/cn';
+import { useEffect, useReducer } from 'react';
 
 // ─── PageTransition ──────────────────────────────────────────────────────────
 

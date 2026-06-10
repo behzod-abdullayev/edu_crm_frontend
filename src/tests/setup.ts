@@ -102,6 +102,7 @@ if (!window.visualViewport) {
 // Required by: useRouter, useSearchParams, usePathname
 
 vi.mock('next/navigation', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const actual = await vi.importActual<typeof import('next/navigation')>('next/navigation');
   return {
     ...actual,
@@ -123,6 +124,7 @@ vi.mock('next/navigation', async () => {
 // Required by: any component using <Image /> from 'next/image'
 
 vi.mock('next/image', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const React = await vi.importActual<typeof import('react')>('react');
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,6 +136,7 @@ vi.mock('next/image', async () => {
 // Returns the translation key as value so tests are locale-agnostic.
 
 vi.mock('next-intl', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const actual = await vi.importActual<typeof import('next-intl')>('next-intl');
   return {
     ...actual,
@@ -160,20 +163,26 @@ vi.mock('next-intl', async () => {
 // All motion.* elements render as their HTML counterpart without animation.
 
 vi.mock('framer-motion', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const actual = await vi.importActual<typeof import('framer-motion')>('framer-motion');
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const React = await vi.importActual<typeof import('react')>('react');
 
   const makeStaticComponent =
-    (tag: string) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ({ children, ...rest }: any) => {
-      const { initial, animate, exit, whileHover, whileTap, whileFocus, transition, variants, layout, layoutId, ...htmlProps } = rest;
-      void initial; void animate; void exit; void whileHover; void whileTap; void whileFocus;
-      void transition; void variants; void layout; void layoutId;
-      return React.createElement(tag, htmlProps, children);
+    (tag: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Component = ({ children, ...rest }: any) => {
+        const { initial, animate, exit, whileHover, whileTap, whileFocus, transition, variants, layout, layoutId, ...htmlProps } = rest;
+        void initial; void animate; void exit; void whileHover; void whileTap; void whileFocus;
+        void transition; void variants; void layout; void layoutId;
+        return React.createElement(tag, htmlProps, children);
+      };
+      Component.displayName = `Motion.${tag}`;
+      return Component;
     };
 
-  const tags = ['div', 'span', 'button', 'a', 'li', 'ul', 'nav', 'section', 'header', 'main', 'aside', 'p', 'h1', 'h2', 'h3', 'form', 'label', 'input', 'td', 'tr', 'tbody'];
+  const _tags = ['div', 'span', 'button', 'a', 'li', 'ul', 'nav', 'section', 'header', 'main', 'aside', 'p', 'h1', 'h2', 'h3', 'form', 'label', 'input', 'td', 'tr', 'tbody'];
+  void _tags;
   const motionProxy = new Proxy({} as Record<string, unknown>, {
     get: (_target, prop: string) => makeStaticComponent(prop),
   });
@@ -224,7 +233,9 @@ vi.mock('socket.io-client', () => ({
 // ─── 12. Suppress known noisy warnings ───────────────────────────────────────
 
 beforeAll(() => {
+  // eslint-disable-next-line no-console
   const originalError = console.error.bind(console);
+  // eslint-disable-next-line no-console
   const originalWarn = console.warn.bind(console);
 
   vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {

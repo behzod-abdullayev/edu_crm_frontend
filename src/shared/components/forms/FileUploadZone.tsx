@@ -588,7 +588,7 @@ export function FileUploadZone({
       {/* ── File list ── */}
       <AnimatePresence initial={false}>
         {state.files.map((managed) => {
-          const Icon = getFileIcon(managed.file.type);
+          const _Icon = getFileIcon(managed.file.type);
           const isUploading = managed.status === 'uploading';
           const isSuccess = managed.status === 'success';
           const isError = managed.status === 'error';

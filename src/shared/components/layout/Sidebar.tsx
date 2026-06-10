@@ -404,7 +404,7 @@ function ToggleButton({
 // ─── Main Sidebar Component ───────────────────────────────────────────────────
 
 export function Sidebar({ role, collapsed, onToggle }: SidebarProps) {
-  const t = useTranslations('nav');
+  const _t = useTranslations('nav');
   const tCommon = useTranslations('common');
   const pathname = usePathname();
   const locale = useLocale();

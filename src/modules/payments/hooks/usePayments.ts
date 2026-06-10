@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { InvoiceDto, PaymentOverviewData, DebtSummary } from '../types/payment.types';
+import type { InvoiceDto, PaymentOverviewData, DebtSummary } from '../types/payment.types';
 
 const CACHE_KEY = 'payments_overview_cache';
 

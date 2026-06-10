@@ -24,6 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     } catch (fetchErr: unknown) {
       const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      // eslint-disable-next-line no-console
       console.error('[API /auth/login] Cannot reach backend:', msg);
       return NextResponse.json(
         { message: `Backend ulanmadi (${BACKEND_URL}): ${msg}` },
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       data = await backendRes.json();
     } catch {
+      // eslint-disable-next-line no-console
       console.error('[API /auth/login] Backend non-JSON response, status:', backendRes.status);
       return NextResponse.json(
         { message: `Backend noto'g'ri javob qaytardi (status: ${backendRes.status})` },
@@ -52,6 +54,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const user = data['user'] as { role: string; [key: string]: unknown };
 
     if (!accessToken || !user) {
+      // eslint-disable-next-line no-console
       console.error('[API /auth/login] Backend response missing accessToken or user:', data);
       return NextResponse.json(
         { message: 'Backend noto\'g\'ri format qaytardi' },
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
     console.error('[API /auth/login] Unexpected error:', msg);
     return NextResponse.json({ message: `Server xatosi: ${msg}` }, { status: 500 });
   }

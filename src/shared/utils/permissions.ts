@@ -1,6 +1,7 @@
 import type { UserProfile, Permission, UserRole } from '@/services/api/auth.api';
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
+  super_admin: 5,
   owner: 4,
   admin: 3,
   teacher: 2,
@@ -9,14 +10,14 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 
 /**
  * Check if user has a specific permission.
- * Owners always pass (they have all permissions).
+ * Owners and super_admins always pass (they have all permissions).
  */
 export function can(
   user: UserProfile | null,
   permission: Permission,
 ): boolean {
   if (!user) return false;
-  if (user.role === 'owner') return true;
+  if (user.role === 'owner' || user.role === 'super_admin') return true;
   return user.permissions.includes(permission);
 }
 

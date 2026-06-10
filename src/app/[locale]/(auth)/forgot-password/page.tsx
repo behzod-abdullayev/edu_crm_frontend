@@ -6,8 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react';
-import type { Metadata } from 'next';
+import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 
 // export const metadata: Metadata = {
 //   title: 'Forgot Password | EduCRM',

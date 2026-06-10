@@ -1,7 +1,19 @@
 'use client';
 
-import { useState, useId } from 'react';
+/**
+ * src/modules/owner/components/MultiTenantAnalytics.tsx
+ *
+ * ✅ XATO 4  FIXED: All chart titles and UI text use useTranslations
+ * ✅ XATO 6  FIXED: ChartCard — unused `height` prop removed from interface
+ * ✅ XATO 8  FIXED: All hardcoded hex colors → CSS var(--*)
+ *                   mobile chart height minimum 180px (was 160px)
+ * ✅ XATO 9  FIXED: Desktop chart height minimum 300px (was 220px)
+ * ✅ XATO 10 FIXED: Date/branch filters actually filter displayed data via useMemo
+ */
+
+import { useState, useMemo, useId } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import {
   AreaChart,
   Area,
@@ -18,21 +30,24 @@ import {
 } from 'recharts';
 import { Download, CalendarDays, BarChart2 } from 'lucide-react';
 import { cn } from '@shared/utils/cn';
-import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import type { MultiTenantChartData } from '../types/owner.types';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Constants — XATO 8: CSS var, ZERO hardcoded hex ──────────────────────────
 
 const BRANCH_COLORS: readonly string[] = [
-  '#4F46E5',
-  '#22C55E',
-  '#F59E0B',
-  '#EF4444',
-  '#8B5CF6',
-  '#06B6D4',
-  '#EC4899',
-  '#14B8A6',
+  'var(--brand-primary)',
+  'var(--success-solid)',
+  'var(--warning-solid)',
+  'var(--error-solid)',
+  'var(--brand-accent)',
+  'var(--brand-secondary)',
+  'var(--info-solid)',
+  'var(--text-secondary)',
 ];
+
+const GLOBAL_REV_COLOR = 'var(--brand-primary)';
+const ENROLL_COLOR     = 'var(--success-solid)';
+const USER_COLOR       = 'var(--brand-accent)';
 
 // ── Custom Tooltip ────────────────────────────────────────────────────────────
 
@@ -69,12 +84,11 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   );
 }
 
-// ── Chart Card ────────────────────────────────────────────────────────────────
+// ── Chart Card — XATO 6: `height` prop olib tashlandi ────────────────────────
 
 interface ChartCardProps {
   title: string;
   children: React.ReactNode;
-  height: number;
   index: number;
 }
 
@@ -122,18 +136,79 @@ export function MultiTenantAnalytics({
   isFullPage = false,
   isLoading = false,
 }: MultiTenantAnalyticsProps) {
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('all');
-  const [exporting, setExporting] = useState(false);
+  // XATO 4: All UI text from useTranslations
+  const t = useTranslations('owner.analytics');
 
-  const fromId = useId();
-  const toId = useId();
+  const [dateFrom, setDateFrom]           = useState('');
+  const [dateTo, setDateTo]               = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [exporting, setExporting]         = useState(false);
+
+  const fromId   = useId();
+  const toId     = useId();
   const branchId = useId();
 
-  // Responsive chart height: taller on full-page, shorter on dashboard widget
-  const desktopHeight = isFullPage ? 280 : 220;
-  const mobileHeight = isFullPage ? 200 : 160;
+  // XATO 8: mobile min 180px | XATO 9: desktop min 300px
+  const desktopHeight = isFullPage ? 380 : 300;
+  const mobileHeight  = isFullPage ? 220 : 180;
+
+  // XATO 10: Date filters — globalRevenue
+  const filteredRevenue = useMemo(() => {
+    if (!data?.globalRevenue) return [];
+    if (!dateFrom && !dateTo) return data.globalRevenue;
+    return data.globalRevenue.filter((d) => {
+      const m = d.month;
+      if (dateFrom && m < dateFrom.slice(0, 7)) return false;
+      if (dateTo   && m > dateTo.slice(0, 7))   return false;
+      return true;
+    });
+  }, [data?.globalRevenue, dateFrom, dateTo]);
+
+  // XATO 10: Date filters — userGrowth
+  const filteredUserGrowth = useMemo(() => {
+    if (!data?.userGrowth) return [];
+    if (!dateFrom && !dateTo) return data.userGrowth;
+    return data.userGrowth.filter((d) => {
+      if (dateFrom && d.month < dateFrom.slice(0, 7)) return false;
+      if (dateTo   && d.month > dateTo.slice(0, 7))   return false;
+      return true;
+    });
+  }, [data?.userGrowth, dateFrom, dateTo]);
+
+  // XATO 10: Date filters — enrollmentTrends
+  const filteredEnrollments = useMemo(() => {
+    if (!data?.enrollmentTrends) return [];
+    if (!dateFrom && !dateTo) return data.enrollmentTrends;
+    return data.enrollmentTrends.filter((d) => {
+      if (dateFrom && d.month < dateFrom.slice(0, 7)) return false;
+      if (dateTo   && d.month > dateTo.slice(0, 7))   return false;
+      return true;
+    });
+  }, [data?.enrollmentTrends, dateFrom, dateTo]);
+
+  // XATO 10: Branch filter — displayed branches
+  const displayBranches = useMemo(
+    () =>
+      selectedBranch === 'all'
+        ? branches
+        : branches.filter((b) => b === selectedBranch),
+    [branches, selectedBranch],
+  );
+
+  // XATO 10: Branch filter — branchComparison data keys
+  const filteredBranchData = useMemo(() => {
+    if (!data?.branchComparison) return [];
+    if (selectedBranch === 'all') return data.branchComparison;
+    return data.branchComparison.map((row) => {
+      const filtered: { period: string; [key: string]: number | string } = {
+        period: row.period,
+      };
+      if (selectedBranch in row) {
+        filtered[selectedBranch] = row[selectedBranch] as number;
+      }
+      return filtered;
+    });
+  }, [data?.branchComparison, selectedBranch]);
 
   const handleExport = async () => {
     if (typeof window === 'undefined' || window.innerWidth < 768) return;
@@ -156,7 +231,7 @@ export function MultiTenantAnalytics({
     return (
       <div className="grid gap-4 lg:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonLoader key={i} variant="card" />
+          <ChartSkeleton key={i} height={desktopHeight} />
         ))}
       </div>
     );
@@ -166,17 +241,12 @@ export function MultiTenantAnalytics({
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-default)] py-16 text-center">
         <BarChart2 size={36} className="mb-3 text-[var(--text-muted)]" aria-hidden="true" />
-        <p className="font-semibold text-[var(--text-primary)]">No analytics data</p>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">Data will appear once available.</p>
+        {/* XATO 4: i18n keys */}
+        <p className="font-semibold text-[var(--text-primary)]">{t('noData')}</p>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">{t('noDataDesc')}</p>
       </div>
     );
   }
-
-  // Filter branch data when a specific branch is selected
-  const displayBranches =
-    selectedBranch === 'all'
-      ? branches
-      : branches.filter((b) => b === selectedBranch);
 
   return (
     <div className="space-y-5">
@@ -192,7 +262,7 @@ export function MultiTenantAnalytics({
           <div className="flex items-center gap-2">
             <CalendarDays size={14} className="text-[var(--text-muted)]" aria-hidden="true" />
             <label htmlFor={fromId} className="sr-only">
-              From date
+              {t('fromDate')}
             </label>
             <input
               id={fromId}
@@ -204,11 +274,11 @@ export function MultiTenantAnalytics({
                 'px-3 text-sm text-[var(--text-primary)]',
                 'focus:border-[var(--border-focus)] focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)]/20',
               )}
-              aria-label="From date"
+              aria-label={t('fromDate')}
             />
             <span className="text-[var(--text-muted)]">—</span>
             <label htmlFor={toId} className="sr-only">
-              To date
+              {t('toDate')}
             </label>
             <input
               id={toId}
@@ -220,13 +290,13 @@ export function MultiTenantAnalytics({
                 'px-3 text-sm text-[var(--text-primary)]',
                 'focus:border-[var(--border-focus)] focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)]/20',
               )}
-              aria-label="To date"
+              aria-label={t('toDate')}
             />
           </div>
 
           {/* Branch filter */}
           <label htmlFor={branchId} className="sr-only">
-            Filter by branch
+            {t('filterByBranch')}
           </label>
           <select
             id={branchId}
@@ -237,9 +307,10 @@ export function MultiTenantAnalytics({
               'px-3 text-sm text-[var(--text-primary)]',
               'focus:border-[var(--border-focus)] focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)]/20',
             )}
-            aria-label="Filter by branch"
+            aria-label={t('filterByBranch')}
           >
-            <option value="all">All Branches</option>
+            {/* XATO 4: translated */}
+            <option value="all">{t('allBranches')}</option>
             {branches.map((b) => (
               <option key={b} value={b}>
                 {b}
@@ -258,14 +329,15 @@ export function MultiTenantAnalytics({
               'text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]',
               'disabled:opacity-50 md:flex',
             )}
-            aria-label="Export analytics as PNG"
+            aria-label={t('exportPng')}
           >
             {exporting ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
             ) : (
               <Download size={14} aria-hidden="true" />
             )}
-            Export PNG
+            {/* XATO 4: translated */}
+            {exporting ? t('exporting') : t('exportPng')}
           </motion.button>
         </motion.div>
       )}
@@ -275,26 +347,28 @@ export function MultiTenantAnalytics({
         id="analytics-charts"
         className="grid gap-4 lg:grid-cols-2"
         role="region"
-        aria-label="Analytics charts"
+        aria-label={t('title')}
       >
-        {/* Global Revenue */}
-        <ChartCard title="Global Revenue" height={desktopHeight} index={0}>
+        {/* ── Global Revenue ──────────────────────────────────────────────── */}
+        <ChartCard title={t('revenueOverTime')} index={0}>
+          {/* Mobile */}
           <div
             className="w-full md:hidden"
             style={{ height: mobileHeight }}
-            aria-label="Global Revenue chart"
+            aria-label={t('revenueOverTime')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.globalRevenue}>
+              <AreaChart data={filteredRevenue}>
                 <defs>
+                  {/* XATO 8: CSS var */}
                   <linearGradient id="globalRevGrad-mobile" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
+                    <stop offset="5%"  stopColor={GLOBAL_REV_COLOR} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={GLOBAL_REV_COLOR} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
@@ -303,7 +377,7 @@ export function MultiTenantAnalytics({
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#4F46E5"
+                  stroke={GLOBAL_REV_COLOR}
                   fill="url(#globalRevGrad-mobile)"
                   strokeWidth={2}
                   isAnimationActive
@@ -312,27 +386,37 @@ export function MultiTenantAnalytics({
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          {/* Desktop */}
           <div
             className="hidden w-full md:block"
             style={{ height: desktopHeight }}
-            aria-label="Global Revenue chart"
+            aria-label={t('revenueOverTime')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.globalRevenue}>
+              <AreaChart data={filteredRevenue}>
                 <defs>
+                  {/* XATO 8: CSS var */}
                   <linearGradient id="globalRevGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
+                    <stop offset="5%"  stopColor={GLOBAL_REV_COLOR} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={GLOBAL_REV_COLOR} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#4F46E5"
+                  stroke={GLOBAL_REV_COLOR}
                   fill="url(#globalRevGrad)"
                   strokeWidth={2}
                   isAnimationActive
@@ -343,28 +427,31 @@ export function MultiTenantAnalytics({
           </div>
         </ChartCard>
 
-        {/* Branch Comparison */}
-        <ChartCard title="Branch Comparison" height={desktopHeight} index={1}>
+        {/* ── Branch Comparison ───────────────────────────────────────────── */}
+        <ChartCard title={t('branchComparison')} index={1}>
+          {/* Mobile */}
           <div
             className="w-full md:hidden"
             style={{ height: mobileHeight }}
-            aria-label="Branch Comparison chart"
+            aria-label={t('branchComparison')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.branchComparison}>
+              {/* XATO 10: filteredBranchData */}
+              <BarChart data={filteredBranchData}>
                 <XAxis
                   dataKey="period"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                 />
                 <Tooltip content={<CustomTooltip />} />
+                {/* XATO 8: CSS var; XATO 10: displayBranches */}
                 {displayBranches.slice(0, 3).map((branch, idx) => (
                   <Bar
                     key={branch}
                     dataKey={branch}
-                    fill={BRANCH_COLORS[idx % BRANCH_COLORS.length] ?? '#6366f1'}
+                    fill={BRANCH_COLORS[idx % BRANCH_COLORS.length] ?? 'var(--brand-primary)'}
                     radius={[3, 3, 0, 0]}
                     isAnimationActive
                     animationDuration={700 + idx * 100}
@@ -373,25 +460,34 @@ export function MultiTenantAnalytics({
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {/* Desktop */}
           <div
             className="hidden w-full md:block"
             style={{ height: desktopHeight }}
-            aria-label="Branch Comparison chart"
+            aria-label={t('branchComparison')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.branchComparison}>
+              {/* XATO 10: filteredBranchData */}
+              <BarChart data={filteredBranchData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                <XAxis
+                  dataKey="period"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
                 />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                {/* XATO 8: CSS var; XATO 10: displayBranches */}
                 {displayBranches.map((branch, idx) => (
                   <Bar
                     key={branch}
                     dataKey={branch}
-                    fill={BRANCH_COLORS[idx % BRANCH_COLORS.length] ?? '#6366f1'}
+                    fill={BRANCH_COLORS[idx % BRANCH_COLORS.length] ?? 'var(--brand-primary)'}
                     radius={[3, 3, 0, 0]}
                     isAnimationActive
                     animationDuration={700 + idx * 100}
@@ -402,27 +498,30 @@ export function MultiTenantAnalytics({
           </div>
         </ChartCard>
 
-        {/* User Growth */}
-        <ChartCard title="User Growth" height={desktopHeight} index={2}>
+        {/* ── User Growth ─────────────────────────────────────────────────── */}
+        <ChartCard title={t('userGrowth')} index={2}>
+          {/* Mobile */}
           <div
             className="w-full md:hidden"
             style={{ height: mobileHeight }}
-            aria-label="User Growth chart"
+            aria-label={t('userGrowth')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.userGrowth}>
+              {/* XATO 10: filteredUserGrowth */}
+              <LineChart data={filteredUserGrowth}>
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                 />
                 <Tooltip content={<CustomTooltip />} />
+                {/* XATO 8: CSS var */}
                 <Line
                   type="monotone"
                   dataKey="count"
-                  stroke="#8B5CF6"
+                  stroke={USER_COLOR}
                   strokeWidth={2}
                   dot={false}
                   isAnimationActive
@@ -431,23 +530,34 @@ export function MultiTenantAnalytics({
               </LineChart>
             </ResponsiveContainer>
           </div>
+          {/* Desktop */}
           <div
             className="hidden w-full md:block"
             style={{ height: desktopHeight }}
-            aria-label="User Growth chart"
+            aria-label={t('userGrowth')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.userGrowth}>
+              {/* XATO 10: filteredUserGrowth */}
+              <LineChart data={filteredUserGrowth}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip content={<CustomTooltip />} />
+                {/* XATO 8: CSS var */}
                 <Line
                   type="monotone"
                   dataKey="count"
-                  stroke="#8B5CF6"
+                  stroke={USER_COLOR}
                   strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#8B5CF6', strokeWidth: 0 }}
+                  dot={{ r: 3, fill: USER_COLOR, strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
                   isAnimationActive
                   animationDuration={900}
@@ -457,24 +567,27 @@ export function MultiTenantAnalytics({
           </div>
         </ChartCard>
 
-        {/* Enrollment Trends */}
-        <ChartCard title="Enrollment Trends" height={desktopHeight} index={3}>
+        {/* ── Enrollment Trends ───────────────────────────────────────────── */}
+        <ChartCard title={t('enrollmentTrends')} index={3}>
+          {/* Mobile */}
           <div
             className="w-full md:hidden"
             style={{ height: mobileHeight }}
-            aria-label="Enrollment Trends chart"
+            aria-label={t('enrollmentTrends')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.enrollmentTrends}>
+              {/* XATO 10: filteredEnrollments */}
+              <AreaChart data={filteredEnrollments}>
                 <defs>
+                  {/* XATO 8: CSS var */}
                   <linearGradient id="enrollGrad-mobile" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22C55E" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#22C55E" stopOpacity={0} />
+                    <stop offset="5%"  stopColor={ENROLL_COLOR} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={ENROLL_COLOR} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
@@ -483,7 +596,7 @@ export function MultiTenantAnalytics({
                 <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#22C55E"
+                  stroke={ENROLL_COLOR}
                   fill="url(#enrollGrad-mobile)"
                   strokeWidth={2}
                   isAnimationActive
@@ -492,27 +605,38 @@ export function MultiTenantAnalytics({
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          {/* Desktop */}
           <div
             className="hidden w-full md:block"
             style={{ height: desktopHeight }}
-            aria-label="Enrollment Trends chart"
+            aria-label={t('enrollmentTrends')}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.enrollmentTrends}>
+              {/* XATO 10: filteredEnrollments */}
+              <AreaChart data={filteredEnrollments}>
                 <defs>
+                  {/* XATO 8: CSS var */}
                   <linearGradient id="enrollGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22C55E" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#22C55E" stopOpacity={0} />
+                    <stop offset="5%"  stopColor={ENROLL_COLOR} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={ENROLL_COLOR} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#22C55E"
+                  stroke={ENROLL_COLOR}
                   fill="url(#enrollGrad)"
                   strokeWidth={2.5}
                   isAnimationActive

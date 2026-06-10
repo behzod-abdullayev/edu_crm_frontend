@@ -2,7 +2,7 @@
 // ✅ FIX: Added try/catch to ALL hooks, validate API responses are arrays/objects before use
 
 import { useState, useEffect, useCallback } from 'react';
-import {
+import type {
   AdminDashboardData,
   ChartDataPoint,
   GroupAttendance,
@@ -27,7 +27,7 @@ function ensureArray<T>(value: unknown): T[] {
 }
 
 /** Ensure value is a proper object with specific key, not an error response */
-function isValidObject(value: unknown, requiredKey: string): boolean {
+function _isValidObject(value: unknown, requiredKey: string): boolean {
   return (
     value !== null &&
     typeof value === 'object' &&

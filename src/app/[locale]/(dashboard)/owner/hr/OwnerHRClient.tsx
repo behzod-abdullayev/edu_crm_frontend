@@ -9,13 +9,11 @@
 // ✅ HRPanel + salary inline edit from owner module
 // ✅ Salary stats summary cards
 
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 
 import { useOwnerHR, useOwnerBranches } from '@/modules/owner/hooks/useOwner';
 import { HRPanel } from '@/modules/owner/components/HRPanel';
-import type { StaffDto } from '@/modules/owner/types/owner.types';
-import { cn } from '@/shared/utils/cn';
 
 // ─── Stat badge ───────────────────────────────────────────────────────────────
 
@@ -226,7 +224,7 @@ export function OwnerHRClient() {
           <HRPanel
             staff={staff}
             branches={branchOptions}
-            onUpdateSalary={updateSalary}
+            onUpdateSalary={async (staffId, salary) => { await updateSalary(staffId, salary); }}
           />
         )}
       </motion.div>
