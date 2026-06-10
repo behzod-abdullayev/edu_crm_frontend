@@ -112,7 +112,6 @@ export const queryKeys = {
     },
     finances: () => [...queryKeys.owner.all, 'finances'] as const,
     hr: (p?: PaginationParams) => [...queryKeys.owner.all, 'hr', p] as const,
-    system: () => [...queryKeys.owner.all, 'system'] as const,
     systemConfig: () => [...queryKeys.owner.all, 'system-config'] as const,
     billing: (p?: PaginationParams) =>
       [...queryKeys.owner.all, 'billing', p] as const,

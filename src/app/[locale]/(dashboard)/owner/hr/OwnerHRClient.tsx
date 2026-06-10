@@ -11,6 +11,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 import { useOwnerHR, useOwnerBranches } from '@/modules/owner/hooks/useOwner';
 import { HRPanel } from '@/modules/owner/components/HRPanel';
@@ -63,6 +64,7 @@ function HRStat({ label, value, colorToken, index }: HRStatProps) {
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function OwnerHRClient() {
+  const t = useTranslations('owner.hr');
   const { staff, isLoading, updateSalary } = useOwnerHR();
   const { branches, isLoading: branchesLoading } = useOwnerBranches();
 
@@ -97,13 +99,13 @@ export function OwnerHRClient() {
           className="text-2xl font-bold sm:text-3xl"
           style={{ color: 'var(--text-primary)' }}
         >
-          HR Management
+          {t('pageTitle')}
         </h1>
         <p
           className="mt-1 text-sm"
           style={{ color: 'var(--text-secondary)' }}
         >
-          Manage staff contracts, salaries, and roles across all branches
+          {t('pageDesc')}
         </p>
       </motion.div>
 
@@ -124,31 +126,31 @@ export function OwnerHRClient() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <HRStat
-            label="Teachers"
+            label={t('statTeachers')}
             value={stats.teachers}
             colorToken="var(--role-teacher)"
             index={0}
           />
           <HRStat
-            label="Admins"
+            label={t('statAdmins')}
             value={stats.admins}
             colorToken="var(--role-admin)"
             index={1}
           />
           <HRStat
-            label="Active Contracts"
+            label={t('statActiveContracts')}
             value={stats.active}
             colorToken="var(--success-solid)"
             index={2}
           />
           <HRStat
-            label="Expired"
+            label={t('statExpired')}
             value={stats.expired}
             colorToken="var(--error-solid)"
             index={3}
           />
           <HRStat
-            label="Monthly Payroll"
+            label={t('statPayroll')}
             value={`${(stats.totalSalary / 1_000_000).toFixed(1)}M`}
             colorToken="var(--brand-primary)"
             index={4}
@@ -172,7 +174,7 @@ export function OwnerHRClient() {
             className="text-sm font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
-            Staff Members
+            {t('staffMembers')}
           </h2>
           <span
             className="text-xs"
@@ -180,7 +182,7 @@ export function OwnerHRClient() {
             role="status"
             aria-live="polite"
           >
-            {staff.length} total
+            {t('totalCount', { count: staff.length })}
           </span>
         </div>
 
@@ -211,13 +213,13 @@ export function OwnerHRClient() {
               className="text-sm font-medium"
               style={{ color: 'var(--text-primary)' }}
             >
-              No staff found
+              {t('emptyTitle')}
             </p>
             <p
               className="text-xs mt-1"
               style={{ color: 'var(--text-muted)' }}
             >
-              Staff members will appear here once added to branches
+              {t('emptyDesc')}
             </p>
           </motion.div>
         ) : (
@@ -238,9 +240,9 @@ export function OwnerHRClient() {
         transition={{ delay: 0.4 }}
       >
         {[
-          { label: 'Active contract', color: 'var(--success-solid)' },
-          { label: 'Expired contract', color: 'var(--error-solid)' },
-          { label: 'Pending review', color: 'var(--warning-solid)' },
+          { label: t('legendActive'), color: 'var(--success-solid)' },
+          { label: t('legendExpired'), color: 'var(--error-solid)' },
+          { label: t('legendPending'), color: 'var(--warning-solid)' },
         ].map((item) => (
           <div key={item.label} className="flex items-center gap-1.5">
             <span

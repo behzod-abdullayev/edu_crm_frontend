@@ -28,8 +28,6 @@ import type {
   StaffDto,
   FinancialOverview,
   MultiTenantChartData,
-  SystemConfig,
-  SystemHealth,
 } from '../types/owner.types';
 
 // ── Query defaults ─────────────────────────────────────────────────────────────
@@ -450,21 +448,6 @@ export function useOwnerBranches() {
     },
   });
 
-  const editMutation = useMutation({
-    mutationFn: async ({ id, form }: { id: string; form: BranchForm }): Promise<BranchDto[]> => {
-      const res = await httpClient.patch<unknown>(`/owner/branches/${id}`, { id, ...form });
-      const raw = res.data as Record<string, unknown>;
-      if (raw['branches'] && Array.isArray(raw['branches'])) {
-        return (raw['branches'] as BackendBranchRow[]).map(mapBranchRowToDto);
-      }
-      const updated = mapBranchRowToDto({ id, ...raw } as unknown as BackendBranchRow);
-      return (query.data ?? []).map((b) => (b.id === id ? updated : b));
-    },
-    onSuccess: (updatedBranches) => {
-      queryClient.setQueryData(queryKeys.owner.branches.lists(), updatedBranches);
-    },
-  });
-
   const deactivateMutation = useMutation({
     mutationFn: async (id: string): Promise<BranchDto[]> => {
       // Backend da alohida deactivate endpoint yo'q — POST bilan isActive:false junatiladi
@@ -483,12 +466,10 @@ export function useOwnerBranches() {
     isLoading:        query.isLoading,
     isError:          query.isError,
     createBranch:     (form: BranchForm) => createMutation.mutateAsync(form),
-    editBranch:       (id: string, form: BranchForm) => editMutation.mutateAsync({ id, form }),
     deactivateBranch: (id: string) => deactivateMutation.mutateAsync(id),
     refresh:          () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.branches.lists() }),
     isCreating:       createMutation.isPending,
-    isEditing:        editMutation.isPending,
     isDeactivating:   deactivateMutation.isPending,
   };
 }
@@ -924,68 +905,3 @@ export function useOwnerHR() {
   };
 }
 
-// ── System ─────────────────────────────────────────────────────────────────────
-//
-// FIXED: useOwnerSystem TanStack Query v5 useQuery bilan.
-// config + health parallel yuklanadi.
-
-interface SystemQueryData {
-  config: SystemConfig | null;
-  health: SystemHealth | null;
-  apiVersion: string;
-}
-
-export function useOwnerSystem() {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: queryKeys.owner.system(),
-    queryFn: async (): Promise<SystemQueryData> => {
-      const [cfgRes, hlthRes] = await Promise.all([
-        httpClient.get<SystemConfig>('/owner/system/config'),
-        httpClient.get<SystemHealth>('/owner/health').catch(() => ({ data: null })),
-      ]);
-      return {
-        config:     cfgRes.data,
-        health:     hlthRes.data ?? null,
-        apiVersion: '1.0.0',
-      };
-    },
-    // System config tez-tez o'zgarmaydi — 30 soniya staleTime yetarli
-    // staleTime MUST come after spread so it overrides QUERY_DEFAULTS.staleTime
-    ...QUERY_DEFAULTS,
-    staleTime: 30 * 1000,
-  });
-
-  const saveConfigMutation = useMutation({
-    mutationFn: async (cfg: SystemConfig) => {
-      await httpClient.patch('/owner/system/config', cfg);
-      return cfg;
-    },
-    onSuccess: (cfg) => {
-      queryClient.setQueryData(
-        queryKeys.owner.system(),
-        (old: SystemQueryData | undefined) =>
-          old ? { ...old, config: cfg } : old,
-      );
-    },
-  });
-
-  const clearCache = useCallback(async () => {
-    await httpClient.delete('/owner/system/cache');
-  }, []);
-
-  const triggerBackup = useCallback(async () => {
-    await httpClient.post('/owner/system/backup');
-  }, []);
-
-  return {
-    config:       query.data?.config ?? null,
-    health:       query.data?.health ?? null,
-    apiVersion:   query.data?.apiVersion ?? '1.0.0',
-    isLoading:    query.isLoading,
-    saveConfig:   (cfg: SystemConfig) => saveConfigMutation.mutateAsync(cfg),
-    clearCache,
-    triggerBackup,
-  };
-}

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { z } from 'zod';
 import {
   UserCircle,
@@ -19,10 +20,11 @@ import type { StaffDto, ContractStatus } from '../types/owner.types';
 
 // ── Zod ───────────────────────────────────────────────────────────────────────
 
-const salarySchema = z
-  .string()
-  .min(1, 'Required')
-  .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, 'Must be a valid positive number');
+const getSalarySchema = (t: ReturnType<typeof useTranslations>) =>
+  z
+    .string()
+    .min(1, t('salaryRequired'))
+    .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, t('salaryInvalid'));
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -33,10 +35,11 @@ const CONTRACT_BADGE: Record<ContractStatus, string> = {
 };
 
 function ContractBadge({ status }: { status: ContractStatus }) {
+  const t = useTranslations('owner.hr');
   return (
     <span
       role="status"
-      aria-label={`Contract: ${status}`}
+      aria-label={t('contractStatusAria', { status })}
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize',
         CONTRACT_BADGE[status],
@@ -53,7 +56,7 @@ function ContractBadge({ status }: { status: ContractStatus }) {
         )}
         aria-hidden="true"
       />
-      {status}
+      {t(status)}
     </span>
   );
 }
@@ -68,15 +71,16 @@ interface SalaryEditorProps {
 }
 
 function SalaryEditor({ staffId, currentSalary, onSave, onCancel }: SalaryEditorProps) {
+  const t = useTranslations('owner.hr');
   const rawDefault = currentSalary.replace(/[^\d]/g, '');
   const [value, setValue] = useState(rawDefault);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
-    const result = salarySchema.safeParse(value);
+    const result = getSalarySchema(t).safeParse(value);
     if (!result.success) {
-      setError(result.error.errors[0]?.message ?? 'Invalid');
+      setError(result.error.errors[0]?.message ?? t('salaryInvalid'));
       return;
     }
     setSaving(true);
@@ -98,7 +102,7 @@ function SalaryEditor({ staffId, currentSalary, onSave, onCancel }: SalaryEditor
             setError(null);
           }}
           inputMode="numeric"
-          aria-label="New salary"
+          aria-label={t('newSalary')}
           aria-invalid={error !== null}
           min={0}
           className={cn(
@@ -112,20 +116,20 @@ function SalaryEditor({ staffId, currentSalary, onSave, onCancel }: SalaryEditor
           onClick={handleSave}
           disabled={saving}
           className="flex items-center gap-1 text-xs font-semibold text-[var(--success-text)] hover:underline disabled:opacity-50"
-          aria-label="Save salary"
+          aria-label={t('saveSalary')}
         >
           {saving ? (
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
           ) : (
             <CheckCircle2 size={13} aria-hidden="true" />
           )}
-          Save
+          {t('save')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:underline"
-          aria-label="Cancel editing salary"
+          aria-label={t('cancelEditSalary')}
         >
           <X size={13} aria-hidden="true" />
         </button>
@@ -159,6 +163,7 @@ function MobileStaffCard({
   onSaveSalary,
   onCancelSalary,
 }: MobileStaffCardProps) {
+  const t = useTranslations('owner.hr');
   const isEditing = editingSalaryId === original.id;
 
   return (
@@ -187,7 +192,7 @@ function MobileStaffCard({
       {/* Stats */}
       <div className="mb-3 grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-[var(--bg-surface-secondary)] p-2.5">
-          <p className="text-xs text-[var(--text-muted)]">Salary</p>
+          <p className="text-xs text-[var(--text-muted)]">{t('salary')}</p>
           {isEditing ? (
             <SalaryEditor
               staffId={original.id}
@@ -200,7 +205,7 @@ function MobileStaffCard({
           )}
         </div>
         <div className="rounded-xl bg-[var(--bg-surface-secondary)] p-2.5">
-          <p className="text-xs text-[var(--text-muted)]">Hired</p>
+          <p className="text-xs text-[var(--text-muted)]">{t('tableHired')}</p>
           <p className="text-sm font-bold text-[var(--text-primary)]">{row.hireDate}</p>
         </div>
       </div>
@@ -211,10 +216,10 @@ function MobileStaffCard({
           type="button"
           onClick={() => onEditSalary(original)}
           className="flex items-center gap-1.5 text-xs font-medium text-[var(--brand-primary)] hover:underline"
-          aria-label={`Edit salary for ${row.name}`}
+          aria-label={t('editSalaryFor', { name: row.name })}
         >
           <DollarSign size={12} aria-hidden="true" />
-          Edit Salary
+          {t('editSalary')}
         </button>
       )}
     </motion.div>
@@ -244,6 +249,7 @@ function FilterBar({
   onRoleChange,
   onContractChange,
 }: FilterBarProps) {
+  const t = useTranslations('owner.hr');
   const selectCls = cn(
     'h-10 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-secondary)]',
     'px-3 text-sm text-[var(--text-primary)] min-w-[120px]',
@@ -255,16 +261,16 @@ function FilterBar({
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
         <SlidersHorizontal size={13} aria-hidden="true" />
-        Filters
+        {t('filters')}
       </div>
 
       <select
         value={branchFilter}
         onChange={(e) => onBranchChange(e.target.value)}
         className={selectCls}
-        aria-label="Filter by branch"
+        aria-label={t('filterByBranch')}
       >
-        <option value="all">All Branches</option>
+        <option value="all">{t('allBranches')}</option>
         {branches.map((b) => (
           <option key={b.id} value={b.id}>
             {b.name}
@@ -276,28 +282,28 @@ function FilterBar({
         value={roleFilter}
         onChange={(e) => onRoleChange(e.target.value as 'all' | 'teacher' | 'admin')}
         className={selectCls}
-        aria-label="Filter by role"
+        aria-label={t('filterByRole')}
       >
-        <option value="all">All Roles</option>
-        <option value="teacher">Teachers</option>
-        <option value="admin">Admins</option>
+        <option value="all">{t('allRoles')}</option>
+        <option value="teacher">{t('statTeachers')}</option>
+        <option value="admin">{t('statAdmins')}</option>
       </select>
 
       <select
         value={contractFilter}
         onChange={(e) => onContractChange(e.target.value as 'all' | ContractStatus)}
         className={selectCls}
-        aria-label="Filter by contract status"
+        aria-label={t('filterByContract')}
       >
-        <option value="all">All Contracts</option>
-        <option value="active">Active</option>
-        <option value="expired">Expired</option>
-        <option value="pending">Pending</option>
+        <option value="all">{t('allContracts')}</option>
+        <option value="active">{t('active')}</option>
+        <option value="expired">{t('expired')}</option>
+        <option value="pending">{t('pending')}</option>
       </select>
 
       <span className="ml-auto text-xs text-[var(--text-muted)]">
         <strong className="text-[var(--text-primary)]">{resultCount}</strong>{' '}
-        staff member{resultCount !== 1 ? 's' : ''}
+        {t('resultCountLabel')}
       </span>
     </div>
   );
@@ -312,6 +318,7 @@ interface HRPanelProps {
 }
 
 export function HRPanel({ staff, branches, onUpdateSalary }: HRPanelProps) {
+  const t = useTranslations('owner.hr');
   const [branchFilter, setBranchFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState<'all' | 'teacher' | 'admin'>('all');
   const [contractFilter, setContractFilter] = useState<'all' | ContractStatus>('all');
@@ -369,9 +376,9 @@ export function HRPanel({ staff, branches, onUpdateSalary }: HRPanelProps) {
             className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-default)] py-14 text-center"
           >
             <FileCheck size={32} className="mb-3 text-[var(--text-muted)]" aria-hidden="true" />
-            <p className="font-semibold text-[var(--text-primary)]">No staff found</p>
+            <p className="font-semibold text-[var(--text-primary)]">{t('noResultsTitle')}</p>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Try adjusting the filters above.
+              {t('noResultsDesc')}
             </p>
           </motion.div>
         )}
@@ -380,10 +387,18 @@ export function HRPanel({ staff, branches, onUpdateSalary }: HRPanelProps) {
       {/* Desktop table */}
       {filtered.length > 0 && (
         <div className="hidden overflow-hidden rounded-2xl border border-[var(--border-default)] md:block">
-          <table className="w-full text-sm" role="table" aria-label="Staff table">
+          <table className="w-full text-sm" role="table" aria-label={t('staffTable')}>
             <thead>
               <tr className="border-b border-[var(--border-default)] bg-[var(--bg-surface-secondary)]">
-                {['Name', 'Role', 'Branch', 'Salary', 'Contract', 'Hired', 'Actions'].map((col) => (
+                {[
+                  t('tableName'),
+                  t('tableRole'),
+                  t('tableBranch'),
+                  t('salary'),
+                  t('contract'),
+                  t('tableHired'),
+                  t('tableActions'),
+                ].map((col) => (
                   <th
                     key={col}
                     scope="col"
@@ -477,10 +492,10 @@ export function HRPanel({ staff, branches, onUpdateSalary }: HRPanelProps) {
                           type="button"
                           onClick={() => setEditingSalaryId(s.id)}
                           className="flex items-center gap-1 text-xs font-medium text-[var(--brand-primary)] hover:underline"
-                          aria-label={`Edit salary for ${row.name}`}
+                          aria-label={t('editSalaryFor', { name: row.name })}
                         >
                           <DollarSign size={12} aria-hidden="true" />
-                          Edit Salary
+                          {t('editSalary')}
                         </button>
                       )}
                     </td>

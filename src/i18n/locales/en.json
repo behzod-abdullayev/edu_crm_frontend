@@ -634,7 +634,14 @@
       "roleDescStudent": "View courses, submit homework, track grades",
       "roleDescTeacher": "Manage groups, grade submissions, upload lessons",
       "roleDescAdmin": "Configure courses, manage payments, run reports",
-      "roleDescOwner": "Full platform access — all permissions granted"
+      "roleDescOwner": "Full platform access — all permissions granted",
+      "permissionColumn": "Permission",
+      "createCustomRoleAria": "Create a custom role",
+      "grantAction": "Grant",
+      "revokeAction": "Revoke",
+      "togglePermissionAria": "{action} {permission} for {role}",
+      "permissionMatrixTableAria": "Permission matrix table",
+      "permissionMatrixMobileAria": "Permission matrix (mobile)"
     },
     "users": {
       "title": "Users",
@@ -789,7 +796,46 @@
       "contractStatus": "Contract status",
       "active": "Active",
       "expired": "Expired",
-      "onLeave": "On leave"
+      "onLeave": "On leave",
+      "pageTitle": "HR Management",
+      "pageDesc": "Manage staff contracts, salaries, and roles across all branches",
+      "statTeachers": "Teachers",
+      "statAdmins": "Admins",
+      "statActiveContracts": "Active Contracts",
+      "statExpired": "Expired",
+      "statPayroll": "Monthly Payroll",
+      "staffMembers": "Staff Members",
+      "totalCount": "{count} total",
+      "emptyTitle": "No staff found",
+      "emptyDesc": "Staff members will appear here once added to branches",
+      "legendActive": "Active contract",
+      "legendExpired": "Expired contract",
+      "legendPending": "Pending review",
+      "filters": "Filters",
+      "allBranches": "All Branches",
+      "allContracts": "All Contracts",
+      "pending": "Pending",
+      "resultCountLabel": "staff members",
+      "tableName": "Name",
+      "tableRole": "Role",
+      "tableBranch": "Branch",
+      "tableHired": "Hired",
+      "tableActions": "Actions",
+      "editSalary": "Edit Salary",
+      "editSalaryFor": "Edit salary for {name}",
+      "newSalary": "New salary",
+      "save": "Save",
+      "saveSalary": "Save salary",
+      "cancelEditSalary": "Cancel editing salary",
+      "salaryRequired": "Required",
+      "salaryInvalid": "Must be a valid positive number",
+      "filterByBranch": "Filter by branch",
+      "filterByRole": "Filter by role",
+      "filterByContract": "Filter by contract status",
+      "staffTable": "Staff table",
+      "noResultsTitle": "No staff found",
+      "noResultsDesc": "Try adjusting the filters above.",
+      "contractStatusAria": "Contract: {status}"
     },
     "system": {
       "title": "System Config",
@@ -871,6 +917,43 @@
         "forceLogoutConfirmDesc": "This will immediately invalidate all active user sessions across the platform. All users will be logged out and required to sign in again.",
         "forceLogoutSuccess": "All user sessions invalidated successfully.",
         "forceLogoutNotSupported": "Force logout is not yet supported by the backend."
+      },
+      "panel": {
+        "maintenanceEnabledDesc": "⚠️ System is in maintenance mode — all users except owners are locked out",
+        "maintenanceDisabledDesc": "Enable to temporarily restrict all access for maintenance",
+        "toggleMaintenanceAria": "Toggle maintenance mode",
+        "maintenanceBannerText": "Students, teachers, and admins will see a maintenance page. Only owner accounts can access the platform.",
+        "featureFlagsTitle": "Global Feature Flags",
+        "featureFlagsDesc": "These settings apply to all tenants and branches",
+        "toggleFeatureAria": "Toggle {feature}",
+        "featureFlags": {
+          "payments": {
+            "label": "Payments Module",
+            "desc": "Billing, invoices, and debt management"
+          },
+          "chat": {
+            "label": "Chat & Messaging",
+            "desc": "Real-time messaging between users"
+          },
+          "certificates": {
+            "label": "Certificates",
+            "desc": "Issue and download completion certificates"
+          },
+          "exams": {
+            "label": "Exams & Quizzes",
+            "desc": "Online exam and quiz engine"
+          },
+          "analytics": {
+            "label": "Analytics Dashboard",
+            "desc": "Advanced analytics and reports"
+          }
+        },
+        "toggleSslAria": "Toggle SSL/TLS",
+        "saveAriaLabel": "Save configuration changes",
+        "saving": "Saving…",
+        "confirmMaintenanceTitle": "Enable Maintenance Mode?",
+        "confirmMaintenanceDesc": "This will immediately lock out all users except owners. Students, teachers, and admins will see a maintenance page until you disable this mode.",
+        "confirmMaintenanceEnable": "Enable Maintenance"
       }
     }
   },

@@ -628,8 +628,6 @@ export function OwnerSystemClient() {
             health={health ?? DEFAULT_HEALTH}
             apiVersion={health.apiVersion}
             onSaveConfig={handleSaveConfig}
-            onClearCache={handleClearCache}
-            onTriggerBackup={handleTriggerBackup}
           />
         )}
       </motion.section>

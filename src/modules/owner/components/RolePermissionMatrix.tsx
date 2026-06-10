@@ -224,7 +224,11 @@ function MobileCategoryAccordion({
                           aria-checked={hasPermission}
                           disabled={isOwner}
                           onClick={() => onToggle(role.id, perm.key, isOwner)}
-                          aria-label={`${hasPermission ? 'Revoke' : 'Grant'} ${perm.label} for ${role.displayName}`}
+                          aria-label={t('togglePermissionAria', {
+                            action: hasPermission ? t('revokeAction') : t('grantAction'),
+                            permission: perm.label,
+                            role: role.displayName,
+                          })}
                           className={cn(
                             'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all duration-[var(--transition-fast)]',
                             isOwner
@@ -415,7 +419,7 @@ export function RolePermissionMatrix({
             'px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] min-h-[40px]',
             'hover:bg-[var(--bg-surface-hover)] transition-colors',
           )}
-          aria-label="Create a custom role"
+          aria-label={t('createCustomRoleAria')}
         >
           <Plus size={14} aria-hidden="true" />
           {/* FIX XATO 7: i18n key */}
@@ -427,7 +431,7 @@ export function RolePermissionMatrix({
       <div
         className="hidden overflow-x-auto rounded-2xl border border-[var(--border-default)] md:block"
         role="region"
-        aria-label="Permission matrix table"
+        aria-label={t('permissionMatrixTableAria')}
       >
         <table className="w-full text-sm" role="table">
           <thead>
@@ -437,7 +441,7 @@ export function RolePermissionMatrix({
                 scope="col"
                 className="sticky left-0 z-10 min-w-[200px] bg-[var(--bg-surface-secondary)] px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]"
               >
-                Permission
+                {t('permissionColumn')}
               </th>
               {/* Role column headers */}
               {matrix.roles.map((role) => (
@@ -486,7 +490,7 @@ export function RolePermissionMatrix({
       <div
         className="space-y-2 md:hidden"
         role="region"
-        aria-label="Permission matrix (mobile)"
+        aria-label={t('permissionMatrixMobileAria')}
       >
         {matrix.allPermissions.map((category) => (
           <MobileCategoryAccordion
@@ -544,6 +548,7 @@ function CategoryRows({
   permissions,
   onToggle,
 }: CategoryRowsProps) {
+  const t = useTranslations('owner.roles');
   const badgeCls =
     CATEGORY_BADGE[category.category] ??
     'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]';
@@ -599,7 +604,11 @@ function CategoryRows({
                 <PermCheckbox
                   checked={hasPermission}
                   disabled={isOwner}
-                  label={`${hasPermission ? 'Revoke' : 'Grant'} ${perm.label} for ${role.displayName}`}
+                  label={t('togglePermissionAria', {
+                    action: hasPermission ? t('revokeAction') : t('grantAction'),
+                    permission: perm.label,
+                    role: role.displayName,
+                  })}
                   onChange={() => onToggle(role.id, perm.key, isOwner)}
                 />
               </td>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import type { SystemConfig, SystemHealth, GlobalFeatureFlags } from '../types/owner.types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -10,28 +11,8 @@ export interface SystemConfigPanelProps {
   config: SystemConfig;
   health: SystemHealth;
   apiVersion: string;
-  onSaveConfig:    (config: SystemConfig) => Promise<void>;
-  onClearCache:    () => Promise<void>;
-  onTriggerBackup: () => Promise<void>;
+  onSaveConfig: (config: SystemConfig) => Promise<void>;
 }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const FEATURE_FLAG_LABELS: Record<keyof GlobalFeatureFlags, string> = {
-  payments:     'Payments Module',
-  chat:         'Chat & Messaging',
-  certificates: 'Certificates',
-  exams:        'Exams & Quizzes',
-  analytics:    'Analytics Dashboard',
-};
-
-const FEATURE_FLAG_DESCRIPTIONS: Record<keyof GlobalFeatureFlags, string> = {
-  payments:     'Billing, invoices, and debt management',
-  chat:         'Real-time messaging between users',
-  certificates: 'Issue and download completion certificates',
-  exams:        'Online exam and quiz engine',
-  analytics:    'Advanced analytics and reports',
-};
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -136,6 +117,7 @@ interface MaintenanceSectionProps {
 }
 
 function MaintenanceSection({ isEnabled, onToggle }: MaintenanceSectionProps) {
+  const t = useTranslations('owner.system');
   return (
     <motion.div
       className="rounded-xl border p-5 sm:p-6 transition-colors duration-300"
@@ -154,19 +136,19 @@ function MaintenanceSection({ isEnabled, onToggle }: MaintenanceSectionProps) {
             className="text-sm font-semibold"
             style={{ color: isEnabled ? 'var(--error-text)' : 'var(--text-primary)' }}
           >
-            Maintenance Mode
+            {t('maintenance')}
           </h3>
           <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
             {isEnabled
-              ? '⚠️ System is in maintenance mode — all users except owners are locked out'
-              : 'Enable to temporarily restrict all access for maintenance'}
+              ? t('panel.maintenanceEnabledDesc')
+              : t('panel.maintenanceDisabledDesc')}
           </p>
         </div>
         <AnimatedToggle
           checked={isEnabled}
           onChange={onToggle}
           id="maintenance-toggle"
-          label="Toggle maintenance mode"
+          label={t('panel.toggleMaintenanceAria')}
           danger
         />
       </div>
@@ -183,8 +165,7 @@ function MaintenanceSection({ isEnabled, onToggle }: MaintenanceSectionProps) {
           >
             <span aria-hidden="true" className="text-base leading-none mt-0.5">🔒</span>
             <p className="text-xs" style={{ color: 'var(--error-text)' }}>
-              Students, teachers, and admins will see a maintenance page. Only owner accounts
-              can access the platform.
+              {t('panel.maintenanceBannerText')}
             </p>
           </motion.div>
         )}
@@ -201,13 +182,14 @@ interface FeatureFlagsSectionProps {
 }
 
 function FeatureFlagsSection({ flags, onToggle }: FeatureFlagsSectionProps) {
+  const t = useTranslations('owner.system');
   return (
     <SectionCard index={2}>
       <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-        Global Feature Flags
+        {t('panel.featureFlagsTitle')}
       </h3>
       <p className="mt-0.5 mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-        These settings apply to all tenants and branches
+        {t('panel.featureFlagsDesc')}
       </p>
 
       <div className="space-y-3">
@@ -225,17 +207,17 @@ function FeatureFlagsSection({ flags, onToggle }: FeatureFlagsSectionProps) {
           >
             <div className="min-w-0">
               <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {FEATURE_FLAG_LABELS[key]}
+                {t(`panel.featureFlags.${key}.label`)}
               </p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {FEATURE_FLAG_DESCRIPTIONS[key]}
+                {t(`panel.featureFlags.${key}.desc`)}
               </p>
             </div>
             <AnimatedToggle
               checked={flags[key]}
               onChange={() => onToggle(key)}
               id={`flag-${key}`}
-              label={`Toggle ${FEATURE_FLAG_LABELS[key]}`}
+              label={t('panel.toggleFeatureAria', { feature: t(`panel.featureFlags.${key}.label`) })}
             />
           </motion.div>
         ))}
@@ -259,13 +241,14 @@ interface SmtpSectionProps {
 }
 
 function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSectionProps) {
+  const t = useTranslations('owner.system');
   const inputClass =
     'w-full rounded-lg border px-3 py-2.5 text-sm min-h-[44px] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--border-focus)] focus:ring-offset-1';
 
   return (
     <SectionCard index={3}>
       <h3 className="mb-4 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-        Email SMTP Configuration
+        {t('smtp.title')}
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -276,7 +259,7 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
             className="block text-xs font-medium"
             style={{ color: 'var(--text-secondary)' }}
           >
-            SMTP Host
+            {t('smtp.host')}
           </label>
           <input
             id="smtp-host"
@@ -300,7 +283,7 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
             className="block text-xs font-medium"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Port
+            {t('smtp.port')}
           </label>
           <input
             id="smtp-port"
@@ -325,7 +308,7 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
             className="block text-xs font-medium"
             style={{ color: 'var(--text-secondary)' }}
           >
-            SMTP User (email)
+            {t('smtp.user')}
           </label>
           <input
             id="smtp-user"
@@ -350,7 +333,7 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
             className="block text-xs font-medium"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Password
+            {t('smtp.password')}
           </label>
           <input
             id="smtp-password"
@@ -374,14 +357,14 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
             checked={secure}
             onChange={() => onChange('secure', !secure)}
             id="smtp-secure"
-            label="Toggle SSL/TLS"
+            label={t('panel.toggleSslAria')}
           />
           <label
             htmlFor="smtp-secure"
             className="cursor-pointer text-sm"
             style={{ color: 'var(--text-primary)' }}
           >
-            Use SSL / TLS (recommended for port 465)
+            {t('smtp.ssl')}
           </label>
         </div>
       </div>
@@ -392,24 +375,13 @@ function SmtpSection({ host, port, user, password, secure, onChange }: SmtpSecti
 // ─── Action Bar ───────────────────────────────────────────────────────────────
 
 interface ActionBarProps {
-  isSaving:       boolean;
-  isClearingCache: boolean;
-  isBackingUp:    boolean;
-  savedAt:        Date | null;
-  onSave:         () => void;
-  onClearCache:   () => void;
-  onBackup:       () => void;
+  isSaving: boolean;
+  savedAt:  Date | null;
+  onSave:   () => void;
 }
 
-function ActionBar({
-  isSaving,
-  isClearingCache,
-  isBackingUp,
-  savedAt,
-  onSave,
-  onClearCache,
-  onBackup,
-}: ActionBarProps) {
+function ActionBar({ isSaving, savedAt, onSave }: ActionBarProps) {
+  const t = useTranslations('owner.system');
   return (
     <motion.div
       className="flex flex-wrap items-center gap-3 pt-2"
@@ -422,7 +394,7 @@ function ActionBar({
         type="button"
         onClick={onSave}
         disabled={isSaving}
-        aria-label="Save configuration changes"
+        aria-label={t('panel.saveAriaLabel')}
         aria-busy={isSaving}
         className="rounded-lg px-6 py-2.5 text-sm font-semibold min-h-[44px] text-white disabled:opacity-50"
         style={{ background: 'var(--brand-primary)' }}
@@ -437,49 +409,11 @@ function ActionBar({
               transition={{ duration: 0.75, repeat: Infinity, ease: 'linear' }}
               aria-hidden="true"
             />
-            Saving…
+            {t('panel.saving')}
           </span>
         ) : (
-          'Save Configuration'
+          t('save')
         )}
-      </motion.button>
-
-      {/* Clear cache */}
-      <motion.button
-        type="button"
-        onClick={onClearCache}
-        disabled={isClearingCache}
-        aria-label="Clear application cache"
-        aria-busy={isClearingCache}
-        className="rounded-lg border px-4 py-2.5 text-sm font-medium min-h-[44px] disabled:opacity-50 transition-colors hover:bg-[var(--bg-surface-hover)]"
-        style={{
-          borderColor: 'var(--border-default)',
-          color:       'var(--text-primary)',
-          background:  'var(--bg-surface)',
-        }}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.97 }}
-      >
-        {isClearingCache ? 'Clearing…' : 'Clear Cache'}
-      </motion.button>
-
-      {/* Backup */}
-      <motion.button
-        type="button"
-        onClick={onBackup}
-        disabled={isBackingUp}
-        aria-label="Trigger database backup"
-        aria-busy={isBackingUp}
-        className="rounded-lg border px-4 py-2.5 text-sm font-medium min-h-[44px] disabled:opacity-50 transition-colors hover:bg-[var(--bg-surface-hover)]"
-        style={{
-          borderColor: 'var(--border-default)',
-          color:       'var(--text-primary)',
-          background:  'var(--bg-surface)',
-        }}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.97 }}
-      >
-        {isBackingUp ? 'Backing up…' : 'Trigger Backup'}
       </motion.button>
 
       {/* Save timestamp */}
@@ -496,7 +430,7 @@ function ActionBar({
             aria-live="polite"
           >
             <span aria-hidden="true">✓</span>
-            Saved at {savedAt.toLocaleTimeString()}
+            {t('savedAt')} {savedAt.toLocaleTimeString()}
           </motion.span>
         )}
       </AnimatePresence>
@@ -512,6 +446,7 @@ interface ConfirmMaintenanceProps {
 }
 
 function ConfirmMaintenanceDialog({ onConfirm, onCancel }: ConfirmMaintenanceProps) {
+  const t = useTranslations('owner.system');
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
@@ -551,15 +486,14 @@ function ConfirmMaintenanceDialog({ onConfirm, onCancel }: ConfirmMaintenancePro
           className="mb-2 text-lg font-semibold"
           style={{ color: 'var(--text-primary)' }}
         >
-          Enable Maintenance Mode?
+          {t('panel.confirmMaintenanceTitle')}
         </h3>
         <p
           id="maintenance-confirm-desc"
           className="mb-6 text-sm"
           style={{ color: 'var(--text-secondary)' }}
         >
-          This will immediately lock out all users except owners. Students, teachers, and admins
-          will see a maintenance page until you disable this mode.
+          {t('panel.confirmMaintenanceDesc')}
         </p>
 
         <div className="flex gap-3">
@@ -570,7 +504,7 @@ function ConfirmMaintenanceDialog({ onConfirm, onCancel }: ConfirmMaintenancePro
             style={{ background: 'var(--error-solid)' }}
             whileTap={{ scale: 0.97 }}
           >
-            Enable Maintenance
+            {t('panel.confirmMaintenanceEnable')}
           </motion.button>
           <motion.button
             type="button"
@@ -582,7 +516,7 @@ function ConfirmMaintenanceDialog({ onConfirm, onCancel }: ConfirmMaintenancePro
             }}
             whileTap={{ scale: 0.97 }}
           >
-            Cancel
+            {t('cancel')}
           </motion.button>
         </div>
       </motion.div>
@@ -597,14 +531,10 @@ export function SystemConfigPanel({
   health: _health,
   apiVersion: _apiVersion,
   onSaveConfig,
-  onClearCache,
-  onTriggerBackup,
 }: SystemConfigPanelProps) {
   const [local,               setLocal]               = useState<SystemConfig>(config);
   const [confirmMaintenance,  setConfirmMaintenance]  = useState(false);
   const [isSaving,            setIsSaving]            = useState(false);
-  const [isClearingCache,     setIsClearingCache]     = useState(false);
-  const [isBackingUp,         setIsBackingUp]         = useState(false);
   const [savedAt,             setSavedAt]             = useState<Date | null>(null);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -649,24 +579,6 @@ export function SystemConfigPanel({
     }
   };
 
-  const handleClearCache = async () => {
-    setIsClearingCache(true);
-    try {
-      await onClearCache();
-    } finally {
-      setIsClearingCache(false);
-    }
-  };
-
-  const handleBackup = async () => {
-    setIsBackingUp(true);
-    try {
-      await onTriggerBackup();
-    } finally {
-      setIsBackingUp(false);
-    }
-  };
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -696,12 +608,8 @@ export function SystemConfigPanel({
       {/* 4. Action bar */}
       <ActionBar
         isSaving={isSaving}
-        isClearingCache={isClearingCache}
-        isBackingUp={isBackingUp}
         savedAt={savedAt}
         onSave={handleSave}
-        onClearCache={handleClearCache}
-        onBackup={handleBackup}
       />
 
       {/* Confirmation dialog */}

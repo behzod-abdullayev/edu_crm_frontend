@@ -634,7 +634,14 @@
       "roleDescStudent": "Kurslarni ko'rish, uyga vazifalarni topshirish, baholarni kuzatish",
       "roleDescTeacher": "Guruhlarni boshqarish, uyga vazifalarni baholash, darslarni yuklash",
       "roleDescAdmin": "Kurslarni sozlash, to'lovlarni boshqarish, hisobotlarni ishga tushirish",
-      "roleDescOwner": "To'liq platforma kirishi — barcha huquqlar berilgan"
+      "roleDescOwner": "To'liq platforma kirishi — barcha huquqlar berilgan",
+      "permissionColumn": "Huquq",
+      "createCustomRoleAria": "Maxsus rol yaratish",
+      "grantAction": "Berish",
+      "revokeAction": "Bekor qilish",
+      "togglePermissionAria": "{role} uchun \"{permission}\" huquqini {action}",
+      "permissionMatrixTableAria": "Huquqlar matritsasi jadvali",
+      "permissionMatrixMobileAria": "Huquqlar matritsasi (mobil)"
     },
     "users": {
       "title": "Foydalanuvchilar",
@@ -789,7 +796,46 @@
       "contractStatus": "Shartnoma holati",
       "active": "Faol",
       "expired": "Muddati tugagan",
-      "onLeave": "Ta'tilda"
+      "onLeave": "Ta'tilda",
+      "pageTitle": "HR boshqaruvi",
+      "pageDesc": "Barcha filiallar bo'yicha xodimlar shartnomalari, maoshlari va rollarini boshqaring",
+      "statTeachers": "O'qituvchilar",
+      "statAdmins": "Administratorlar",
+      "statActiveContracts": "Faol shartnomalar",
+      "statExpired": "Muddati tugagan",
+      "statPayroll": "Oylik ish haqi fondi",
+      "staffMembers": "Xodimlar",
+      "totalCount": "Jami: {count}",
+      "emptyTitle": "Xodimlar topilmadi",
+      "emptyDesc": "Filiallarga xodim qo'shilgach, ular shu yerda ko'rinadi",
+      "legendActive": "Faol shartnoma",
+      "legendExpired": "Muddati tugagan shartnoma",
+      "legendPending": "Ko'rib chiqilmoqda",
+      "filters": "Filtrlar",
+      "allBranches": "Barcha filiallar",
+      "allContracts": "Barcha shartnomalar",
+      "pending": "Ko'rib chiqilmoqda",
+      "resultCountLabel": "xodim",
+      "tableName": "Ism",
+      "tableRole": "Roli",
+      "tableBranch": "Filial",
+      "tableHired": "Ishga olingan",
+      "tableActions": "Amallar",
+      "editSalary": "Maoshni tahrirlash",
+      "editSalaryFor": "{name} uchun maoshni tahrirlash",
+      "newSalary": "Yangi maosh",
+      "save": "Saqlash",
+      "saveSalary": "Maoshni saqlash",
+      "cancelEditSalary": "Maosh tahrirlashni bekor qilish",
+      "salaryRequired": "Majburiy",
+      "salaryInvalid": "Musbat son bo'lishi kerak",
+      "filterByBranch": "Filial bo'yicha filtrlash",
+      "filterByRole": "Rol bo'yicha filtrlash",
+      "filterByContract": "Shartnoma holati bo'yicha filtrlash",
+      "staffTable": "Xodimlar jadvali",
+      "noResultsTitle": "Xodimlar topilmadi",
+      "noResultsDesc": "Yuqoridagi filtrlarni o'zgartirib ko'ring.",
+      "contractStatusAria": "Shartnoma: {status}"
     },
     "system": {
       "title": "Tizim sozlamalari",
@@ -871,6 +917,43 @@
         "forceLogoutConfirmDesc": "Bu platforma bo'ylab barcha faol foydalanuvchi seanslarini darhol bekor qiladi. Barcha foydalanuvchilar tizimdan chiqariladi.",
         "forceLogoutSuccess": "Barcha foydalanuvchi seanslar muvaffaqiyatli bekor qilindi.",
         "forceLogoutNotSupported": "Majburan chiqarish backend tomonidan hali qo'llab-quvvatlanmaydi."
+      },
+      "panel": {
+        "maintenanceEnabledDesc": "⚠️ Tizim texnik xizmat rejimida — egalardan tashqari barcha foydalanuvchilar bloklangan",
+        "maintenanceDisabledDesc": "Texnik xizmat uchun barcha kirishni vaqtincha cheklash uchun yoqing",
+        "toggleMaintenanceAria": "Texnik xizmat rejimini almashtirish",
+        "maintenanceBannerText": "O'quvchilar, o'qituvchilar va administratorlar texnik xizmat sahifasini ko'radi. Faqat egalar hisoblari platformaga kira oladi.",
+        "featureFlagsTitle": "Global funksiya bayroqlari",
+        "featureFlagsDesc": "Bu sozlamalar barcha tenantlar va filiallarga taalluqli",
+        "toggleFeatureAria": "{feature} ni almashtirish",
+        "featureFlags": {
+          "payments": {
+            "label": "To'lovlar moduli",
+            "desc": "Hisob-fakturalar va qarzlarni boshqarish"
+          },
+          "chat": {
+            "label": "Chat va xabarlar",
+            "desc": "Foydalanuvchilar o'rtasida real vaqtda xabar almashish"
+          },
+          "certificates": {
+            "label": "Sertifikatlar",
+            "desc": "Tugatish sertifikatlarini berish va yuklab olish"
+          },
+          "exams": {
+            "label": "Imtihonlar va testlar",
+            "desc": "Onlayn imtihon va test tizimi"
+          },
+          "analytics": {
+            "label": "Analitika paneli",
+            "desc": "Kengaytirilgan analitika va hisobotlar"
+          }
+        },
+        "toggleSslAria": "SSL/TLS ni almashtirish",
+        "saveAriaLabel": "Konfiguratsiya o'zgarishlarini saqlash",
+        "saving": "Saqlanmoqda…",
+        "confirmMaintenanceTitle": "Texnik xizmat rejimini yoqasizmi?",
+        "confirmMaintenanceDesc": "Bu darhol egalardan tashqari barcha foydalanuvchilarni bloklaydi. O'quvchilar, o'qituvchilar va administratorlar siz bu rejimni o'chirmaguningizcha texnik xizmat sahifasini ko'radi.",
+        "confirmMaintenanceEnable": "Texnik xizmatni yoqish"
       }
     }
   },
