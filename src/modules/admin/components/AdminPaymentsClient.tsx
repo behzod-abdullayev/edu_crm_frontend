@@ -5,7 +5,7 @@
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { usePayments } from '@/modules/payments/hooks/usePayments';
 import { PaymentOverview } from '@/modules/payments/components/PaymentOverview';
 import { InvoiceList } from '@/modules/payments/components/InvoiceList';
@@ -14,14 +14,73 @@ import { AdminPaymentsSkeleton } from './AdminPaymentsSkeleton';
 import { useToast } from '@shared/hooks/useToast';
 import { useIsMobile } from '@shared/hooks/useIsMobile';
 
+// ─── i18n ───────────────────────────────────────────────────────────────────
+
+const I18N = {
+  uz: {
+    subtitle: "Hisob-fakturalar, to'lovlar va qarzdorlikni boshqarish",
+    errorTitle: "To'lovlarni yuklab bo'lmadi",
+    retry: 'Qayta urinish',
+    refresh: 'Yangilash',
+    refreshAria: "To'lovlarni yangilash",
+    createInvoice: 'Hisob-faktura',
+    createInvoiceAria: 'Hisob-faktura yaratish',
+    tablistAria: "To'lov ko'rinishlari",
+    tabs: { invoices: 'Hisob-fakturalar', debts: 'Qarzdorliklar' },
+    toast: {
+      markPaidSuccess: "Hisob-faktura to'langan deb belgilandi",
+      markPaidFailed: "Hisob-fakturani to'langan deb belgilab bo'lmadi",
+      createInvoiceInfo: 'Hisob-faktura yaratish formasi tez orada ishga tushadi',
+      exportSuccess: 'Muvaffaqiyatli eksport qilindi',
+      exportEmpty: "Eksport qilish uchun hisob-fakturalar yo'q",
+      reminderUnavailable: 'Eslatma yuborish funksiyasi hozircha mavjud emas',
+    },
+  },
+  en: {
+    subtitle: 'Manage invoices, payments, and outstanding debts',
+    errorTitle: 'Failed to load payments',
+    retry: 'Retry',
+    refresh: 'Refresh',
+    refreshAria: 'Refresh payments',
+    createInvoice: 'New Invoice',
+    createInvoiceAria: 'Create invoice',
+    tablistAria: 'Payment views',
+    tabs: { invoices: 'Invoices', debts: 'Debts' },
+    toast: {
+      markPaidSuccess: 'Invoice marked as paid',
+      markPaidFailed: 'Failed to mark invoice as paid',
+      createInvoiceInfo: 'Invoice creation form is coming soon',
+      exportSuccess: 'Exported successfully',
+      exportEmpty: 'No invoices to export',
+      reminderUnavailable: 'Sending reminders is not available yet',
+    },
+  },
+  ru: {
+    subtitle: 'Управление счетами, платежами и задолженностями',
+    errorTitle: 'Не удалось загрузить платежи',
+    retry: 'Повторить',
+    refresh: 'Обновить',
+    refreshAria: 'Обновить платежи',
+    createInvoice: 'Новый счёт',
+    createInvoiceAria: 'Создать счёт',
+    tablistAria: 'Виды платежей',
+    tabs: { invoices: 'Счета', debts: 'Задолженности' },
+    toast: {
+      markPaidSuccess: 'Счёт отмечен как оплаченный',
+      markPaidFailed: 'Не удалось отметить счёт как оплаченный',
+      createInvoiceInfo: 'Форма создания счёта скоро появится',
+      exportSuccess: 'Экспорт выполнен успешно',
+      exportEmpty: 'Нет счетов для экспорта',
+      reminderUnavailable: 'Отправка напоминаний пока недоступна',
+    },
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
 type Tab = 'invoices' | 'debts';
-
-const TABS: { value: Tab; label: string; icon: string }[] = [
-  { value: 'invoices', label: 'Invoices', icon: '🧾' },
-  { value: 'debts',    label: 'Debts',    icon: '⚠️' },
-];
 
 // ─── Page transition ──────────────────────────────────────────────────────────
 
@@ -30,28 +89,38 @@ const pageVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
 };
 
+// ─── CSV export helper ─────────────────────────────────────────────────────────
+
+function escapeCsvField(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 // ─── AdminPaymentsClient ──────────────────────────────────────────────────────
 
 export function AdminPaymentsClient() {
-  const t         = useTranslations('admin.payments');
-  const locale    = useLocale();
-  const router    = useRouter();
-  const isMobile  = useIsMobile();
-  const { toast } = useToast();
+  const t          = useTranslations('admin.payments');
+  const rawLocale  = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s          = I18N[locale];
+  const router     = useRouter();
+  const isMobile   = useIsMobile();
+  const { toast }  = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices');
+
+  const TABS: { value: Tab; label: string; icon: string }[] = [
+    { value: 'invoices', label: s.tabs.invoices, icon: '🧾' },
+    { value: 'debts',    label: s.tabs.debts,    icon: '⚠️' },
+  ];
 
   const {
     overview,
     invoices,
+    monthlyRevenue,
     debts,
     isLoading,
-    isOffline,
     error,
     markPaid,
-    createInvoice: _createInvoice,
-    sendReminder,
-    refundInvoice: _refundInvoice,
     refresh,
   } = usePayments();
 
@@ -61,18 +130,17 @@ export function AdminPaymentsClient() {
     async (id: string) => {
       try {
         await markPaid(id);
-        toast.success('Invoice marked as paid');
+        toast.success(s.toast.markPaidSuccess);
       } catch {
-        toast.error('Failed to mark invoice as paid');
+        toast.error(s.toast.markPaidFailed);
       }
     },
-    [markPaid, toast],
+    [markPaid, toast, s],
   );
 
   const handleCreateInvoice = useCallback(() => {
-    // Open create modal / navigate to create form (implementation via modal in full version)
-    toast.info('Invoice creation form would open here');
-  }, [toast]);
+    toast.info(s.toast.createInvoiceInfo);
+  }, [toast, s]);
 
   const handleViewDetail = useCallback(
     (id: string) => {
@@ -81,34 +149,41 @@ export function AdminPaymentsClient() {
     [router, locale],
   );
 
-  const handleExport = useCallback(async (_ids?: string[]) => {
-    try {
-      const res = await fetch('/api/admin/payments/invoices/export?format=csv');
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
+  const handleExport = useCallback(
+    (ids: string[]) => {
+      const rows = ids.length > 0 ? invoices.filter((inv) => ids.includes(inv.id)) : invoices;
+      if (rows.length === 0) {
+        toast.info(s.toast.exportEmpty);
+        return;
+      }
+
+      const header = ['Student', 'Course', 'Amount', 'Currency', 'Status', 'Due Date'].join(',');
+      const csvRows = rows.map((inv) =>
+        [
+          escapeCsvField(inv.studentName),
+          escapeCsvField(inv.courseName),
+          String(inv.amount),
+          inv.currency,
+          inv.status,
+          inv.dueDate,
+        ].join(','),
+      );
+      const csv = [header, ...csvRows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
       a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Exported successfully');
-    } catch {
-      toast.error('Export failed');
-    }
-  }, [toast]);
-
-  const handleSendReminder = useCallback(
-    async (studentId: string) => {
-      try {
-        await sendReminder(studentId);
-        toast.success('Reminder sent');
-      } catch {
-        toast.error('Failed to send reminder');
-      }
+      toast.success(s.toast.exportSuccess);
     },
-    [sendReminder, toast],
+    [invoices, toast, s],
   );
+
+  const handleSendReminder = useCallback(() => {
+    toast.info(s.toast.reminderUnavailable);
+  }, [toast, s]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
@@ -118,7 +193,7 @@ export function AdminPaymentsClient() {
 
   // ── Error ─────────────────────────────────────────────────────────────────
 
-  if (error !== null && !isOffline) {
+  if (error !== null) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -129,7 +204,7 @@ export function AdminPaymentsClient() {
       >
         <span className="text-4xl" aria-hidden="true">⚠️</span>
         <div>
-          <p className="font-semibold text-[var(--text-primary)]">Failed to load payments</p>
+          <p className="font-semibold text-[var(--text-primary)]">{s.errorTitle}</p>
           <p className="mt-1 text-sm text-[var(--text-muted)]">{error}</p>
         </div>
         <motion.button
@@ -144,7 +219,7 @@ export function AdminPaymentsClient() {
           "
           type="button"
         >
-          Retry
+          {s.retry}
         </motion.button>
       </motion.div>
     );
@@ -166,7 +241,7 @@ export function AdminPaymentsClient() {
             {t('title')}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            Manage invoices, payments, and outstanding debts
+            {s.subtitle}
           </p>
         </div>
 
@@ -185,10 +260,10 @@ export function AdminPaymentsClient() {
               focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2
             "
             type="button"
-            aria-label="Refresh payments"
+            aria-label={s.refreshAria}
           >
             <span aria-hidden="true">↻</span>
-            {!isMobile && <span>Refresh</span>}
+            {!isMobile && <span>{s.refresh}</span>}
           </motion.button>
 
           {/* Create invoice */}
@@ -205,41 +280,17 @@ export function AdminPaymentsClient() {
               focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2
             "
             type="button"
-            aria-label="Create invoice"
+            aria-label={s.createInvoiceAria}
           >
             <span aria-hidden="true">+</span>
-            {!isMobile && <span>New Invoice</span>}
+            {!isMobile && <span>{s.createInvoice}</span>}
           </motion.button>
         </div>
       </div>
 
-      {/* ── Offline banner ─────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isOffline && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className="flex items-center gap-2 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] px-4 py-3 text-sm text-[var(--warning-text)]"
-              role="status"
-              aria-live="polite"
-            >
-              <span aria-hidden="true">📶</span>
-              <span>
-                You&rsquo;re offline. Showing cached data.
-                Connect to the internet to see real-time updates.
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Overview KPI cards ─────────────────────────────────────────── */}
       {overview !== null && (
-        <PaymentOverview data={overview} isOffline={isOffline} />
+        <PaymentOverview data={overview} monthlyRevenue={monthlyRevenue} />
       )}
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
@@ -247,7 +298,7 @@ export function AdminPaymentsClient() {
         <nav
           className="flex gap-0"
           role="tablist"
-          aria-label="Payment views"
+          aria-label={s.tablistAria}
         >
           {TABS.map((tab) => (
             <button
@@ -274,48 +325,42 @@ export function AdminPaymentsClient() {
       </div>
 
       {/* ── Tab panels ─────────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {activeTab === 'invoices' && (
-          <motion.div
-            key="invoices"
-            id="panel-invoices"
-            role="tabpanel"
-            aria-labelledby="tab-invoices"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <InvoiceList
-              invoices={invoices}
-              canManage={true}
-              onMarkPaid={(id) => { void handleMarkPaid(id); }}
-              onSendReminder={(id) => { void handleSendReminder(id); }}
-              onCreateInvoice={handleCreateInvoice}
-              onViewDetail={handleViewDetail}
-              onExport={(ids) => { void handleExport(ids); }}
-            />
-          </motion.div>
-        )}
-
-        {activeTab === 'debts' && (
-          <motion.div
-            key="debts"
-            id="panel-debts"
-            role="tabpanel"
-            aria-labelledby="tab-debts"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <DebtCalculator
-              debts={debts}
-              onSendReminder={(studentId) => { void handleSendReminder(studentId); }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {activeTab === 'invoices' ? (
+        <motion.div
+          key="invoices"
+          id="panel-invoices"
+          role="tabpanel"
+          aria-labelledby="tab-invoices"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <InvoiceList
+            invoices={invoices}
+            canManage={true}
+            onMarkPaid={(id) => { void handleMarkPaid(id); }}
+            onSendReminder={handleSendReminder}
+            onCreateInvoice={handleCreateInvoice}
+            onViewDetail={handleViewDetail}
+            onExport={handleExport}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="debts"
+          id="panel-debts"
+          role="tabpanel"
+          aria-labelledby="tab-debts"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <DebtCalculator
+            debts={debts}
+            onSendReminder={handleSendReminder}
+          />
+        </motion.div>
+      )}
     </motion.div>
   );
 }

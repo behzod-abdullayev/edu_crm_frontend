@@ -1,14 +1,8 @@
 'use client';
 
-// ✅ FIX 1: `differenceInDays` and `format` were imported but NEVER used.
-// With the project's ESLint config (@typescript-eslint/no-unused-vars), unused
-// imports produce lint errors.  They have been removed entirely.
-//
-// ✅ FIX 2: `DebtSummary` is used only as a type.  Use `import type` to make
-// the intent explicit and satisfy any future `verbatimModuleSyntax` upgrade.
-
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Bell } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { DebtSummary } from '../types/payment.types';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -19,12 +13,6 @@ interface DebtCalculatorProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getDaysOverdueLabel(days: number): string {
-  if (days <= 0) return 'Not overdue';
-  if (days === 1) return '1 day overdue';
-  return `${days} days overdue`;
-}
 
 type OverdueSeverity = 'none' | 'mild' | 'moderate' | 'severe';
 
@@ -74,6 +62,7 @@ const rowVariants = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
+  const t = useTranslations('payments');
   const totalOwed = debts.reduce((sum, d) => sum + d.totalOwed, 0);
   const totalOverdue = debts.reduce((sum, d) => sum + d.overdueAmount, 0);
   const overdueDebts = debts.filter((d) => d.daysOverdue > 0);
@@ -88,22 +77,22 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
 
   const summaryStats = [
     {
-      label: 'Total Owed',
+      label: t('totalOwed'),
       value: `${totalOwed.toLocaleString()} ${currency}`,
       highlight: false,
     },
     {
-      label: 'Total Overdue',
+      label: t('totalOverdueAmount'),
       value: `${totalOverdue.toLocaleString()} ${currency}`,
       highlight: true,
     },
     {
-      label: 'Students Overdue',
+      label: t('studentsOverdue'),
       value: String(overdueCount),
       highlight: overdueCount > 0,
     },
     {
-      label: 'Avg Days Overdue',
+      label: t('avgDaysOverdue'),
       value: `${avgDaysOverdue}d`,
       highlight: false,
     },
@@ -126,12 +115,12 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
         )}
         <div>
           <h3 className="text-base font-semibold text-[var(--text-primary)]">
-            Debt Summary
+            {t('debtSummary')}
           </h3>
           <p className="text-sm text-[var(--text-muted)]">
             {overdueCount === 0
-              ? 'No overdue payments'
-              : `${overdueCount} student${overdueCount !== 1 ? 's' : ''} with overdue payments`}
+              ? t('noOverduePayments')
+              : t('studentsWithOverdue', { count: overdueCount })}
           </p>
         </div>
       </div>
@@ -140,7 +129,7 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
       <div
         className="grid grid-cols-2 sm:grid-cols-4 border-b border-[var(--border-default)]"
         role="list"
-        aria-label="Debt statistics"
+        aria-label={t('debtStatistics')}
       >
         {summaryStats.map((stat, i) => (
           <motion.div
@@ -177,13 +166,13 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
             className="px-6 py-10 text-center text-sm text-[var(--text-muted)]"
             role="status"
           >
-            No outstanding debts
+            {t('noOutstandingDebts')}
           </motion.div>
         ) : (
           <motion.div
             key="list"
             role="list"
-            aria-label="Student debts"
+            aria-label={t('studentDebts')}
             className="divide-y divide-[var(--border-default)]"
             variants={listVariants}
             initial="hidden"
@@ -208,7 +197,7 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
                       {debt.studentName}
                     </p>
                     <p className={`text-xs ${SEVERITY_CLASSES[severity]}`}>
-                      {getDaysOverdueLabel(debt.daysOverdue)}
+                      {t('daysOverdue', { days: debt.daysOverdue })}
                     </p>
                   </div>
 
@@ -219,7 +208,7 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
                     </p>
                     {debt.overdueAmount > 0 && (
                       <p className="text-xs font-medium text-[var(--error-text)] tabular-nums">
-                        {debt.overdueAmount.toLocaleString()} overdue
+                        {debt.overdueAmount.toLocaleString()} {t('overdueSuffix')}
                       </p>
                     )}
                   </div>
@@ -232,11 +221,11 @@ export function DebtCalculator({ debts, onSendReminder }: DebtCalculatorProps) {
                       whileTap={{ scale: 0.95 }}
                       whileHover={{ scale: 1.02 }}
                       transition={{ duration: 0.15 }}
-                      aria-label={`Send payment reminder to ${debt.studentName}`}
+                      aria-label={t('sendReminderTo', { name: debt.studentName })}
                       className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] min-h-[32px]"
                     >
                       <Bell className="w-3 h-3" aria-hidden="true" />
-                      Remind
+                      {t('remind')}
                     </motion.button>
                   )}
                 </motion.div>

@@ -16,16 +16,19 @@ export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'online';
 export interface Payment {
   id: string;
   studentId: string;
-  studentName: string;
+  studentName?: string;
   courseId?: string;
   courseName?: string;
   amount: number;
+  totalAmount?: number;
+  discountAmount?: number;
   currency: string;
   status: PaymentStatus;
   method?: PaymentMethod;
   description?: string;
-  dueDate?: string;
-  paidAt?: string;
+  notes?: string | null;
+  dueDate?: string | null;
+  paidAt?: string | null;
   invoiceUrl?: string;
   tenantId: string;
   createdAt: string;
@@ -53,6 +56,7 @@ export interface PaymentSummary {
   totalRevenue: number;
   totalPending: number;
   totalOverdue: number;
+  totalRefunded: number;
   currency: string;
   monthlyRevenue: Array<{ month: string; amount: number }>;
 }
@@ -66,15 +70,45 @@ export interface Debt {
   payments: Payment[];
 }
 
+/** Raw paginated envelope returned by the backend (`{ data, meta: { total, page, limit, totalPages } }`). */
+interface RawPaginatedResponse<T> {
+  data: T[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+/** Raw row shape returned by GET /payments/report/revenue (DATE_TRUNC SQL aggregate). */
+interface RevenueReportRow {
+  month: string;
+  revenue: string;
+  count: string;
+}
+
+/** Raw row shape returned by GET /payments/report/debtors (joined SQL aggregate). */
+interface DebtorRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  debt_amount: string;
+  overdue_count: string;
+}
+
 export const paymentsApi = {
   getList: async (
     params: PaymentListParams,
   ): Promise<PaginatedResponse<Payment>> => {
-    const { data } = await httpClient.get<PaginatedResponse<Payment>>(
+    const { data } = await httpClient.get<RawPaginatedResponse<Payment>>(
       '/payments',
       { params },
     );
-    return data;
+    return {
+      data: data.data,
+      total: data.meta.total,
+      page: data.meta.page,
+      limit: data.meta.limit,
+      totalPages: data.meta.totalPages,
+    };
   },
 
   getById: async (id: string): Promise<Payment> => {
@@ -96,10 +130,9 @@ export const paymentsApi = {
     await httpClient.delete(`/payments/${id}`);
   },
 
-  markAsPaid: async (id: string, paidAt?: string): Promise<Payment> => {
-    const { data } = await httpClient.post<Payment>(`/payments/${id}/mark-paid`, {
-      paidAt,
-    });
+  markAsPaid: async (id: string): Promise<Payment> => {
+    await httpClient.post(`/payments/${id}/pay`);
+    const { data } = await httpClient.get<Payment>(`/payments/${id}`);
     return data;
   },
 
@@ -107,25 +140,64 @@ export const paymentsApi = {
     from?: string;
     to?: string;
   }): Promise<PaymentSummary> => {
-    const { data } = await httpClient.get<PaymentSummary>(
-      '/payments/summary',
-      { params },
-    );
-    return data;
+    const to = params?.to ?? new Date().toISOString().slice(0, 10);
+    const fromDate = new Date();
+    fromDate.setMonth(fromDate.getMonth() - 11);
+    fromDate.setDate(1);
+    const from = params?.from ?? fromDate.toISOString().slice(0, 10);
+
+    const [{ data: payments }, { data: revenueRows }] = await Promise.all([
+      httpClient.get<RawPaginatedResponse<Payment>>('/payments', {
+        params: { page: 1, limit: 100 },
+      }),
+      httpClient.get<RevenueReportRow[]>('/payments/report/revenue', {
+        params: { from, to },
+      }),
+    ]);
+
+    const items = payments.data ?? [];
+    const sumByStatus = (status: PaymentStatus) =>
+      items
+        .filter((p) => p.status === status)
+        .reduce((sum, p) => sum + (p.totalAmount ?? p.amount ?? 0), 0);
+
+    return {
+      totalRevenue: sumByStatus('paid'),
+      totalPending: sumByStatus('pending'),
+      totalOverdue: sumByStatus('overdue'),
+      totalRefunded: sumByStatus('refunded'),
+      currency: items[0]?.currency ?? 'UZS',
+      monthlyRevenue: (revenueRows ?? []).map((row) => ({
+        month: new Date(row.month).toISOString().slice(0, 7),
+        amount: Number(row.revenue),
+      })),
+    };
   },
 
-  getDebts: async (
-    params?: PaginationParams,
-  ): Promise<PaginatedResponse<Debt>> => {
-    const { data } = await httpClient.get<PaginatedResponse<Debt>>(
-      '/payments/debts',
-      { params },
+  getDebts: async (): Promise<PaginatedResponse<Debt>> => {
+    const { data } = await httpClient.get<DebtorRow[]>(
+      '/payments/report/debtors',
     );
-    return data;
+    const debts: Debt[] = (data ?? []).map((row) => ({
+      studentId: row.id,
+      studentName: `${row.first_name} ${row.last_name}`.trim(),
+      totalDebt: Number(row.debt_amount),
+      currency: 'UZS',
+      overdueCount: Number(row.overdue_count),
+      payments: [],
+    }));
+
+    return {
+      data: debts,
+      total: debts.length,
+      page: 1,
+      limit: debts.length,
+      totalPages: 1,
+    };
   },
 
   generateInvoice: async (id: string): Promise<{ invoiceUrl: string }> => {
-    const { data } = await httpClient.post<{ invoiceUrl: string }>(
+    const { data } = await httpClient.get<{ invoiceUrl: string }>(
       `/payments/${id}/invoice`,
     );
     return data;

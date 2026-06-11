@@ -119,8 +119,7 @@ export function useMarkPaymentPaid() {
   const addToast = useUIStore((s) => s.addToast);
 
   return useMutation({
-    mutationFn: ({ id, paidAt }: { id: string; paidAt?: string }) =>
-      paymentsApi.markAsPaid(id, paidAt),
+    mutationFn: ({ id }: { id: string }) => paymentsApi.markAsPaid(id),
     onSuccess: (updated, { id }) => {
       queryClient.setQueryData<Payment>(queryKeys.payments.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.lists() });
