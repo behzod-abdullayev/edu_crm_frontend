@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import type { Locale as DateFnsLocale } from 'date-fns';
 import type {
   CourseDto,
   TeacherDto,
@@ -94,7 +95,10 @@ export function mapScheduleEventToCalendar(event: ScheduleEvent): {
   };
 }
 
-export function mapActivityItemToDisplay(item: ActivityItem): {
+export function mapActivityItemToDisplay(
+  item: ActivityItem,
+  dateLocale?: DateFnsLocale,
+): {
   id: string;
   icon: string;
   description: string;
@@ -112,7 +116,11 @@ export function mapActivityItemToDisplay(item: ActivityItem): {
     icon: iconMap[item.type],
     description: item.description,
     actor: item.actor,
-    timeAgo: format(new Date(item.timestamp), 'dd MMM HH:mm'),
+    timeAgo: format(
+      new Date(item.timestamp),
+      'dd MMM HH:mm',
+      dateLocale ? { locale: dateLocale } : undefined,
+    ),
   };
 }
 

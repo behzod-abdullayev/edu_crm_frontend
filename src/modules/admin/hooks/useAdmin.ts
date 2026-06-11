@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teachersApi } from '@/services/api/teachers.api';
 import { studentsApi, type Student } from '@/services/api/students.api';
 import { schedulesApi } from '@/services/api/schedules.api';
+import { adminApi, type AdminDashboardStats } from '@/services/api/admin.api';
 import type { Course } from '@/services/api/courses.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useTeacherList } from '@/services/query/teachers.queries';
@@ -121,38 +122,24 @@ function mapBackendAdminDashboard(raw: BackendAdminDashboard): AdminDashboardDat
 }
 
 export function useAdminDashboard() {
-  const [data, setData] = useState<AdminDashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error: queryError, refetch } = useQuery({
+    queryKey: queryKeys.admin.dashboard(),
+    queryFn: () => adminApi.getDashboard(),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
 
-  const load = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-
-    fetch('/api/admin/dashboard')
-      .then((r) => {
-        if (!r.ok) throw new Error(`Failed to load dashboard (${r.status})`);
-        return r.json() as Promise<BackendAdminDashboard>;
-      })
-      .then((raw) => {
-        // Validate the response is an object with expected fields
-        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-          throw new Error('Invalid dashboard data received');
-        }
-        setData(mapBackendAdminDashboard(raw));
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setData(null);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  return { data, isLoading, error, refresh: load };
+  return {
+    data: data ? mapBackendAdminDashboard(data as AdminDashboardStats & BackendAdminDashboard) : null,
+    isLoading,
+    error: queryError
+      ? queryError instanceof Error
+        ? queryError.message
+        : 'Failed to load dashboard'
+      : null,
+    refresh: refetch,
+  };
 }
 
 // ── Courses ───────────────────────────────────────────────────────────────────

@@ -1,17 +1,173 @@
 'use client';
 
 // src/modules/admin/components/AdminDashboardClient.tsx
-// ✅ FIX: Error state only shows when isLoading=false AND error is not null
-//         Previously showed error when data===null (which is also the initial state)
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
+import { uz, ru, enUS } from 'date-fns/locale';
+import type { Locale as DateFnsLocale } from 'date-fns';
 import { useAdminDashboard } from '../hooks/useAdmin';
 import { OperationalDashboard } from './OperationalDashboard';
 import { AdminDashboardSkeleton } from './AdminDashboardSkeleton';
+
+// ─── i18n ───────────────────────────────────────────────────────────────────
+
+const I18N = {
+  uz: {
+    title: 'Admin bosh sahifasi',
+    subtitle: 'Akademiyangiz faoliyatiga umumiy nazar',
+    viewReports: "Hisobotlarni ko'rish",
+    viewReportsAria: "Hisobotlarni ko'rish",
+    errorTitle: "Boshqaruv panelini yuklab bo'lmadi",
+    retry: 'Qayta urinish',
+    emptyTitle: "Hozircha boshqaruv paneli ma'lumotlari yo'q",
+    emptyDescription: "Backend ulangach, boshqaruv paneli ma'lumotlari shu yerda paydo bo'ladi.",
+    refresh: 'Yangilash',
+    operational: {
+      kpi: {
+        students: "Jami o'quvchilar",
+        teachers: "Jami o'qituvchilar",
+        courses: 'Jami kurslar',
+        revenue: 'Oylik daromad',
+        enrollments: 'Yangi yozilishlar',
+        pending: "Kutilayotgan to'lovlar",
+      },
+      kpiListAria: "Asosiy ko'rsatkichlar",
+      vsLastMonth: 'oxirgi oyga nisbatan',
+      trendUp: 'Oshish',
+      trendDown: 'Pasayish',
+      charts: {
+        revenue: 'Daromad (12 oy)',
+        enrollments: 'Yozilishlar (6 oy)',
+        attendanceByGroup: "Guruhlar bo'yicha davomat",
+        paymentStatus: "To'lov holati",
+      },
+      debt: {
+        paid: "To'langan",
+        pending: 'Kutilmoqda',
+        overdue: "Muddati o'tgan",
+      },
+      attendanceTooltip: 'Davomat',
+      paymentLegendAria: "To'lov holati ro'yxati",
+      quickActions: {
+        createCourse: 'Kurs yaratish',
+        addTeacher: "O'qituvchi qo'shish",
+        addStudent: "O'quvchi qo'shish",
+        viewReports: "Hisobotlarni ko'rish",
+      },
+      quickActionsAria: 'Tezkor amallar',
+      recentActivity: "So'nggi faollik",
+      recentActivityAria: "So'nggi faollik",
+      recentActivityListAria: "So'nggi faollik ro'yxati",
+      noRecentActivity: "So'nggi faollik mavjud emas.",
+    },
+  },
+  en: {
+    title: 'Admin Dashboard',
+    subtitle: "Overview of your academy's performance",
+    viewReports: 'View Reports',
+    viewReportsAria: 'View reports',
+    errorTitle: 'Failed to load dashboard',
+    retry: 'Retry',
+    emptyTitle: 'No dashboard data yet',
+    emptyDescription: 'Dashboard data will appear here once the backend is connected.',
+    refresh: 'Refresh',
+    operational: {
+      kpi: {
+        students: 'Students',
+        teachers: 'Teachers',
+        courses: 'Courses',
+        revenue: 'Revenue',
+        enrollments: 'Enrollments',
+        pending: 'Pending',
+      },
+      kpiListAria: 'Key performance indicators',
+      vsLastMonth: 'vs last month',
+      trendUp: 'Up',
+      trendDown: 'Down',
+      charts: {
+        revenue: 'Revenue (12 months)',
+        enrollments: 'Enrollments (6 months)',
+        attendanceByGroup: 'Attendance by Group',
+        paymentStatus: 'Payment Status',
+      },
+      debt: {
+        paid: 'Paid',
+        pending: 'Pending',
+        overdue: 'Overdue',
+      },
+      attendanceTooltip: 'Attendance',
+      paymentLegendAria: 'Payment status legend',
+      quickActions: {
+        createCourse: 'Create Course',
+        addTeacher: 'Add Teacher',
+        addStudent: 'Add Student',
+        viewReports: 'View Reports',
+      },
+      quickActionsAria: 'Quick actions',
+      recentActivity: 'Recent Activity',
+      recentActivityAria: 'Recent activity',
+      recentActivityListAria: 'Recent activity list',
+      noRecentActivity: 'No recent activity.',
+    },
+  },
+  ru: {
+    title: 'Панель администратора',
+    subtitle: 'Обзор показателей вашей академии',
+    viewReports: 'Смотреть отчёты',
+    viewReportsAria: 'Смотреть отчёты',
+    errorTitle: 'Не удалось загрузить панель управления',
+    retry: 'Повторить',
+    emptyTitle: 'Данных панели управления пока нет',
+    emptyDescription: 'Данные появятся здесь, как только сервер будет подключён.',
+    refresh: 'Обновить',
+    operational: {
+      kpi: {
+        students: 'Студенты',
+        teachers: 'Учителя',
+        courses: 'Курсы',
+        revenue: 'Доход',
+        enrollments: 'Новые записи',
+        pending: 'Ожидают оплаты',
+      },
+      kpiListAria: 'Ключевые показатели',
+      vsLastMonth: 'по сравнению с прошлым месяцем',
+      trendUp: 'Рост',
+      trendDown: 'Снижение',
+      charts: {
+        revenue: 'Доход (12 месяцев)',
+        enrollments: 'Записи (6 месяцев)',
+        attendanceByGroup: 'Посещаемость по группам',
+        paymentStatus: 'Статус оплаты',
+      },
+      debt: {
+        paid: 'Оплачено',
+        pending: 'Ожидает',
+        overdue: 'Просрочено',
+      },
+      attendanceTooltip: 'Посещаемость',
+      paymentLegendAria: 'Легенда статуса оплаты',
+      quickActions: {
+        createCourse: 'Создать курс',
+        addTeacher: 'Добавить учителя',
+        addStudent: 'Добавить студента',
+        viewReports: 'Смотреть отчёты',
+      },
+      quickActionsAria: 'Быстрые действия',
+      recentActivity: 'Недавняя активность',
+      recentActivityAria: 'Недавняя активность',
+      recentActivityListAria: 'Список недавней активности',
+      noRecentActivity: 'Нет недавней активности.',
+    },
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+
+const DATE_FNS_LOCALES: Record<Locale, DateFnsLocale> = { uz, en: enUS, ru };
 
 // ─── Page transition variants ─────────────────────────────────────────────────
 
@@ -27,11 +183,12 @@ const pageVariants = {
 // ─── AdminDashboardClient ─────────────────────────────────────────────────────
 
 export function AdminDashboardClient() {
-  const t = useTranslations('admin.dashboard');
-  const locale = useLocale();
+  const rawLocale = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s = I18N[locale];
+  const dateLocale = DATE_FNS_LOCALES[locale];
   const router = useRouter();
 
-  // ✅ FIX: useAdminDashboard now returns { data, isLoading, error, refresh }
   const { data, isLoading, error, refresh } = useAdminDashboard();
 
   const handleNavigate = useCallback(
@@ -47,9 +204,6 @@ export function AdminDashboardClient() {
   }
 
   // ── Error state ──────────────────────────────────────────────────────────
-  // ✅ FIX: Only show error state when isLoading=false AND error is not null
-  //         Previously: `if (error !== null || data === null)` would show error
-  //         even when data hasn't loaded yet (data===null is the initial state)
   if (error !== null) {
     return (
       <motion.div
@@ -68,7 +222,7 @@ export function AdminDashboardClient() {
         </div>
         <div>
           <p className="text-base font-semibold text-[var(--text-primary)]">
-            Failed to load dashboard
+            {s.errorTitle}
           </p>
           <p className="mt-1 text-sm text-[var(--text-muted)] max-w-sm">
             {error}
@@ -86,14 +240,13 @@ export function AdminDashboardClient() {
           type="button"
         >
           <RefreshCw size={14} aria-hidden="true" />
-          Retry
+          {s.retry}
         </motion.button>
       </motion.div>
     );
   }
 
   // ── Empty / no data state ─────────────────────────────────────────────────
-  // ✅ FIX: data can be null if backend returned no content — show friendly message
   if (data === null) {
     return (
       <motion.div
@@ -105,10 +258,10 @@ export function AdminDashboardClient() {
           📊
         </div>
         <p className="text-base font-semibold text-[var(--text-primary)]">
-          No dashboard data yet
+          {s.emptyTitle}
         </p>
         <p className="text-sm text-[var(--text-muted)]">
-          Dashboard data will appear here once the backend is connected.
+          {s.emptyDescription}
         </p>
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -120,7 +273,7 @@ export function AdminDashboardClient() {
           type="button"
         >
           <RefreshCw size={14} aria-hidden="true" />
-          Refresh
+          {s.refresh}
         </motion.button>
       </motion.div>
     );
@@ -138,10 +291,10 @@ export function AdminDashboardClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl lg:text-3xl">
-            {t('title')}
+            {s.title}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            Overview of your academy&apos;s performance
+            {s.subtitle}
           </p>
         </div>
 
@@ -157,15 +310,20 @@ export function AdminDashboardClient() {
             focus-visible:outline-none focus-visible:ring-2
             focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2"
           type="button"
-          aria-label="View reports"
+          aria-label={s.viewReportsAria}
         >
           <span aria-hidden="true">📊</span>
-          <span className="hidden sm:inline">View Reports</span>
+          <span className="hidden sm:inline">{s.viewReports}</span>
         </motion.button>
       </div>
 
       {/* ── Main dashboard ───────────────────────────────────────────────── */}
-      <OperationalDashboard data={data} onNavigate={handleNavigate} />
+      <OperationalDashboard
+        data={data}
+        onNavigate={handleNavigate}
+        strings={s.operational}
+        dateLocale={dateLocale}
+      />
     </motion.div>
   );
 }

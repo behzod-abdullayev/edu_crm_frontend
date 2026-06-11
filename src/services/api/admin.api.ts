@@ -9,17 +9,24 @@ export interface AdminListParams extends PaginationParams {
 
 export interface AdminDashboardStats {
   totalStudents: number;
-  activeStudents: number;
   totalTeachers: number;
-  activeTeachers: number;
   totalCourses: number;
-  activeCourses: number;
   totalRevenue: number;
-  monthlyRevenue: number;
+  currency: string;
+  activeGroups: number;
   pendingPayments: number;
   overduePayments: number;
   attendanceRate: number;
-  currency: string;
+  todayAttendanceRate: number;
+  newStudentsThisMonth: number;
+  revenueChangePercent: number;
+  recentActivities: Array<{
+    id: string;
+    type: string;
+    description: string;
+    timestamp: string;
+    actorName: string | null;
+  }>;
 }
 
 export interface StaffMember {

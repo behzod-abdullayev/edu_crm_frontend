@@ -7,6 +7,7 @@ import type {
   NameType,
   ValueType,
 } from 'recharts/types/component/DefaultTooltipContent';
+import type { Locale as DateFnsLocale } from 'date-fns';
 import { cn } from '@shared/utils/cn';
 import type { AdminDashboardData } from '../types/admin.types';
 import { mapActivityItemToDisplay } from '../utils/admin.mapper';
@@ -96,10 +97,51 @@ const Cell = lazy(() =>
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface OperationalDashboardStrings {
+  kpi: {
+    students: string;
+    teachers: string;
+    courses: string;
+    revenue: string;
+    enrollments: string;
+    pending: string;
+  };
+  kpiListAria: string;
+  vsLastMonth: string;
+  trendUp: string;
+  trendDown: string;
+  charts: {
+    revenue: string;
+    enrollments: string;
+    attendanceByGroup: string;
+    paymentStatus: string;
+  };
+  debt: {
+    paid: string;
+    pending: string;
+    overdue: string;
+  };
+  attendanceTooltip: string;
+  paymentLegendAria: string;
+  quickActions: {
+    createCourse: string;
+    addTeacher: string;
+    addStudent: string;
+    viewReports: string;
+  };
+  quickActionsAria: string;
+  recentActivity: string;
+  recentActivityAria: string;
+  recentActivityListAria: string;
+  noRecentActivity: string;
+}
+
 export interface OperationalDashboardProps {
   data: AdminDashboardData;
   /** Called when the user clicks a quick-action button. */
   onNavigate: (path: string) => void;
+  strings: OperationalDashboardStrings;
+  dateLocale: DateFnsLocale;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -110,11 +152,11 @@ const PIE_COLORS: [string, string, string] = [
   'var(--error-solid)',
 ];
 
-const QUICK_ACTIONS = [
-  { label: 'Create Course', path: '/admin/courses',  icon: '📚' },
-  { label: 'Add Teacher',   path: '/admin/teachers', icon: '👨‍🏫' },
-  { label: 'Add Student',   path: '/admin/students', icon: '🎓' },
-  { label: 'View Reports',  path: '/admin/reports',  icon: '📊' },
+const QUICK_ACTIONS_CONFIG = [
+  { key: 'createCourse', path: '/admin/courses',  icon: '📚' },
+  { key: 'addTeacher',   path: '/admin/teachers', icon: '👨‍🏫' },
+  { key: 'addStudent',   path: '/admin/students', icon: '🎓' },
+  { key: 'viewReports',  path: '/admin/reports',  icon: '📊' },
 ] as const;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -189,9 +231,21 @@ interface KPICardProps {
   trend: number;
   suffix?: string | undefined;
   index: number;
+  vsLastMonth: string;
+  trendUpLabel: string;
+  trendDownLabel: string;
 }
 
-function KPICard({ label, value, trend, suffix, index }: KPICardProps) {
+function KPICard({
+  label,
+  value,
+  trend,
+  suffix,
+  index,
+  vsLastMonth,
+  trendUpLabel,
+  trendDownLabel,
+}: KPICardProps) {
   const isPositive = trend >= 0;
 
   return (
@@ -233,10 +287,10 @@ function KPICard({ label, value, trend, suffix, index }: KPICardProps) {
             ? 'text-[var(--success-text)]'
             : 'text-[var(--error-text)]',
         )}
-        aria-label={`${isPositive ? 'Up' : 'Down'} ${Math.abs(trend)}% vs last month`}
+        aria-label={`${isPositive ? trendUpLabel : trendDownLabel} ${Math.abs(trend)}% ${vsLastMonth}`}
       >
         <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
-        {Math.abs(trend)}% vs last month
+        {Math.abs(trend)}% {vsLastMonth}
       </p>
     </motion.div>
   );
@@ -275,64 +329,84 @@ function ChartCard({
   );
 }
 
-// ─── Attendance Tooltip Formatter ─────────────────────────────────────────────
-
-const attendanceFormatter = (
-  v: ValueType,
-  _n: NameType,
-): [string, string] => [`${v}%`, 'Attendance'];
-
 // ─── OperationalDashboard ─────────────────────────────────────────────────────
 
 export function OperationalDashboard({
   data,
   onNavigate,
+  strings,
+  dateLocale,
 }: OperationalDashboardProps) {
+  const attendanceFormatter = (
+    v: ValueType,
+    _n: NameType,
+  ): [string, string] => [`${v}%`, strings.attendanceTooltip];
+
   const debtData: Array<{ name: string; value: number }> = [
-    { name: 'Paid',    value: data.debtBreakdown.paid },
-    { name: 'Pending', value: data.debtBreakdown.pending },
-    { name: 'Overdue', value: data.debtBreakdown.overdue },
+    { name: strings.debt.paid,    value: data.debtBreakdown.paid },
+    { name: strings.debt.pending, value: data.debtBreakdown.pending },
+    { name: strings.debt.overdue, value: data.debtBreakdown.overdue },
   ];
 
-  const recentItems = data.recentActivity.map(mapActivityItemToDisplay);
+  const recentItems = data.recentActivity.map((item) =>
+    mapActivityItemToDisplay(item, dateLocale),
+  );
 
   const kpiItems: Array<KPICardProps> = [
     {
-      label: 'Students',
+      label: strings.kpi.students,
       value: data.totalStudents,
       trend: data.trends.studentsChange,
       index: 0,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
     {
-      label: 'Teachers',
+      label: strings.kpi.teachers,
       value: data.totalTeachers,
       trend: data.trends.teachersChange,
       index: 1,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
     {
-      label: 'Courses',
+      label: strings.kpi.courses,
       value: data.totalCourses,
       trend: 0,
       index: 2,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
     {
-      label: 'Revenue',
+      label: strings.kpi.revenue,
       value: data.monthlyRevenue,
       trend: data.trends.revenueChange,
       suffix: 'UZS',
       index: 3,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
     {
-      label: 'Enrollments',
+      label: strings.kpi.enrollments,
       value: data.newEnrollments,
       trend: data.trends.enrollmentChange,
       index: 4,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
     {
-      label: 'Pending',
+      label: strings.kpi.pending,
       value: data.pendingPayments,
       trend: 0,
       index: 5,
+      vsLastMonth: strings.vsLastMonth,
+      trendUpLabel: strings.trendUp,
+      trendDownLabel: strings.trendDown,
     },
   ];
 
@@ -343,7 +417,7 @@ export function OperationalDashboard({
       <div
         className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
         role="list"
-        aria-label="Key performance indicators"
+        aria-label={strings.kpiListAria}
       >
         {kpiItems.map((item) => (
           <div key={item.label} role="listitem">
@@ -353,6 +427,9 @@ export function OperationalDashboard({
               trend={item.trend}
               suffix={item.suffix}
               index={item.index}
+              vsLastMonth={item.vsLastMonth}
+              trendUpLabel={item.trendUpLabel}
+              trendDownLabel={item.trendDownLabel}
             />
           </div>
         ))}
@@ -362,7 +439,7 @@ export function OperationalDashboard({
       <div className="grid gap-4 lg:grid-cols-2">
 
         {/* Revenue — Area Chart */}
-        <ChartCard title="Revenue (12 months)" delay={0.1}>
+        <ChartCard title={strings.charts.revenue} delay={0.1}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
@@ -429,7 +506,7 @@ export function OperationalDashboard({
         </ChartCard>
 
         {/* Enrollments — Bar Chart */}
-        <ChartCard title="Enrollments (6 months)" delay={0.15}>
+        <ChartCard title={strings.charts.enrollments} delay={0.15}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
@@ -465,7 +542,7 @@ export function OperationalDashboard({
         </ChartCard>
 
         {/* Attendance by Group — Horizontal Bar */}
-        <ChartCard title="Attendance by Group" delay={0.2}>
+        <ChartCard title={strings.charts.attendanceByGroup} delay={0.2}>
           <div className="h-56">
             <Suspense fallback={<ChartSkeleton />}>
               <ResponsiveContainer width="100%" height="100%">
@@ -509,7 +586,7 @@ export function OperationalDashboard({
         </ChartCard>
 
         {/* Payment Status — Pie Chart */}
-        <ChartCard title="Payment Status" delay={0.25}>
+        <ChartCard title={strings.charts.paymentStatus} delay={0.25}>
           <div className="flex h-56 items-center gap-4">
             <div className="min-w-0 flex-1">
               <Suspense fallback={<ChartSkeleton />}>
@@ -550,7 +627,7 @@ export function OperationalDashboard({
 
             <ul
               className="shrink-0 space-y-2"
-              aria-label="Payment status legend"
+              aria-label={strings.paymentLegendAria}
             >
               {debtData.map((item, i) => (
                 <li
@@ -582,37 +659,40 @@ export function OperationalDashboard({
         transition={{ duration: 0.3, delay: 0.3 }}
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         role="group"
-        aria-label="Quick actions"
+        aria-label={strings.quickActionsAria}
       >
-        {QUICK_ACTIONS.map((action) => (
-          <motion.button
-            key={action.path}
-            onClick={() => onNavigate(action.path)}
-            whileHover={{
-              y: -1,
-              boxShadow: 'var(--shadow-md)',
-              transition: { duration: 0.15 },
-            }}
-            whileTap={{ scale: 0.97 }}
-            className={cn(
-              'flex min-h-[44px] items-center gap-2 rounded-xl',
-              'border border-[var(--border-default)] bg-[var(--bg-surface)]',
-              'px-4 py-3 text-sm font-medium text-[var(--text-primary)]',
-              'transition-colors',
-              'hover:border-[var(--brand-primary)]',
-              'hover:bg-[var(--bg-surface-hover)]',
-              'focus-visible:outline-none focus-visible:ring-2',
-              'focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2',
-            )}
-            type="button"
-            aria-label={action.label}
-          >
-            <span aria-hidden="true" className="text-base">
-              {action.icon}
-            </span>
-            <span className="truncate">{action.label}</span>
-          </motion.button>
-        ))}
+        {QUICK_ACTIONS_CONFIG.map((action) => {
+          const label = strings.quickActions[action.key];
+          return (
+            <motion.button
+              key={action.path}
+              onClick={() => onNavigate(action.path)}
+              whileHover={{
+                y: -1,
+                boxShadow: 'var(--shadow-md)',
+                transition: { duration: 0.15 },
+              }}
+              whileTap={{ scale: 0.97 }}
+              className={cn(
+                'flex min-h-[44px] items-center gap-2 rounded-xl',
+                'border border-[var(--border-default)] bg-[var(--bg-surface)]',
+                'px-4 py-3 text-sm font-medium text-[var(--text-primary)]',
+                'transition-colors',
+                'hover:border-[var(--brand-primary)]',
+                'hover:bg-[var(--bg-surface-hover)]',
+                'focus-visible:outline-none focus-visible:ring-2',
+                'focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2',
+              )}
+              type="button"
+              aria-label={label}
+            >
+              <span aria-hidden="true" className="text-base">
+                {action.icon}
+              </span>
+              <span className="truncate">{label}</span>
+            </motion.button>
+          );
+        })}
       </motion.div>
 
       {/* ── Recent Activity ─────────────────────────────────────────────────── */}
@@ -622,24 +702,24 @@ export function OperationalDashboard({
         transition={{ duration: 0.3, delay: 0.35 }}
         className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
         role="region"
-        aria-label="Recent activity"
+        aria-label={strings.recentActivityAria}
       >
         <div className="border-b border-[var(--border-default)] px-4 py-3">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Recent Activity
+            {strings.recentActivity}
           </h3>
         </div>
 
         {recentItems.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-            No recent activity.
+            {strings.noRecentActivity}
           </p>
         ) : (
           <>
             {/* Desktop table — hidden on mobile */}
             <table
               className="hidden w-full text-sm md:table"
-              aria-label="Recent activity list"
+              aria-label={strings.recentActivityListAria}
             >
               <tbody className="divide-y divide-[var(--border-default)]">
                 {recentItems.map((item, index) => (
