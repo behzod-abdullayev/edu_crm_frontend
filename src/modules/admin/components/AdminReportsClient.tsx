@@ -3,17 +3,34 @@
 // src/modules/admin/components/AdminReportsClient.tsx
 
 import { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import { ReportGenerator } from './ReportGenerator';
-import { AdminReportsSkeleton } from './AdminReportsSkeleton';
 import { useAdminReports } from '../hooks/useAdmin';
 import { useToast } from '@shared/hooks/useToast';
-import type { ReportRequest } from '../types/admin.types';
+import type { ReportType } from '../types/admin.types';
 
-// ─── Export format type (matches ReportGenerator) ─────────────────────────────
+// ─── i18n ───────────────────────────────────────────────────────────────────
 
-type ExportFormat = 'PDF' | 'CSV' | 'Excel';
+const I18N = {
+  uz: {
+    subtitle: "Davomat, moliyaviy va o'zlashtirish hisobotlarini yarating va yuklab oling (CSV)",
+    success: 'Hisobot muvaffaqiyatli yuklab olindi',
+    failed: "Hisobotni yaratib bo'lmadi. Qaytadan urinib ko'ring.",
+  },
+  en: {
+    subtitle: 'Generate and download attendance, financial, and performance reports (CSV)',
+    success: 'Report downloaded successfully',
+    failed: 'Failed to generate report. Please try again.',
+  },
+  ru: {
+    subtitle: 'Создавайте и скачивайте отчёты по посещаемости, финансам и успеваемости (CSV)',
+    success: 'Отчёт успешно скачан',
+    failed: 'Не удалось создать отчёт. Попробуйте снова.',
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
 
 // ─── Page transition ──────────────────────────────────────────────────────────
 
@@ -25,45 +42,28 @@ const pageVariants = {
 // ─── AdminReportsClient ───────────────────────────────────────────────────────
 
 export function AdminReportsClient() {
-  const t         = useTranslations('admin.reports');
-  const { toast } = useToast();
+  const t          = useTranslations('admin.reports');
+  const rawLocale  = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s          = I18N[locale];
+  const { toast }  = useToast();
 
-  const {
-    recentReports,
-    isLoading,
-    generateReport,
-  } = useAdminReports();
+  const { generateReport } = useAdminReports();
 
   // ── Handler ───────────────────────────────────────────────────────────────
 
   const handleGenerate = useCallback(
-    async (
-      request: { type: ReportRequest['type']; startDate: string; endDate: string },
-      format: ExportFormat,
-    ) => {
+    async (request: { type: ReportType; startDate: string; endDate: string }) => {
       try {
-        await generateReport(
-          {
-            type: request.type,
-            startDate: request.startDate,
-            endDate: request.endDate,
-          },
-          format,
-        );
-        toast.success(`${format} report generated successfully`);
+        await generateReport(request);
+        toast.success(s.success);
       } catch {
-        toast.error('Failed to generate report. Please try again.');
+        toast.error(s.failed);
         throw new Error('generation failed');
       }
     },
-    [generateReport, toast],
+    [generateReport, toast, s],
   );
-
-  // ── Loading ───────────────────────────────────────────────────────────────
-
-  if (isLoading) {
-    return <AdminReportsSkeleton />;
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ export function AdminReportsClient() {
           {t('title')}
         </h1>
         <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-          Generate and download attendance, financial, and performance reports
+          {s.subtitle}
         </p>
       </div>
 
@@ -91,11 +91,7 @@ export function AdminReportsClient() {
         transition={{ duration: 0.3, delay: 0.1 }}
         className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 sm:p-6"
       >
-        <ReportGenerator
-          recentReports={recentReports}
-          isLoading={false}
-          onGenerate={handleGenerate}
-        />
+        <ReportGenerator onGenerate={handleGenerate} />
       </motion.div>
     </motion.div>
   );

@@ -114,6 +114,57 @@ export interface AdminAnalyticsData {
   };
 }
 
+export interface OperationalReport {
+  type: 'operational';
+  period: { from: string; to: string };
+  newEnrollments: number;
+  attendanceRate: number;
+  homeworkGradedRate: number;
+  avgExamScore: number;
+  totalRevenue: number;
+}
+
+export interface AttendanceReport {
+  type: 'attendance';
+  total: number;
+  present: number;
+  rate: number;
+  from: string;
+  to: string;
+}
+
+export interface DebtReportItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  debtAmount: number;
+  studentCode: string;
+  overduePayments: number;
+}
+
+export interface DebtReport {
+  type: 'debt';
+  totalDebt: number;
+  currency: string;
+  debtors: number;
+  items: DebtReportItem[];
+}
+
+export interface PaymentsReportRow {
+  status: string;
+  count: string;
+  total: string;
+}
+
+export interface PaymentsReport {
+  type: 'payments';
+  from: string;
+  to: string;
+  byStatus: PaymentsReportRow[];
+}
+
 export const adminApi = {
   getDashboard: async (): Promise<AdminDashboardStats> => {
     const { data } = await httpClient.get<AdminDashboardStats>(
@@ -227,6 +278,44 @@ export const adminApi = {
   ): Promise<{ temporaryPassword: string }> => {
     const { data } = await httpClient.post<{ temporaryPassword: string }>(
       `/admin/users/${userId}/reset-password`,
+    );
+    return data;
+  },
+
+  getOperationalReport: async (params: {
+    from: string;
+    to: string;
+  }): Promise<OperationalReport> => {
+    const { data } = await httpClient.get<OperationalReport>(
+      '/admin/reports/operational',
+      { params },
+    );
+    return data;
+  },
+
+  getAttendanceReport: async (params: {
+    from: string;
+    to: string;
+  }): Promise<AttendanceReport> => {
+    const { data } = await httpClient.get<AttendanceReport>(
+      '/admin/reports/attendance',
+      { params },
+    );
+    return data;
+  },
+
+  getDebtReport: async (): Promise<DebtReport> => {
+    const { data } = await httpClient.get<DebtReport>('/admin/reports/debt');
+    return data;
+  },
+
+  getPaymentsReport: async (params: {
+    from: string;
+    to: string;
+  }): Promise<PaymentsReport> => {
+    const { data } = await httpClient.get<PaymentsReport>(
+      '/admin/reports/payments',
+      { params },
     );
     return data;
   },

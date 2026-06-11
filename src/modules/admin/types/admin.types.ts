@@ -108,25 +108,7 @@ export interface ScheduleEventForm {
   repeatRule: RepeatRule | null;
 }
 
-export interface ReportRequest {
-  type: ReportType;
-  startDate: string;
-  endDate: string;
-  groupId?: string;
-  courseId?: string;
-  teacherId?: string;
-}
-
 export type ReportType = 'attendance' | 'financial' | 'performance';
-
-export interface ReportRecord {
-  id: string;
-  type: ReportType;
-  name: string;
-  generatedAt: string;
-  generatedBy: string;
-  url: string;
-}
 
 export interface TenantConfig {
   academyName: string;

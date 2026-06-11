@@ -6,7 +6,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teachersApi } from '@/services/api/teachers.api';
 import { studentsApi, type Student } from '@/services/api/students.api';
 import { schedulesApi } from '@/services/api/schedules.api';
-import { adminApi, type AdminDashboardStats } from '@/services/api/admin.api';
+import {
+  adminApi,
+  type AdminDashboardStats,
+  type PaymentsReport,
+  type DebtReport,
+  type AttendanceReport,
+  type OperationalReport,
+} from '@/services/api/admin.api';
 import type { Course } from '@/services/api/courses.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useTeacherList } from '@/services/query/teachers.queries';
@@ -23,7 +30,7 @@ import type {
   TeacherDto,
   StudentDto,
   ScheduleEventForm,
-  ReportRecord,
+  ReportType,
   TenantConfig,
   PricingEntry,
 } from '../types/admin.types';
@@ -342,54 +349,103 @@ export function useAdminSchedule() {
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 
+function escapeCsvField(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function csvLine(fields: Array<string | number>): string {
+  return fields.map((f) => escapeCsvField(String(f))).join(',');
+}
+
+function downloadCsv(csv: string, filename: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildAttendanceReportCsv(report: AttendanceReport): string {
+  return [
+    csvLine(['Metric', 'Value']),
+    csvLine(['Period start', report.from]),
+    csvLine(['Period end', report.to]),
+    csvLine(['Total records', report.total]),
+    csvLine(['Present', report.present]),
+    csvLine(['Attendance rate (%)', report.rate]),
+  ].join('\n');
+}
+
+function buildFinancialReportCsv(payments: PaymentsReport, debt: DebtReport): string {
+  const lines = [
+    csvLine(['Payments by status']),
+    csvLine(['Status', 'Count', 'Total amount']),
+    ...payments.byStatus.map((row) => csvLine([row.status, row.count, row.total])),
+    '',
+    csvLine(['Debtors', '', `Total debt: ${debt.totalDebt} ${debt.currency}`]),
+    csvLine(['Student', 'Email', 'Phone', 'Debt amount', 'Overdue payments']),
+    ...debt.items.map((item) =>
+      csvLine([
+        `${item.firstName} ${item.lastName}`.trim(),
+        item.email,
+        item.phone,
+        item.debtAmount,
+        item.overduePayments,
+      ]),
+    ),
+  ];
+  return lines.join('\n');
+}
+
+function buildPerformanceReportCsv(report: OperationalReport): string {
+  return [
+    csvLine(['Metric', 'Value']),
+    csvLine(['Period start', report.period.from]),
+    csvLine(['Period end', report.period.to]),
+    csvLine(['New enrollments', report.newEnrollments]),
+    csvLine(['Attendance rate (%)', report.attendanceRate]),
+    csvLine(['Homework graded rate (%)', report.homeworkGradedRate]),
+    csvLine(['Average exam score', report.avgExamScore]),
+    csvLine(['Total revenue', report.totalRevenue]),
+  ].join('\n');
+}
+
 export function useAdminReports() {
-  const [recentReports, setRecentReports] = useState<ReportRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/admin/reports/recent')
-      .then((r) => {
-        if (!r.ok) throw new Error(`Failed to load reports (${r.status})`);
-        return r.json() as Promise<unknown>;
-      })
-      .then((data) => {
-        // ✅ FIX: Validate it's actually an array before setting state
-        setRecentReports(ensureArray<ReportRecord>(data));
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Failed to load reports');
-        setRecentReports([]);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
-
   const generateReport = useCallback(
-    async (
-      request: { type: string; startDate: string; endDate: string },
-      format: string,
-    ) => {
-      const res = await fetch(`/api/admin/reports/${request.type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...request, format }),
-      });
-      if (!res.ok) throw new Error('Report generation failed');
+    async (request: { type: ReportType; startDate: string; endDate: string }) => {
+      const { type, startDate, endDate } = request;
+      const params = { from: startDate, to: endDate };
+      let csv: string;
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `report-${request.type}-${Date.now()}.${
-        format.toLowerCase() === 'excel' ? 'xlsx' : format.toLowerCase()
-      }`;
-      link.click();
-      URL.revokeObjectURL(url);
+      switch (type) {
+        case 'attendance': {
+          const report = await adminApi.getAttendanceReport(params);
+          csv = buildAttendanceReportCsv(report);
+          break;
+        }
+        case 'financial': {
+          const [payments, debt] = await Promise.all([
+            adminApi.getPaymentsReport(params),
+            adminApi.getDebtReport(),
+          ]);
+          csv = buildFinancialReportCsv(payments, debt);
+          break;
+        }
+        case 'performance': {
+          const report = await adminApi.getOperationalReport(params);
+          csv = buildPerformanceReportCsv(report);
+          break;
+        }
+      }
+
+      downloadCsv(csv, `report-${type}-${startDate}-to-${endDate}.csv`);
     },
     [],
   );
 
-  return { recentReports, isLoading, error, generateReport };
+  return { generateReport };
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
