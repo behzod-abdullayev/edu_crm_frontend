@@ -76,30 +76,91 @@ export interface TeacherAnalytics {
   homeworkPending: number;
 }
 
+/** Shape returned by the backend for a single teacher (raw entity + `user` relation). */
+interface RawTeacher {
+  id: string;
+  tenantId: string;
+  subjects?: string[] | null;
+  bio?: string | null;
+  rating?: string | number | null;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    status?: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Backend list responses are wrapped as `{ data, meta: { total, page, limit, totalPages } }`. */
+interface RawPaginatedResponse<T> {
+  data: T[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+/** Maps the raw backend teacher shape (entity + `user` relation) to the frontend `Teacher` view model. */
+function mapTeacher(raw: RawTeacher): Teacher {
+  const user = raw.user;
+  const rating = raw.rating != null ? Number(raw.rating) : undefined;
+  const status: TeacherStatus =
+    user?.status === 'active'
+      ? 'active'
+      : user?.status === 'suspended'
+        ? 'on_leave'
+        : 'inactive';
+
+  return {
+    id: raw.id,
+    firstName: user?.firstName ?? '',
+    lastName: user?.lastName ?? '',
+    email: user?.email ?? '',
+    ...(user?.phone != null ? { phone: user.phone } : {}),
+    ...(user?.avatarUrl != null ? { avatarUrl: user.avatarUrl } : {}),
+    status,
+    subjects: raw.subjects ?? [],
+    ...(raw.bio != null ? { bio: raw.bio } : {}),
+    tenantId: raw.tenantId,
+    activeCourseCount: 0,
+    studentCount: 0,
+    ...(rating !== undefined ? { rating } : {}),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
 export const teachersApi = {
   getList: async (
     params: TeacherListParams,
   ): Promise<PaginatedResponse<Teacher>> => {
-    const { data } = await httpClient.get<PaginatedResponse<Teacher>>(
+    const { data } = await httpClient.get<RawPaginatedResponse<RawTeacher>>(
       '/teachers',
       { params },
     );
-    return data;
+    return {
+      data: data.data.map(mapTeacher),
+      total: data.meta.total,
+      page: data.meta.page,
+      limit: data.meta.limit,
+      totalPages: data.meta.totalPages,
+    };
   },
 
   getById: async (id: string): Promise<Teacher> => {
-    const { data } = await httpClient.get<Teacher>(`/teachers/${id}`);
-    return data;
+    const { data } = await httpClient.get<RawTeacher>(`/teachers/${id}`);
+    return mapTeacher(data);
   },
 
   create: async (dto: CreateTeacherDto): Promise<Teacher> => {
-    const { data } = await httpClient.post<Teacher>('/teachers', dto);
-    return data;
+    const { data } = await httpClient.post<RawTeacher>('/teachers', dto);
+    return mapTeacher(data);
   },
 
   update: async (id: string, dto: UpdateTeacherDto): Promise<Teacher> => {
-    const { data } = await httpClient.patch<Teacher>(`/teachers/${id}`, dto);
-    return data;
+    const { data } = await httpClient.patch<RawTeacher>(`/teachers/${id}`, dto);
+    return mapTeacher(data);
   },
 
   delete: async (id: string): Promise<void> => {

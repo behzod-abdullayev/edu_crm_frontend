@@ -2,6 +2,10 @@
 // ✅ FIX: Added try/catch to ALL hooks, validate API responses are arrays/objects before use
 
 import { useState, useEffect, useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { teachersApi } from '@/services/api/teachers.api';
+import { queryKeys } from '@/services/query/keys.factory';
+import { useTeacherList } from '@/services/query/teachers.queries';
 import type {
   AdminDashboardData,
   ChartDataPoint,
@@ -187,47 +191,47 @@ export function useAdminCourses() {
 
 // ── Teachers ──────────────────────────────────────────────────────────────────
 
+function teacherToDto(t: { id: string; firstName: string; lastName: string; email: string; phone?: string; status: string; activeCourseCount: number; createdAt: string }): TeacherDto {
+  return {
+    id: t.id,
+    name: `${t.firstName} ${t.lastName}`.trim(),
+    email: t.email,
+    phone: t.phone ?? '',
+    groupsAssigned: t.activeCourseCount,
+    joinedDate: t.createdAt,
+    status: t.status === 'active' ? 'active' : 'inactive',
+    branchId: '',
+  };
+}
+
 export function useAdminTeachers() {
-  const [teachers, setTeachers] = useState<TeacherDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data, isLoading, error: queryError, refetch } = useTeacherList({ page: 1, limit: 100 });
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/teachers');
-      if (!res.ok) throw new Error(`Failed to load teachers (${res.status})`);
-      const data = (await res.json()) as unknown;
-      // ✅ FIX: Validate it's actually an array before setting state
-      setTeachers(ensureArray<TeacherDto>(data));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load teachers');
-      setTeachers([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const teachers = (data?.data ?? []).map(teacherToDto);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
+      teachersApi.update(id, { status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.teachers.lists() });
+    },
+  });
 
   const toggleStatus = useCallback(
     async (id: string, status: 'active' | 'inactive') => {
-      await fetch(`/api/admin/teachers/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      setTeachers((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status } : t)),
-      );
+      await toggleMutation.mutateAsync({ id, status });
     },
-    [],
+    [toggleMutation],
   );
 
-  return { teachers, isLoading, error, toggleStatus, refresh: load };
+  return {
+    teachers,
+    isLoading,
+    error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load teachers') : null,
+    toggleStatus,
+    refresh: refetch,
+  };
 }
 
 // ── Students ──────────────────────────────────────────────────────────────────
