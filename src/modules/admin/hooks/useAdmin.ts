@@ -4,8 +4,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { teachersApi } from '@/services/api/teachers.api';
+import { studentsApi, type Student } from '@/services/api/students.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useTeacherList } from '@/services/query/teachers.queries';
+import { useStudentList } from '@/services/query/students.queries';
 import type {
   AdminDashboardData,
   ChartDataPoint,
@@ -236,47 +238,50 @@ export function useAdminTeachers() {
 
 // ── Students ──────────────────────────────────────────────────────────────────
 
+function studentToDto(s: Student): StudentDto {
+  const debt = s.debtAmount ?? 0;
+  return {
+    id: s.id,
+    name: `${s.firstName} ${s.lastName}`.trim(),
+    email: s.email,
+    phone: s.phone ?? '',
+    courses: [],
+    attendancePercent: s.attendancePercent ?? 0,
+    balance: s.balance,
+    currency: 'UZS',
+    status: s.status === 'active' ? 'active' : 'inactive',
+    paymentStatus: debt > 0 ? 'overdue' : s.balance < 0 ? 'pending' : 'paid',
+  };
+}
+
 export function useAdminStudents() {
-  const [students, setStudents] = useState<StudentDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data, isLoading, error: queryError, refetch } = useStudentList({ page: 1, limit: 100 });
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/students');
-      if (!res.ok) throw new Error(`Failed to load students (${res.status})`);
-      const data = (await res.json()) as unknown;
-      // ✅ FIX: Validate it's actually an array before setting state
-      setStudents(ensureArray<StudentDto>(data));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load students');
-      setStudents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const students = (data?.data ?? []).map(studentToDto);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
+      studentsApi.update(id, { status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.students.lists() });
+    },
+  });
 
   const toggleStatus = useCallback(
     async (id: string, status: 'active' | 'inactive') => {
-      await fetch(`/api/admin/students/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      setStudents((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, status } : s)),
-      );
+      await toggleMutation.mutateAsync({ id, status });
     },
-    [],
+    [toggleMutation],
   );
 
-  return { students, isLoading, error, toggleStatus, refresh: load };
+  return {
+    students,
+    isLoading,
+    error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load students') : null,
+    toggleStatus,
+    refresh: refetch,
+  };
 }
 
 // ── Schedule ──────────────────────────────────────────────────────────────────

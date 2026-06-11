@@ -25,6 +25,7 @@ import {
   Trash2,
   Minus,
 } from 'lucide-react';
+import { useLocale } from 'next-intl';
 import { useAdminStudents } from '@modules/admin/hooks/useAdmin';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
@@ -34,8 +35,91 @@ import { cn } from '@shared/utils/cn';
 import { formatNumber } from '@shared/utils/format';
 import type { StudentDto } from '@modules/admin/types/admin.types';
 
-// ─── Metadata ────────────────────────────────────────────────────────────────
+// ─── i18n ─────────────────────────────────────────────────────────────────────
 
+const I18N = {
+  uz: {
+    title: 'Talabalar',
+    totalStudents: (n: number) => `Jami ${n} ta talaba`,
+    refresh: 'Yangilash', refreshAria: 'Talabalar ro\'yxatini yangilash',
+    addStudent: "Talaba qo'shish",
+    kpiTotal: 'Jami talabalar', kpiActive: 'Faol', kpiOverdue: "To'lov muddati o'tgan", kpiPending: 'Kutilmoqda',
+    searchPlaceholder: 'Talabalarni qidirish…', searchAria: 'Talabalarni qidirish',
+    filterAllStatus: 'Barcha holatlar', filterActive: 'Faol', filterInactive: 'Nofaol',
+    filterAllPayments: "Barcha to'lovlar", filterPaid: "To'langan", filterPending: 'Kutilmoqda', filterOverdue: "Muddati o'tgan",
+    export: 'Eksport', exportAria: 'Talabalarni CSV formatda eksport qilish',
+    colStudent: 'Talaba', colEmail: 'Email', colCourses: 'Kurslar', colAttendance: 'Davomat',
+    colBalance: 'Balans', colStatus: 'Holat', colPayment: "To'lov",
+    selectAll: 'Barcha talabalarni tanlash', selectOne: (name: string) => `${name}ni tanlash`,
+    bulkSelected: (n: number) => `${n} ta tanlandi`, deactivateSelected: 'Tanlanganlarni faolsizlantirish',
+    coursesCount: (n: number) => `${n} ta kurs`,
+    viewAria: (name: string) => `${name} profilini ko'rish`,
+    toggleAria: (name: string, active: boolean) => active ? `${name}ni faolsizlantirish` : `${name}ni faollashtirish`,
+    view: "Ko'rish", activate: 'Faollashtirish', deactivate: 'Faolsizlantirish',
+    statusActive: 'Faol', statusInactive: 'Nofaol',
+    paymentPaid: "To'langan", paymentPending: 'Kutilmoqda', paymentOverdue: "Muddati o'tgan",
+    emptyTitle: 'Talabalar topilmadi', emptyDescTable: "Qidiruv yoki filtr shartlarini o'zgartirib ko'ring.", emptyDescMobile: "Qidiruvni o'zgartirib ko'ring.",
+    noStudentsTitle: 'Hozircha talabalar yo\'q', noStudentsDesc: "Boshlash uchun birinchi talabani qo'shing.",
+    pageOf: (page: number, total: number) => `${page} / ${total}-sahifa`,
+    studentsCount: (n: number) => `${n} ta talaba`,
+    prevPage: 'Oldingi sahifa', nextPage: 'Keyingi sahifa', loadMore: "Ko'proq yuklash",
+  },
+  en: {
+    title: 'Students',
+    totalStudents: (n: number) => `${n} total students`,
+    refresh: 'Refresh', refreshAria: 'Refresh students',
+    addStudent: 'Add Student',
+    kpiTotal: 'Total Students', kpiActive: 'Active', kpiOverdue: 'Overdue Payment', kpiPending: 'Pending',
+    searchPlaceholder: 'Search students…', searchAria: 'Search students',
+    filterAllStatus: 'All Status', filterActive: 'Active', filterInactive: 'Inactive',
+    filterAllPayments: 'All Payments', filterPaid: 'Paid', filterPending: 'Pending', filterOverdue: 'Overdue',
+    export: 'Export', exportAria: 'Export students CSV',
+    colStudent: 'Student', colEmail: 'Email', colCourses: 'Courses', colAttendance: 'Attendance',
+    colBalance: 'Balance', colStatus: 'Status', colPayment: 'Payment',
+    selectAll: 'Select all students', selectOne: (name: string) => `Select ${name}`,
+    bulkSelected: (n: number) => `${n} selected`, deactivateSelected: 'Deactivate selected',
+    coursesCount: (n: number) => `${n} course${n !== 1 ? 's' : ''}`,
+    viewAria: (name: string) => `View ${name}`,
+    toggleAria: (name: string, active: boolean) => `${active ? 'Deactivate' : 'Activate'} ${name}`,
+    view: 'View', activate: 'Activate', deactivate: 'Deactivate',
+    statusActive: 'Active', statusInactive: 'Inactive',
+    paymentPaid: 'Paid', paymentPending: 'Pending', paymentOverdue: 'Overdue',
+    emptyTitle: 'No students found', emptyDescTable: 'Try adjusting your search or filter criteria.', emptyDescMobile: 'Try adjusting your search.',
+    noStudentsTitle: 'No students yet', noStudentsDesc: 'Add your first student to get started.',
+    pageOf: (page: number, total: number) => `Page ${page} of ${total}`,
+    studentsCount: (n: number) => `${n} students`,
+    prevPage: 'Previous page', nextPage: 'Next page', loadMore: 'Load more',
+  },
+  ru: {
+    title: 'Студенты',
+    totalStudents: (n: number) => `Всего студентов: ${n}`,
+    refresh: 'Обновить', refreshAria: 'Обновить список студентов',
+    addStudent: 'Добавить студента',
+    kpiTotal: 'Всего студентов', kpiActive: 'Активные', kpiOverdue: 'Просрочена оплата', kpiPending: 'В ожидании',
+    searchPlaceholder: 'Поиск студентов…', searchAria: 'Поиск студентов',
+    filterAllStatus: 'Все статусы', filterActive: 'Активные', filterInactive: 'Неактивные',
+    filterAllPayments: 'Все платежи', filterPaid: 'Оплачено', filterPending: 'В ожидании', filterOverdue: 'Просрочено',
+    export: 'Экспорт', exportAria: 'Экспортировать студентов в CSV',
+    colStudent: 'Студент', colEmail: 'Email', colCourses: 'Курсы', colAttendance: 'Посещаемость',
+    colBalance: 'Баланс', colStatus: 'Статус', colPayment: 'Оплата',
+    selectAll: 'Выбрать всех студентов', selectOne: (name: string) => `Выбрать ${name}`,
+    bulkSelected: (n: number) => `Выбрано: ${n}`, deactivateSelected: 'Деактивировать выбранных',
+    coursesCount: (n: number) => `${n} курс(ов)`,
+    viewAria: (name: string) => `Просмотреть ${name}`,
+    toggleAria: (name: string, active: boolean) => active ? `Деактивировать ${name}` : `Активировать ${name}`,
+    view: 'Просмотр', activate: 'Активировать', deactivate: 'Деактивировать',
+    statusActive: 'Активен', statusInactive: 'Неактивен',
+    paymentPaid: 'Оплачено', paymentPending: 'В ожидании', paymentOverdue: 'Просрочено',
+    emptyTitle: 'Студенты не найдены', emptyDescTable: 'Попробуйте изменить поиск или фильтры.', emptyDescMobile: 'Попробуйте изменить поиск.',
+    noStudentsTitle: 'Пока нет студентов', noStudentsDesc: 'Добавьте первого студента, чтобы начать.',
+    pageOf: (page: number, total: number) => `Страница ${page} из ${total}`,
+    studentsCount: (n: number) => `Студентов: ${n}`,
+    prevPage: 'Предыдущая страница', nextPage: 'Следующая страница', loadMore: 'Загрузить ещё',
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+type I18NShape = (typeof I18N)[Locale];
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +136,16 @@ function getPaymentVariant(paymentStatus: StudentDto['paymentStatus']) {
   if (paymentStatus === 'paid') return 'success';
   if (paymentStatus === 'pending') return 'warning';
   return 'error';
+}
+
+function statusLabel(status: StudentDto['status'], s: I18NShape) {
+  return status === 'active' ? s.statusActive : s.statusInactive;
+}
+
+function paymentLabel(paymentStatus: StudentDto['paymentStatus'], s: I18NShape) {
+  if (paymentStatus === 'paid') return s.paymentPaid;
+  if (paymentStatus === 'pending') return s.paymentPending;
+  return s.paymentOverdue;
 }
 
 // ─── Inline badge ─────────────────────────────────────────────────────────────
@@ -74,7 +168,7 @@ function InlineBadge({ variant, children, className }: InlineBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize',
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
         variantClass,
         className,
       )}
@@ -90,35 +184,36 @@ interface KPIBarProps {
   total: number;
   active: number;
   overdue: number;
+  s: I18NShape;
 }
 
-function KPIBar({ total, active, overdue }: KPIBarProps) {
+function KPIBar({ total, active, overdue, s }: KPIBarProps) {
   const pending = total - active - overdue;
 
   const cards = [
     {
-      label: 'Total Students',
+      label: s.kpiTotal,
       value: total,
       icon: GraduationCap,
       color: 'text-[var(--info-solid)]',
       bg: 'bg-[var(--info-bg)]',
     },
     {
-      label: 'Active',
+      label: s.kpiActive,
       value: active,
       icon: CheckCircle2,
       color: 'text-[var(--success-text)]',
       bg: 'bg-[var(--success-bg)]',
     },
     {
-      label: 'Overdue Payment',
+      label: s.kpiOverdue,
       value: overdue,
       icon: XCircle,
       color: 'text-[var(--error-text)]',
       bg: 'bg-[var(--error-bg)]',
     },
     {
-      label: 'Pending',
+      label: s.kpiPending,
       value: pending > 0 ? pending : 0,
       icon: Minus,
       color: 'text-[var(--warning-text)]',
@@ -161,9 +256,10 @@ interface DesktopTableProps {
   students: StudentDto[];
   isLoading: boolean;
   onToggleStatus: (id: string, status: 'active' | 'inactive') => Promise<void>;
+  s: I18NShape;
 }
 
-function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps) {
+function DesktopTable({ students, isLoading, onToggleStatus, s }: DesktopTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -204,8 +300,8 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
     return (
       <EmptyState
         icon={GraduationCap}
-        title="No students found"
-        description="Try adjusting your search or filter criteria."
+        title={s.emptyTitle}
+        description={s.emptyDescTable}
       />
     );
   }
@@ -225,18 +321,18 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
             className="flex items-center gap-3 border-b border-[var(--border-default)] bg-[var(--brand-primary)]/5 px-4 py-2 overflow-hidden"
           >
             <span className="text-sm font-medium text-[var(--brand-primary)]">
-              {selectedIds.size} selected
+              {s.bulkSelected(selectedIds.size)}
             </span>
             <button className="ml-auto flex items-center gap-1.5 rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-1.5 text-xs font-medium text-[var(--error-text)] transition-colors hover:bg-[var(--error-solid)] hover:text-white">
               <Trash2 size={12} aria-hidden="true" />
-              Deactivate selected
+              {s.deactivateSelected}
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div className="overflow-x-auto">
-        <table className="w-full" role="table" aria-label="Students">
+        <table className="w-full" role="table" aria-label={s.title}>
           {/* Header */}
           <thead>
             <tr className="border-b border-[var(--border-default)] bg-[var(--bg-surface-secondary)]">
@@ -248,22 +344,22 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                     if (el) el.indeterminate = someSelected;
                   }}
                   onChange={toggleAll}
-                  aria-label="Select all students"
+                  aria-label={s.selectAll}
                   className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--brand-primary)]"
                 />
               </th>
               {[
-                'Student',
-                'Email',
-                'Courses',
-                'Attendance',
-                'Balance',
-                'Status',
-                'Payment',
+                s.colStudent,
+                s.colEmail,
+                s.colCourses,
+                s.colAttendance,
+                s.colBalance,
+                s.colStatus,
+                s.colPayment,
                 '',
-              ].map((h) => (
+              ].map((h, i) => (
                 <th
-                  key={h}
+                  key={`${h}-${i}`}
                   scope="col"
                   className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
                 >
@@ -299,7 +395,7 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleOne(student.id)}
-                      aria-label={`Select ${student.name}`}
+                      aria-label={s.selectOne(student.name)}
                       className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--brand-primary)]"
                     />
                   </td>
@@ -326,7 +422,7 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                   {/* Courses */}
                   <td className="px-4 py-3">
                     <p className="text-sm text-[var(--text-secondary)]">
-                      {student.courses.length} course{student.courses.length !== 1 ? 's' : ''}
+                      {s.coursesCount(student.courses.length)}
                     </p>
                   </td>
 
@@ -370,14 +466,14 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                   {/* Status */}
                   <td className="px-4 py-3">
                     <InlineBadge variant={getStatusVariant(student.status)}>
-                      {student.status}
+                      {statusLabel(student.status, s)}
                     </InlineBadge>
                   </td>
 
                   {/* Payment */}
                   <td className="px-4 py-3">
                     <InlineBadge variant={getPaymentVariant(student.paymentStatus)}>
-                      {student.paymentStatus}
+                      {paymentLabel(student.paymentStatus, s)}
                     </InlineBadge>
                   </td>
 
@@ -387,7 +483,7 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                       <Link
                         href={`/admin/students/${student.id}`}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
-                        aria-label={`View ${student.name}`}
+                        aria-label={s.viewAria(student.name)}
                       >
                         <Eye size={14} aria-hidden="true" />
                       </Link>
@@ -397,7 +493,7 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
                         onClick={() => handleToggleStatus(student.id, student.status)}
                         disabled={isPending}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] disabled:opacity-50"
-                        aria-label={`${student.status === 'active' ? 'Deactivate' : 'Activate'} ${student.name}`}
+                        aria-label={s.toggleAria(student.name, student.status === 'active')}
                       >
                         {isPending ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--brand-primary)] border-t-transparent" />
@@ -424,9 +520,11 @@ function DesktopTable({ students, isLoading, onToggleStatus }: DesktopTableProps
 function MobileStudentCard({
   student,
   onToggleStatus,
+  s,
 }: {
   student: StudentDto;
   onToggleStatus: (id: string, status: 'active' | 'inactive') => Promise<void>;
+  s: I18NShape;
 }) {
   const [isPending, setIsPending] = useState(false);
   const initials = `${student.name.split(' ')[0]?.[0] ?? ''}${student.name.split(' ')[1]?.[0] ?? ''}`.toUpperCase();
@@ -459,7 +557,7 @@ function MobileStudentCard({
               {student.name}
             </p>
             <InlineBadge variant={getStatusVariant(student.status)}>
-              {student.status}
+              {statusLabel(student.status, s)}
             </InlineBadge>
           </div>
           <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{student.email}</p>
@@ -487,7 +585,7 @@ function MobileStudentCard({
 
             {/* Payment badge */}
             <InlineBadge variant={getPaymentVariant(student.paymentStatus)}>
-              {student.paymentStatus}
+              {paymentLabel(student.paymentStatus, s)}
             </InlineBadge>
 
             {/* Balance */}
@@ -510,7 +608,7 @@ function MobileStudentCard({
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-default)] py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)]"
         >
           <Eye size={12} aria-hidden="true" />
-          View
+          {s.view}
         </Link>
         <motion.button
           whileTap={{ scale: 0.96 }}
@@ -530,7 +628,7 @@ function MobileStudentCard({
           ) : (
             <CheckCircle2 size={12} aria-hidden="true" />
           )}
-          {student.status === 'active' ? 'Deactivate' : 'Activate'}
+          {student.status === 'active' ? s.deactivate : s.activate}
         </motion.button>
       </div>
     </motion.div>
@@ -544,9 +642,10 @@ interface PaginationProps {
   total: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  s: I18NShape;
 }
 
-function Pagination({ page, total, pageSize, onPageChange }: PaginationProps) {
+function Pagination({ page, total, pageSize, onPageChange, s }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const canPrev = page > 1;
   const canNext = page < totalPages;
@@ -556,13 +655,13 @@ function Pagination({ page, total, pageSize, onPageChange }: PaginationProps) {
   return (
     <div className="flex items-center justify-between gap-2 pt-4">
       <p className="text-xs text-[var(--text-muted)]">
-        Page {page} of {totalPages} · {formatNumber(total)} students
+        {s.pageOf(page, totalPages)} · {s.studentsCount(total)}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={!canPrev}
-          aria-label="Previous page"
+          aria-label={s.prevPage}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)] disabled:opacity-40"
         >
           <ChevronLeft size={14} aria-hidden="true" />
@@ -590,7 +689,7 @@ function Pagination({ page, total, pageSize, onPageChange }: PaginationProps) {
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={!canNext}
-          aria-label="Next page"
+          aria-label={s.nextPage}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)] disabled:opacity-40"
         >
           <ChevronRight size={14} aria-hidden="true" />
@@ -616,6 +715,7 @@ interface FilterBarProps {
   paymentFilter: PaymentFilter;
   onPaymentChange: (p: PaymentFilter) => void;
   onExport: () => void;
+  s: I18NShape;
 }
 
 function FilterBar({
@@ -626,7 +726,20 @@ function FilterBar({
   paymentFilter,
   onPaymentChange,
   onExport,
+  s,
 }: FilterBarProps) {
+  const statusLabels: Record<StatusFilter, string> = {
+    all: s.filterAllStatus,
+    active: s.filterActive,
+    inactive: s.filterInactive,
+  };
+  const paymentLabels: Record<PaymentFilter, string> = {
+    all: s.filterAllPayments,
+    paid: s.filterPaid,
+    pending: s.filterPending,
+    overdue: s.filterOverdue,
+  };
+
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
       {/* Search */}
@@ -640,46 +753,46 @@ function FilterBar({
           type="search"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search students…"
-          aria-label="Search students"
+          placeholder={s.searchPlaceholder}
+          aria-label={s.searchAria}
           className="h-10 w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--border-focus)]/20"
         />
       </div>
 
       {/* Status filter */}
       <div className="flex gap-1 overflow-x-auto">
-        {STATUS_FILTERS.map((s) => (
+        {STATUS_FILTERS.map((f) => (
           <button
-            key={s}
-            onClick={() => onStatusChange(s)}
-            aria-pressed={statusFilter === s}
+            key={f}
+            onClick={() => onStatusChange(f)}
+            aria-pressed={statusFilter === f}
             className={cn(
-              'whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium capitalize transition-colors',
-              statusFilter === s
+              'whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+              statusFilter === f
                 ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
                 : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]',
             )}
           >
-            {s === 'all' ? 'All Status' : s}
+            {statusLabels[f]}
           </button>
         ))}
       </div>
 
       {/* Payment filter */}
       <div className="flex gap-1 overflow-x-auto">
-        {PAYMENT_FILTERS.map((p) => (
+        {PAYMENT_FILTERS.map((f) => (
           <button
-            key={p}
-            onClick={() => onPaymentChange(p)}
-            aria-pressed={paymentFilter === p}
+            key={f}
+            onClick={() => onPaymentChange(f)}
+            aria-pressed={paymentFilter === f}
             className={cn(
-              'whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium capitalize transition-colors',
-              paymentFilter === p
+              'whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+              paymentFilter === f
                 ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
                 : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]',
             )}
           >
-            {p === 'all' ? 'All Payments' : p}
+            {paymentLabels[f]}
           </button>
         ))}
       </div>
@@ -689,10 +802,10 @@ function FilterBar({
         whileTap={{ scale: 0.96 }}
         onClick={onExport}
         className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)]"
-        aria-label="Export students CSV"
+        aria-label={s.exportAria}
       >
         <Download size={13} aria-hidden="true" />
-        Export
+        {s.export}
       </motion.button>
     </div>
   );
@@ -702,6 +815,10 @@ function FilterBar({
 
 export default function AdminStudentsPage() {
   const { students, isLoading, toggleStatus, refresh } = useAdminStudents();
+
+  const rawLocale = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s = I18N[locale];
 
   const isMobile = useMediaQuery('(max-width: 639px)');
 
@@ -738,13 +855,13 @@ export default function AdminStudentsPage() {
     setPage(1);
   }, []);
 
-  const handleStatusChange = useCallback((s: StatusFilter) => {
-    setStatusFilter(s);
+  const handleStatusChange = useCallback((value: StatusFilter) => {
+    setStatusFilter(value);
     setPage(1);
   }, []);
 
-  const handlePaymentChange = useCallback((p: PaymentFilter) => {
-    setPaymentFilter(p);
+  const handlePaymentChange = useCallback((value: PaymentFilter) => {
+    setPaymentFilter(value);
     setPage(1);
   }, []);
 
@@ -769,6 +886,9 @@ export default function AdminStudentsPage() {
   const activeStudents = students.filter((s) => s.status === 'active').length;
   const overdueStudents = students.filter((s) => s.paymentStatus === 'overdue').length;
 
+  // True empty-data state (no students at all, regardless of filters)
+  const hasNoData = !isLoading && students.length === 0;
+
   return (
     <div className="min-h-screen bg-[var(--bg-page)]">
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-5 lg:px-8 lg:py-8">
@@ -782,22 +902,22 @@ export default function AdminStudentsPage() {
         >
           <div>
             <h1 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl lg:text-3xl">
-              Students
+              {s.title}
             </h1>
             <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-              {formatNumber(totalStudents)} total students
+              {s.totalStudents(totalStudents)}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <motion.button
               whileTap={{ scale: 0.96 }}
-              onClick={refresh}
+              onClick={() => void refresh()}
               className="flex h-10 items-center gap-2 rounded-xl border border-[var(--border-default)] px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)] sm:px-4"
-              aria-label="Refresh students"
+              aria-label={s.refreshAria}
             >
               <Filter size={14} aria-hidden="true" />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">{s.refresh}</span>
             </motion.button>
 
             <motion.button
@@ -805,68 +925,68 @@ export default function AdminStudentsPage() {
               className="flex h-10 items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 text-sm font-medium text-[var(--text-on-brand)] transition-colors hover:bg-[var(--brand-primary-hover)] sm:px-4"
             >
               <Plus size={14} aria-hidden="true" />
-              <span className="hidden sm:inline">Add Student</span>
+              <span className="hidden sm:inline">{s.addStudent}</span>
             </motion.button>
           </div>
         </motion.div>
 
         {/* ── KPI bar ─────────────────────────────────────────────────── */}
-        {!isLoading && (
+        {!isLoading && !hasNoData && (
           <KPIBar
             total={totalStudents}
             active={activeStudents}
             overdue={overdueStudents}
+            s={s}
           />
         )}
 
         {/* ── Filter bar ───────────────────────────────────────────────── */}
-        <FilterBar
-          search={search}
-          onSearch={handleSearch}
-          statusFilter={statusFilter}
-          onStatusChange={handleStatusChange}
-          paymentFilter={paymentFilter}
-          onPaymentChange={handlePaymentChange}
-          onExport={handleExport}
-        />
-
-        {/* ── Error state ─────────────────────────────────────────────── */}
-        {!isLoading && students.length === 0 && !debouncedSearch && (
-          <EmptyState
-            icon={GraduationCap}
-            title="No students yet"
-            description="Add your first student to get started."
-            action={{ label: 'Add Student', onClick: () => {} }}
+        {!hasNoData && (
+          <FilterBar
+            search={search}
+            onSearch={handleSearch}
+            statusFilter={statusFilter}
+            onStatusChange={handleStatusChange}
+            paymentFilter={paymentFilter}
+            onPaymentChange={handlePaymentChange}
+            onExport={handleExport}
+            s={s}
           />
         )}
 
-        {/* ── Desktop table ────────────────────────────────────────────── */}
-        {!isMobile && (
+        {/* ── Empty / loading / data ───────────────────────────────────── */}
+        {hasNoData ? (
+          <EmptyState
+            icon={GraduationCap}
+            title={s.noStudentsTitle}
+            description={s.noStudentsDesc}
+            action={{ label: s.addStudent, onClick: () => {} }}
+          />
+        ) : !isMobile ? (
           <>
             <DesktopTable
               students={paginated}
               isLoading={isLoading}
               onToggleStatus={toggleStatus}
+              s={s}
             />
             <Pagination
               page={page}
               total={filtered.length}
               pageSize={PAGE_SIZE}
               onPageChange={setPage}
+              s={s}
             />
           </>
-        )}
-
-        {/* ── Mobile card list ─────────────────────────────────────────── */}
-        {isMobile && (
+        ) : (
           <div className="space-y-3">
             {isLoading ? (
               <SkeletonLoader variant="card" count={6} />
             ) : paginated.length === 0 ? (
               <EmptyState
                 icon={GraduationCap}
-                title="No students found"
-                description="Try adjusting your search."
+                title={s.emptyTitle}
+                description={s.emptyDescMobile}
               />
             ) : (
               paginated.map((student) => (
@@ -874,6 +994,7 @@ export default function AdminStudentsPage() {
                   key={student.id}
                   student={student}
                   onToggleStatus={toggleStatus}
+                  s={s}
                 />
               ))
             )}
@@ -885,7 +1006,7 @@ export default function AdminStudentsPage() {
                 onClick={() => setPage((p) => p + 1)}
                 className="w-full rounded-xl border border-[var(--border-default)] py-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-hover)]"
               >
-                Load more
+                {s.loadMore}
               </motion.button>
             )}
           </div>

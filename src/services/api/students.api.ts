@@ -41,6 +41,8 @@ export interface Student {
   groupId?: string;
   groupName?: string;
   balance: number;
+  debtAmount?: number;
+  attendancePercent?: number;
   enrolledAt: string;
   tenantId: string;
   createdAt: string;
@@ -128,30 +130,94 @@ export interface StudentNotification {
   createdAt: string;
 }
 
+/** Shape returned by the backend for a single student (raw entity + `user` relation). */
+interface RawStudent {
+  id: string;
+  tenantId: string;
+  studentCode?: string;
+  enrollmentDate?: string | null;
+  graduationDate?: string | null;
+  balance?: string | number | null;
+  debtAmount?: string | number | null;
+  totalAttendancePercent?: string | number | null;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    status?: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Backend list responses are wrapped as `{ data, meta: { total, page, limit, totalPages } }`. */
+interface RawPaginatedResponse<T> {
+  data: T[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+/** Maps the raw backend student shape (entity + `user` relation) to the frontend `Student` view model. */
+function mapStudent(raw: RawStudent): Student {
+  const user = raw.user;
+  const status: StudentStatus = raw.graduationDate
+    ? 'graduated'
+    : user?.status === 'active'
+      ? 'active'
+      : user?.status === 'suspended'
+        ? 'suspended'
+        : 'inactive';
+
+  return {
+    id: raw.id,
+    firstName: user?.firstName ?? '',
+    lastName: user?.lastName ?? '',
+    email: user?.email ?? '',
+    ...(user?.phone != null ? { phone: user.phone } : {}),
+    ...(user?.avatarUrl != null ? { avatarUrl: user.avatarUrl } : {}),
+    status,
+    balance: raw.balance != null ? Number(raw.balance) : 0,
+    debtAmount: raw.debtAmount != null ? Number(raw.debtAmount) : 0,
+    attendancePercent:
+      raw.totalAttendancePercent != null ? Number(raw.totalAttendancePercent) : 0,
+    enrolledAt: raw.enrollmentDate ?? raw.createdAt,
+    tenantId: raw.tenantId,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
 export const studentsApi = {
   getList: async (
     params: StudentListParams,
   ): Promise<PaginatedResponse<Student>> => {
-    const { data } = await httpClient.get<PaginatedResponse<Student>>(
+    const { data } = await httpClient.get<RawPaginatedResponse<RawStudent>>(
       '/students',
       { params },
     );
-    return data;
+    return {
+      data: data.data.map(mapStudent),
+      total: data.meta.total,
+      page: data.meta.page,
+      limit: data.meta.limit,
+      totalPages: data.meta.totalPages,
+    };
   },
 
   getById: async (id: string): Promise<Student> => {
-    const { data } = await httpClient.get<Student>(`/students/${id}`);
-    return data;
+    const { data } = await httpClient.get<RawStudent>(`/students/${id}`);
+    return mapStudent(data);
   },
 
   create: async (dto: CreateStudentDto): Promise<Student> => {
-    const { data } = await httpClient.post<Student>('/students', dto);
-    return data;
+    const { data } = await httpClient.post<RawStudent>('/students', dto);
+    return mapStudent(data);
   },
 
   update: async (id: string, dto: UpdateStudentDto): Promise<Student> => {
-    const { data } = await httpClient.patch<Student>(`/students/${id}`, dto);
-    return data;
+    const { data } = await httpClient.patch<RawStudent>(`/students/${id}`, dto);
+    return mapStudent(data);
   },
 
   delete: async (id: string): Promise<void> => {
