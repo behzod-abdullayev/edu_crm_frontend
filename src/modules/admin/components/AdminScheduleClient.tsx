@@ -3,8 +3,10 @@
 // src/modules/admin/components/AdminScheduleClient.tsx
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
+import { uz, ru, enUS } from 'date-fns/locale';
+import type { Locale as DateFnsLocale } from 'date-fns';
 import { ScheduleCalendar } from './ScheduleCalendar';
 import { AdminScheduleSkeleton } from './AdminScheduleSkeleton';
 import { useAdminSchedule, useAdminCourses, useAdminTeachers } from '../hooks/useAdmin';
@@ -12,9 +14,167 @@ import { useToast } from '@shared/hooks/useToast';
 import { useIsMobile } from '@shared/hooks/useIsMobile';
 import type { ScheduleEvent, ScheduleEventForm } from '../types/admin.types';
 
+// ─── i18n ───────────────────────────────────────────────────────────────────
+
+const I18N = {
+  uz: {
+    title: 'Jadval',
+    subtitle: "Dars jadvali, xonalar va o'qituvchilarni boshqaring",
+    add: 'Tadbir qoʻshish',
+    addAria: 'Yangi dars tadbirini qoʻshish',
+    previousWeek: 'Oldingi hafta',
+    nextWeek: 'Keyingi hafta',
+    today: 'Bugun',
+    goToToday: 'Bugungi kunga oʻtish',
+    noEvents: 'Bu hafta tadbirlar yoʻq',
+    weekSchedule: (range: string) => `Hafta jadvali: ${range}`,
+    createTitle: 'Tadbir yaratish',
+    editTitle: 'Tadbirni tahrirlash',
+    createAria: 'Dars tadbirini yaratish',
+    editAria: 'Dars tadbirini tahrirlash',
+    course: 'Kurs',
+    teacher: "O'qituvchi",
+    room: 'Xona',
+    repeat: 'Takrorlanish',
+    startTime: 'Boshlanish vaqti',
+    endTime: 'Tugash vaqti',
+    selectCourse: 'Kursni tanlang…',
+    selectTeacher: "O'qituvchini tanlang…",
+    roomPlaceholder: 'masalan, 101-xona',
+    noRepeat: 'Takrorlanmaydi',
+    daily: 'Har kuni',
+    weekly: 'Har hafta',
+    biweekly: 'Ikki haftada bir',
+    monthly: 'Har oy',
+    requiredError: "Takrorlanishdan tashqari barcha maydonlar to'ldirilishi shart",
+    endTimeError: 'Tugash vaqti boshlanish vaqtidan keyin boʻlishi kerak',
+    cancel: 'Bekor qilish',
+    save: 'Saqlash',
+    saving: 'Saqlanmoqda…',
+    create: 'Yaratish',
+    creating: 'Yaratilmoqda…',
+    delete: "O'chirish",
+    deleting: "O'chirilmoqda…",
+    close: 'Yopish',
+    edit: 'Tahrirlash',
+    toastEventDeleted: "Tadbir o'chirildi",
+    toastDeleteFailed: "Tadbirni o'chirib bo'lmadi",
+    toastEventUpdated: 'Tadbir yangilandi',
+    toastEventCreated: 'Tadbir yaratildi',
+    toastUpdateFailed: "Tadbirni yangilab bo'lmadi",
+    toastCreateFailed: "Tadbirni yaratib bo'lmadi",
+    deleteEventAria: (name: string) => `Tadbirni o'chirish: ${name}`,
+    eventAria: (name: string) => `Tadbir: ${name}`,
+  },
+  en: {
+    title: 'Schedule',
+    subtitle: 'Manage class schedules, rooms, and teacher assignments',
+    add: 'Add Event',
+    addAria: 'Add new schedule event',
+    previousWeek: 'Previous week',
+    nextWeek: 'Next week',
+    today: 'Today',
+    goToToday: 'Go to today',
+    noEvents: 'No events this week',
+    weekSchedule: (range: string) => `Week schedule: ${range}`,
+    createTitle: 'Create Event',
+    editTitle: 'Edit Event',
+    createAria: 'Create schedule event',
+    editAria: 'Edit schedule event',
+    course: 'Course',
+    teacher: 'Teacher',
+    room: 'Room',
+    repeat: 'Repeat',
+    startTime: 'Start Time',
+    endTime: 'End Time',
+    selectCourse: 'Select course…',
+    selectTeacher: 'Select teacher…',
+    roomPlaceholder: 'e.g. Room 101',
+    noRepeat: 'No repeat',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    biweekly: 'Bi-weekly',
+    monthly: 'Monthly',
+    requiredError: 'All fields except repeat rule are required',
+    endTimeError: 'End time must be after start time',
+    cancel: 'Cancel',
+    save: 'Save Changes',
+    saving: 'Saving…',
+    create: 'Create Event',
+    creating: 'Creating…',
+    delete: 'Delete',
+    deleting: 'Deleting…',
+    close: 'Close',
+    edit: 'Edit',
+    toastEventDeleted: 'Event deleted',
+    toastDeleteFailed: 'Failed to delete event',
+    toastEventUpdated: 'Event updated',
+    toastEventCreated: 'Event created',
+    toastUpdateFailed: 'Failed to update event',
+    toastCreateFailed: 'Failed to create event',
+    deleteEventAria: (name: string) => `Delete event: ${name}`,
+    eventAria: (name: string) => `Event: ${name}`,
+  },
+  ru: {
+    title: 'Расписание',
+    subtitle: 'Управление расписанием занятий, аудиториями и преподавателями',
+    add: 'Добавить событие',
+    addAria: 'Добавить новое событие расписания',
+    previousWeek: 'Предыдущая неделя',
+    nextWeek: 'Следующая неделя',
+    today: 'Сегодня',
+    goToToday: 'Перейти к сегодня',
+    noEvents: 'На этой неделе нет занятий',
+    weekSchedule: (range: string) => `Расписание недели: ${range}`,
+    createTitle: 'Создать событие',
+    editTitle: 'Редактировать событие',
+    createAria: 'Создать событие расписания',
+    editAria: 'Редактировать событие расписания',
+    course: 'Курс',
+    teacher: 'Преподаватель',
+    room: 'Аудитория',
+    repeat: 'Повтор',
+    startTime: 'Время начала',
+    endTime: 'Время окончания',
+    selectCourse: 'Выберите курс…',
+    selectTeacher: 'Выберите преподавателя…',
+    roomPlaceholder: 'например, Аудитория 101',
+    noRepeat: 'Без повтора',
+    daily: 'Ежедневно',
+    weekly: 'Еженедельно',
+    biweekly: 'Раз в две недели',
+    monthly: 'Ежемесячно',
+    requiredError: 'Все поля, кроме правила повтора, обязательны',
+    endTimeError: 'Время окончания должно быть позже времени начала',
+    cancel: 'Отмена',
+    save: 'Сохранить изменения',
+    saving: 'Сохранение…',
+    create: 'Создать событие',
+    creating: 'Создание…',
+    delete: 'Удалить',
+    deleting: 'Удаление…',
+    close: 'Закрыть',
+    edit: 'Изменить',
+    toastEventDeleted: 'Событие удалено',
+    toastDeleteFailed: 'Не удалось удалить событие',
+    toastEventUpdated: 'Событие обновлено',
+    toastEventCreated: 'Событие создано',
+    toastUpdateFailed: 'Не удалось обновить событие',
+    toastCreateFailed: 'Не удалось создать событие',
+    deleteEventAria: (name: string) => `Удалить событие: ${name}`,
+    eventAria: (name: string) => `Событие: ${name}`,
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+type I18NShape = (typeof I18N)[Locale];
+
+const DATE_FNS_LOCALES: Record<Locale, DateFnsLocale> = { uz, en: enUS, ru };
+
 // ─── Inline event form (modal-like panel) ────────────────────────────────────
 
 interface EventFormPanelProps {
+  s: I18NShape;
   initial?: Partial<ScheduleEventForm>;
   editingId?: string;
   courses: { id: string; name: string }[];
@@ -24,6 +184,7 @@ interface EventFormPanelProps {
 }
 
 function EventFormPanel({
+  s,
   initial,
   editingId,
   courses,
@@ -48,11 +209,11 @@ function EventFormPanel({
 
   const handleSubmit = async () => {
     if (!courseId || !teacherId || !room || !startTime || !endTime) {
-      setFormError('All fields except repeat rule are required');
+      setFormError(s.requiredError);
       return;
     }
     if (new Date(endTime) <= new Date(startTime)) {
-      setFormError('End time must be after start time');
+      setFormError(s.endTimeError);
       return;
     }
     setFormError(null);
@@ -93,17 +254,17 @@ function EventFormPanel({
       className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5"
       role="dialog"
       aria-modal="false"
-      aria-label={editingId !== undefined ? 'Edit schedule event' : 'Create schedule event'}
+      aria-label={editingId !== undefined ? s.editAria : s.createAria}
     >
       <h3 className="mb-4 text-base font-semibold text-[var(--text-primary)]">
-        {editingId !== undefined ? 'Edit Event' : 'Create Event'}
+        {editingId !== undefined ? s.editTitle : s.createTitle}
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Course */}
         <div>
           <label className={labelClass} htmlFor="event-course">
-            Course <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            {s.course} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
           </label>
           <select
             id="event-course"
@@ -112,7 +273,7 @@ function EventFormPanel({
             className={inputClass}
             aria-required="true"
           >
-            <option value="">Select course…</option>
+            <option value="">{s.selectCourse}</option>
             {courses.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -122,7 +283,7 @@ function EventFormPanel({
         {/* Teacher */}
         <div>
           <label className={labelClass} htmlFor="event-teacher">
-            Teacher <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            {s.teacher} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
           </label>
           <select
             id="event-teacher"
@@ -131,7 +292,7 @@ function EventFormPanel({
             className={inputClass}
             aria-required="true"
           >
-            <option value="">Select teacher…</option>
+            <option value="">{s.selectTeacher}</option>
             {teachers.map((teacher) => (
               <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
             ))}
@@ -141,12 +302,12 @@ function EventFormPanel({
         {/* Room */}
         <div>
           <label className={labelClass} htmlFor="event-room">
-            Room <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            {s.room} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
           </label>
           <input
             id="event-room"
             type="text"
-            placeholder="e.g. Room 101"
+            placeholder={s.roomPlaceholder}
             value={room}
             onChange={(e) => setRoom(e.target.value)}
             className={inputClass}
@@ -157,7 +318,7 @@ function EventFormPanel({
         {/* Repeat rule */}
         <div>
           <label className={labelClass} htmlFor="event-repeat">
-            Repeat
+            {s.repeat}
           </label>
           <select
             id="event-repeat"
@@ -171,18 +332,18 @@ function EventFormPanel({
             }
             className={inputClass}
           >
-            <option value="">No repeat</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Bi-weekly</option>
-            <option value="monthly">Monthly</option>
+            <option value="">{s.noRepeat}</option>
+            <option value="daily">{s.daily}</option>
+            <option value="weekly">{s.weekly}</option>
+            <option value="biweekly">{s.biweekly}</option>
+            <option value="monthly">{s.monthly}</option>
           </select>
         </div>
 
         {/* Start time */}
         <div>
           <label className={labelClass} htmlFor="event-start">
-            Start Time <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            {s.startTime} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
           </label>
           <input
             id="event-start"
@@ -197,7 +358,7 @@ function EventFormPanel({
         {/* End time */}
         <div>
           <label className={labelClass} htmlFor="event-end">
-            End Time <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
+            {s.endTime} <span className="text-[var(--error-solid)]" aria-hidden="true">*</span>
           </label>
           <input
             id="event-end"
@@ -242,7 +403,7 @@ function EventFormPanel({
           "
           type="button"
         >
-          Cancel
+          {s.cancel}
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -260,11 +421,11 @@ function EventFormPanel({
         >
           {isSaving
             ? editingId !== undefined
-              ? 'Saving…'
-              : 'Creating…'
+              ? s.saving
+              : s.creating
             : editingId !== undefined
-              ? 'Save Changes'
-              : 'Create Event'}
+              ? s.save
+              : s.create}
         </motion.button>
       </div>
     </motion.div>
@@ -281,11 +442,21 @@ const pageVariants = {
 // ─── AdminScheduleClient ──────────────────────────────────────────────────────
 
 export function AdminScheduleClient() {
-  const t         = useTranslations('admin.schedule');
+  const rawLocale = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s = I18N[locale];
+  const dateLocale = DATE_FNS_LOCALES[locale];
+
   const { toast } = useToast();
   const isMobile  = useIsMobile();
 
-  const { events, isLoading: scheduleLoading, deleteEvent, refresh } = useAdminSchedule();
+  const {
+    events,
+    isLoading: scheduleLoading,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+  } = useAdminSchedule();
   const { courses, isLoading: coursesLoading }   = useAdminCourses();
   const { teachers, isLoading: teachersLoading } = useAdminTeachers();
 
@@ -300,63 +471,41 @@ export function AdminScheduleClient() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleCreateEvent = useCallback(async (_form: ScheduleEventForm): Promise<void> => {
-    setEditingEvent(null);
-    setFormMode('create');
+  const handleEditEvent = useCallback((event: ScheduleEvent) => {
+    setEditingEvent(event);
+    setFormMode('edit');
   }, []);
-
-  const _handleEditEvent = useCallback(
-    (id: string, _form: ScheduleEventForm) => {
-      const event = events.find((e) => e.id === id);
-      if (event !== undefined) {
-        setEditingEvent(event);
-        setFormMode('edit');
-      }
-    },
-    [events],
-  );
 
   const handleDeleteEvent = useCallback(
     async (id: string) => {
       try {
         await deleteEvent(id);
-        toast.success('Event deleted');
+        toast.success(s.toastEventDeleted);
       } catch {
-        toast.error('Failed to delete event');
+        toast.error(s.toastDeleteFailed);
       }
     },
-    [deleteEvent, toast],
+    [deleteEvent, toast, s],
   );
 
   const handleFormSubmit = useCallback(
     async (form: ScheduleEventForm, editId?: string) => {
       try {
         if (editId !== undefined) {
-          const res = await fetch(`/api/admin/schedule/${editId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form),
-          });
-          if (!res.ok) throw new Error('Update failed');
-          toast.success('Event updated');
+          await updateEvent(editId, form);
+          toast.success(s.toastEventUpdated);
         } else {
-          const res = await fetch('/api/admin/schedule', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form),
-          });
-          if (!res.ok) throw new Error('Creation failed');
-          toast.success('Event created');
+          await createEvent(form);
+          toast.success(s.toastEventCreated);
         }
         setFormMode('hidden');
         setEditingEvent(null);
-        await refresh();
       } catch {
-        toast.error(editId !== undefined ? 'Failed to update event' : 'Failed to create event');
+        toast.error(editId !== undefined ? s.toastUpdateFailed : s.toastCreateFailed);
         throw new Error('submit failed');
       }
     },
-    [refresh, toast],
+    [createEvent, updateEvent, toast, s],
   );
 
   const handleFormCancel = useCallback(() => {
@@ -405,17 +554,17 @@ export function AdminScheduleClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl lg:text-3xl">
-            {t('title')}
+            {s.title}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            Manage class schedules, rooms, and teacher assignments
+            {s.subtitle}
           </p>
         </div>
 
         <motion.button
           whileHover={{ y: -1, boxShadow: 'var(--shadow-md)' }}
           whileTap={{ scale: 0.97 }}
-          onClick={() => setFormMode('create')}
+          onClick={() => { setEditingEvent(null); setFormMode('create'); }}
           className="
             flex min-h-[44px] items-center gap-2 rounded-lg
             bg-[var(--brand-primary)] px-4 py-2.5
@@ -425,10 +574,10 @@ export function AdminScheduleClient() {
             focus-visible:ring-[var(--border-focus)] focus-visible:ring-offset-2
           "
           type="button"
-          aria-label="Add new schedule event"
+          aria-label={s.addAria}
         >
           <span aria-hidden="true">+</span>
-          {!isMobile && <span>{t('add')}</span>}
+          {!isMobile && <span>{s.add}</span>}
         </motion.button>
       </div>
 
@@ -437,6 +586,7 @@ export function AdminScheduleClient() {
         {formMode !== 'hidden' && (
           <EventFormPanel
             key={formMode === 'edit' ? `edit-${editingEvent?.id ?? ''}` : 'create'}
+            s={s}
             {...editFormProps}
             courses={courseOptions}
             teachers={teacherOptions}
@@ -454,10 +604,10 @@ export function AdminScheduleClient() {
         className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 sm:p-5"
       >
         <ScheduleCalendar
+          s={s}
+          dateLocale={dateLocale}
           events={events}
-          teachers={teacherOptions}
-          courses={courseOptions}
-          onCreateEvent={handleCreateEvent}
+          onEditEvent={handleEditEvent}
           onDeleteEvent={handleDeleteEvent}
         />
       </motion.div>

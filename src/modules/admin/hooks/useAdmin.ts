@@ -2,12 +2,15 @@
 // ✅ FIX: Added try/catch to ALL hooks, validate API responses are arrays/objects before use
 
 import { useState, useEffect, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teachersApi } from '@/services/api/teachers.api';
 import { studentsApi, type Student } from '@/services/api/students.api';
+import { schedulesApi } from '@/services/api/schedules.api';
+import type { Course } from '@/services/api/courses.api';
 import { queryKeys } from '@/services/query/keys.factory';
 import { useTeacherList } from '@/services/query/teachers.queries';
 import { useStudentList } from '@/services/query/students.queries';
+import { useCourseList } from '@/services/query/courses.queries';
 import type {
   AdminDashboardData,
   ChartDataPoint,
@@ -18,7 +21,7 @@ import type {
   CourseDto,
   TeacherDto,
   StudentDto,
-  ScheduleEvent,
+  ScheduleEventForm,
   ReportRecord,
   TenantConfig,
   PricingEntry,
@@ -154,41 +157,33 @@ export function useAdminDashboard() {
 
 // ── Courses ───────────────────────────────────────────────────────────────────
 
+function courseToDto(c: Course): CourseDto {
+  return {
+    id: c.id,
+    name: c.name,
+    teacherId: c.teacherId,
+    teacherName: c.teacherName,
+    studentsEnrolled: c.studentCount,
+    price: c.price ?? 0,
+    currency: c.currency ?? 'UZS',
+    status: c.status === 'published' ? 'active' : c.status === 'archived' ? 'archived' : 'draft',
+    startDate: c.startDate ?? c.createdAt,
+    endDate: c.endDate ?? null,
+    createdAt: c.createdAt,
+  };
+}
+
 export function useAdminCourses() {
-  const [courses, setCourses] = useState<CourseDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error: queryError, refetch } = useCourseList({ page: 1, limit: 100 });
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/courses');
-      if (!res.ok) throw new Error(`Failed to load courses (${res.status})`);
-      const data = (await res.json()) as unknown;
-      // ✅ FIX: Validate it's actually an array before setting state
-      setCourses(ensureArray<CourseDto>(data));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load courses');
-      setCourses([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const courses = (data?.data ?? []).map(courseToDto);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const deleteCourse = useCallback(
-    async (id: string) => {
-      await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
-      setCourses((prev) => prev.filter((c) => c.id !== id));
-    },
-    [],
-  );
-
-  return { courses, isLoading, error, deleteCourse, refresh: load };
+  return {
+    courses,
+    isLoading,
+    error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load courses') : null,
+    refresh: refetch,
+  };
 }
 
 // ── Teachers ──────────────────────────────────────────────────────────────────
@@ -286,38 +281,76 @@ export function useAdminStudents() {
 
 // ── Schedule ──────────────────────────────────────────────────────────────────
 
+/** Default visible window for the schedule calendar: 2 weeks back, 8 weeks ahead. */
+function getScheduleRange(): { from: string; to: string } {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const from = new Date();
+  from.setDate(from.getDate() - 14);
+  const to = new Date();
+  to.setDate(to.getDate() + 56);
+  return { from: fmt(from), to: fmt(to) };
+}
+
 export function useAdminSchedule() {
-  const [events, setEvents] = useState<ScheduleEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const range = getScheduleRange();
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/schedule');
-      if (!res.ok) throw new Error(`Failed to load schedule (${res.status})`);
-      const data = (await res.json()) as unknown;
-      // ✅ FIX: Validate it's actually an array before setting state
-      setEvents(ensureArray<ScheduleEvent>(data));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load schedule');
-      setEvents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data, isLoading, error: queryError, refetch } = useQuery({
+    queryKey: queryKeys.schedules.calendar(range),
+    queryFn: () => schedulesApi.getCalendar(range),
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const events = data ?? [];
 
-  const deleteEvent = useCallback(async (id: string) => {
-    await fetch(`/api/admin/schedule/${id}`, { method: 'DELETE' });
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.schedules.all });
+  }, [queryClient]);
 
-  return { events, isLoading, error, deleteEvent, refresh: load };
+  const createMutation = useMutation({
+    mutationFn: (form: ScheduleEventForm) => schedulesApi.create(form),
+    onSuccess: invalidate,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, form }: { id: string; form: ScheduleEventForm }) => schedulesApi.update(id, form),
+    onSuccess: invalidate,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => schedulesApi.remove(id),
+    onSuccess: invalidate,
+  });
+
+  const createEvent = useCallback(
+    async (form: ScheduleEventForm) => {
+      await createMutation.mutateAsync(form);
+    },
+    [createMutation],
+  );
+
+  const updateEvent = useCallback(
+    async (id: string, form: ScheduleEventForm) => {
+      await updateMutation.mutateAsync({ id, form });
+    },
+    [updateMutation],
+  );
+
+  const deleteEvent = useCallback(
+    async (id: string) => {
+      await deleteMutation.mutateAsync(id);
+    },
+    [deleteMutation],
+  );
+
+  return {
+    events,
+    isLoading,
+    error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load schedule') : null,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    refresh: refetch,
+  };
 }
 
 // ── Reports ───────────────────────────────────────────────────────────────────

@@ -120,6 +120,12 @@ export const queryKeys = {
       [...queryKeys.owner.all, 'analytics', params] as const,
   },
 
+  schedules: {
+    all: ['schedules'] as const,
+    calendar: (params: { from: string; to: string; groupId?: string; teacherId?: string }) =>
+      [...queryKeys.schedules.all, 'calendar', params] as const,
+  },
+
   notifications: {
     all: ['notifications'] as const,
     lists: () => [...queryKeys.notifications.all, 'list'] as const,
