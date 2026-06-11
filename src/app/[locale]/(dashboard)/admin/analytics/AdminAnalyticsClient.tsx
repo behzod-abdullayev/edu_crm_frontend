@@ -1,24 +1,12 @@
 'use client';
 
-/**
- * AdminAnalyticsClient — Admin Analytics Dashboard
- *
- * Uses AdminAnalyticsData from admin.api.ts which has:
- *   revenue  { total, monthly, currency, trend[] }
- *   students { total, active, new }
- *   attendance { rate, trend[] }
- *
- * NOTE: AdminAnalyticsData does NOT have students.growth or courses.active —
- * those live in the richer AdminAnalytics type from analytics.api.ts.
- * We fall back to zeros for missing fields and skip the growth chart.
- *
- * Fixes applied vs initial version:
- *  1. KPICardProps.trend is `number` (not optional) → pass 0 when no trend data
- *  2. `courses` field doesn't exist on AdminAnalyticsData → removed KPI card
- *     or replaced with student `new` count
- *  3. `students.growth` doesn't exist → empty array for that chart
- *  4. Framer Motion props built with conditional spreads (exactOptionalPropertyTypes)
- */
+// src/app/[locale]/(dashboard)/admin/analytics/AdminAnalyticsClient.tsx
+//
+// Uses AdminAnalyticsData from admin.api.ts (GET /admin/analytics), which returns:
+//   revenueByMonth, enrollmentsByMonth, attendanceByMonth: Array<{ month, value }>
+//   avgAttendanceRate, totalRevenue, totalEnrollments: number
+// The date range filter is forwarded to the backend as from/to and controls how
+// many monthly buckets are returned (clamped between 1 and 12).
 
 import { useState, lazy, Suspense } from 'react';
 import React from 'react';
@@ -49,15 +37,6 @@ const BarChart = lazy(() =>
 const Bar = lazy(() =>
   import('recharts').then((m) => ({ default: m.Bar as unknown as React.ComponentType<any> })),
 );
-const PieChart = lazy(() =>
-  import('recharts').then((m) => ({ default: m.PieChart })),
-);
-const Pie = lazy(() =>
-  import('recharts').then((m) => ({ default: m.Pie as unknown as React.ComponentType<any> })),
-);
-const Cell = lazy(() =>
-  import('recharts').then((m) => ({ default: m.Cell })),
-);
 const XAxis = lazy(() =>
   import('recharts').then((m) => ({ default: m.XAxis })),
 );
@@ -81,19 +60,15 @@ const I18N = {
     filterLabels: { '7d': 'Oxirgi 7 kun', '30d': 'Oxirgi 30 kun', '90d': 'Oxirgi 90 kun', '365d': 'Oxirgi 1 yil' },
     kpi: {
       revenue: "Umumiy daromad",
-      students: "Jami talabalar",
       newStudents: "Yangi talabalar",
       attendance: "Davomat darajasi",
     },
     charts: {
       revenueTitle: "Daromad tendentsiyasi",
+      enrollmentsTitle: "Yangi talabalar tendentsiyasi",
       attendanceTitle: "Davomat statistikasi",
-      debtTitle: "To'lov holati",
     },
     currency: "so'm",
-    paid: "To'langan",
-    pending: "Kutilmoqda",
-    overdue: "Muddati o'tgan",
     noData: "Ma'lumot yo'q",
   },
   en: {
@@ -102,19 +77,15 @@ const I18N = {
     filterLabels: { '7d': 'Last 7 days', '30d': 'Last 30 days', '90d': 'Last 90 days', '365d': 'Last 1 year' },
     kpi: {
       revenue: "Total Revenue",
-      students: "Total Students",
       newStudents: "New Students",
       attendance: "Attendance Rate",
     },
     charts: {
       revenueTitle: "Revenue Trend",
+      enrollmentsTitle: "New Students Trend",
       attendanceTitle: "Attendance Statistics",
-      debtTitle: "Payment Status",
     },
     currency: "UZS",
-    paid: "Paid",
-    pending: "Pending",
-    overdue: "Overdue",
     noData: "No data available",
   },
   ru: {
@@ -123,19 +94,15 @@ const I18N = {
     filterLabels: { '7d': 'Последние 7 дней', '30d': 'Последние 30 дней', '90d': 'Последние 90 дней', '365d': 'Последний год' },
     kpi: {
       revenue: "Общий доход",
-      students: "Всего студентов",
       newStudents: "Новые студенты",
       attendance: "Посещаемость",
     },
     charts: {
       revenueTitle: "Динамика дохода",
+      enrollmentsTitle: "Динамика новых студентов",
       attendanceTitle: "Статистика посещаемости",
-      debtTitle: "Статус платежей",
     },
     currency: "сум",
-    paid: "Оплачено",
-    pending: "Ожидание",
-    overdue: "Просрочено",
     noData: "Нет данных",
   },
 } as const;
@@ -210,7 +177,6 @@ function ChartSkeleton({ height = 260 }: { height?: number }) {
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
-// trend is required (use 0 if no real trend data) — avoids exactOptionalPropertyTypes issue
 interface KPICardProps {
   title: string;
   value: number;
@@ -219,13 +185,11 @@ interface KPICardProps {
   icon: React.ElementType;
   iconColor: string;
   isLoading: boolean;
-  trend: number;
   index: number;
 }
 
-function KPICard({ title, value, suffix, prefix, icon: Icon, iconColor, isLoading, trend, index }: KPICardProps) {
+function KPICard({ title, value, suffix, prefix, icon: Icon, iconColor, isLoading, index }: KPICardProps) {
   if (isLoading) return <SkeletonLoader variant="kpi" />;
-  const trendPositive = trend >= 0;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -236,23 +200,8 @@ function KPICard({ title, value, suffix, prefix, icon: Icon, iconColor, isLoadin
       className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl p-5 flex flex-col gap-4 cursor-default"
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
-      <div className="flex items-start justify-between">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${iconColor}20` }} aria-hidden="true">
-          <Icon size={20} style={{ color: iconColor }} />
-        </div>
-        {trend !== 0 && (
-          <span
-            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-            style={{
-              color: trendPositive ? 'var(--success-text)' : 'var(--error-text)',
-              background: trendPositive ? 'var(--success-bg)' : 'var(--error-bg)',
-              border: `1px solid ${trendPositive ? 'var(--success-border)' : 'var(--error-border)'}`,
-            }}
-            aria-label={`Trend: ${trendPositive ? '+' : ''}${trend}%`}
-          >
-            {trendPositive ? '↑' : '↓'} {Math.abs(trend)}%
-          </span>
-        )}
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${iconColor}20` }} aria-hidden="true">
+        <Icon size={20} style={{ color: iconColor }} />
       </div>
       <div>
         <p className="text-xs font-medium text-[var(--text-muted)] mb-1 uppercase tracking-wide">{title}</p>
@@ -287,33 +236,6 @@ function ChartCard({ title, children, isLoading, chartHeight = 260, index = 0 }:
   );
 }
 
-// ─── Pie Legend ───────────────────────────────────────────────────────────────
-
-interface PieLegendItem { label: string; value: number; color: string; }
-
-function PieLegend({ items }: { items: PieLegendItem[] }) {
-  const total = items.reduce((sum, item) => sum + item.value, 0);
-  return (
-    <div className="flex flex-col gap-2 mt-3">
-      {items.map((item) => {
-        const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
-        return (
-          <div key={item.label} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} aria-hidden="true" />
-              <span className="text-xs text-[var(--text-secondary)] truncate">{item.label}</span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-[var(--text-primary)] tabular-nums">{formatCurrency(item.value)}</span>
-              <span className="text-xs text-[var(--text-muted)] tabular-nums w-10 text-right">{pct}%</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function AdminAnalyticsClient() {
@@ -328,26 +250,20 @@ export function AdminAnalyticsClient() {
 
   const FILTER_RANGES: FilterRange[] = ['7d', '30d', '90d', '365d'];
 
-  // AdminAnalyticsData shapes:
-  //   revenue.trend:    Array<{ month: string; amount: number }>
-  //   attendance.trend: Array<{ date: string; rate: number }>
-  //   students:         { total, active, new } — NO .growth
-
-  const revenueTrend = (data?.revenue.trend ?? []).map((d) => ({
+  const revenueTrend = (data?.revenueByMonth ?? []).map((d) => ({
     label: d.month,
-    value: d.amount,
+    value: d.value,
   }));
 
-  const attendanceTrend = (data?.attendance.trend ?? []).map((d) => ({
-    label: d.date,
-    value: Math.round(d.rate * 100),
+  const enrollmentsTrend = (data?.enrollmentsByMonth ?? []).map((d) => ({
+    label: d.month,
+    value: d.value,
   }));
 
-  const debtItems: PieLegendItem[] = [
-    { label: s.paid, value: (data?.revenue.total ?? 0) - (data?.revenue.monthly ?? 0), color: 'var(--success-solid)' },
-    { label: s.pending, value: data?.revenue.monthly ?? 0, color: 'var(--warning-solid)' },
-    { label: s.overdue, value: 0, color: 'var(--error-solid)' },
-  ];
+  const attendanceTrend = (data?.attendanceByMonth ?? []).map((d) => ({
+    label: d.month,
+    value: Math.round(d.value),
+  }));
 
   const chartHeight = isMobile ? 200 : 260;
 
@@ -399,49 +315,37 @@ export function AdminAnalyticsClient() {
         </div>
       </motion.div>
 
-      {/* KPI Cards — 4 columns */}
-      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* KPI Cards — 3 columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KPICard
           title={s.kpi.revenue}
-          value={data?.revenue.total ?? 0}
+          value={data?.totalRevenue ?? 0}
           suffix={` ${s.currency}`}
           icon={DollarSign}
           iconColor="var(--brand-primary)"
           isLoading={isLoading}
-          trend={0}
           index={0}
         />
         <KPICard
-          title={s.kpi.students}
-          value={data?.students.total ?? 0}
+          title={s.kpi.newStudents}
+          value={data?.totalEnrollments ?? 0}
           icon={Users}
           iconColor="var(--brand-secondary)"
           isLoading={isLoading}
-          trend={0}
           index={1}
         />
         <KPICard
-          title={s.kpi.newStudents}
-          value={data?.students.new ?? 0}
-          icon={Users}
-          iconColor="var(--brand-accent)"
-          isLoading={isLoading}
-          trend={0}
-          index={2}
-        />
-        <KPICard
           title={s.kpi.attendance}
-          value={Math.round((data?.attendance.rate ?? 0) * 100)}
+          value={Math.round(data?.avgAttendanceRate ?? 0)}
           suffix="%"
           icon={TrendingUp}
           iconColor="var(--success-solid)"
           isLoading={isLoading}
-          trend={0}
-          index={3}
+          index={2}
         />
       </div>
 
-      {/* Charts Row 1: Revenue + Attendance */}
+      {/* Charts Row 1: Revenue + New Students */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* Revenue Area Chart */}
         <ChartCard title={s.charts.revenueTitle} isLoading={isLoading} chartHeight={chartHeight} index={0}>
@@ -455,7 +359,7 @@ export function AdminAnalyticsClient() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => isMobile ? v.slice(0, 3) : v} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => isMobile ? v.slice(5) : v} />
                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v)} width={48} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="value" name={s.kpi.revenue} stroke="var(--brand-primary)" strokeWidth={2.5} fill="url(#revenueGrad)" dot={false} activeDot={{ r: 5, fill: 'var(--brand-primary)' }} />
@@ -466,16 +370,16 @@ export function AdminAnalyticsClient() {
           )}
         </ChartCard>
 
-        {/* Attendance Bar Chart */}
-        <ChartCard title={s.charts.attendanceTitle} isLoading={isLoading} chartHeight={chartHeight} index={1}>
-          {attendanceTrend.length > 0 ? (
+        {/* New Students Bar Chart */}
+        <ChartCard title={s.charts.enrollmentsTitle} isLoading={isLoading} chartHeight={chartHeight} index={1}>
+          {enrollmentsTrend.length > 0 ? (
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <BarChart data={attendanceTrend} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <BarChart data={enrollmentsTrend} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => isMobile ? v.slice(0, 3) : v} />
-                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={36} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => isMobile ? v.slice(5) : v} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={36} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" name={s.kpi.attendance} fill="var(--success-solid)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="value" name={s.kpi.newStudents} fill="var(--brand-secondary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -484,55 +388,22 @@ export function AdminAnalyticsClient() {
         </ChartCard>
       </div>
 
-      {/* Charts Row 2: Payment Pie */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1">
-          <ChartCard title={s.charts.debtTitle} isLoading={isLoading} chartHeight={chartHeight} index={2}>
-            <div className="flex flex-col">
-              <div style={{ height: isMobile ? 160 : 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={debtItems.map((item) => ({ name: item.label, value: item.value }))}
-                      cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={3} dataKey="value"
-                    >
-                      {debtItems.map((item, i) => <Cell key={`cell-${i}`} fill={item.color} stroke="none" />)}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <PieLegend items={debtItems} />
-            </div>
-          </ChartCard>
-        </div>
-
-        {/* Summary stats */}
-        <div className="lg:col-span-2">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.36, duration: 0.35 }}
-            className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl p-5 h-full"
-            style={{ boxShadow: 'var(--shadow-sm)' }}
-          >
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Summary</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: s.kpi.revenue, value: `${formatCurrency(data?.revenue.total ?? 0)} ${s.currency}` },
-                { label: 'Monthly Revenue', value: `${formatCurrency(data?.revenue.monthly ?? 0)} ${s.currency}` },
-                { label: s.kpi.students, value: `${data?.students.total ?? 0}` },
-                { label: s.kpi.attendance, value: `${Math.round((data?.attendance.rate ?? 0) * 100)}%` },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-[var(--bg-surface-secondary)] rounded-xl p-3">
-                  <p className="text-xs text-[var(--text-muted)] mb-1">{label}</p>
-                  <p className="text-base font-bold text-[var(--text-primary)] tabular-nums">{isLoading ? '—' : value}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </div>
+      {/* Charts Row 2: Attendance */}
+      <ChartCard title={s.charts.attendanceTitle} isLoading={isLoading} chartHeight={chartHeight} index={2}>
+        {attendanceTrend.length > 0 ? (
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart data={attendanceTrend} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: string) => isMobile ? v.slice(5) : v} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={36} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="value" name={s.kpi.attendance} fill="var(--success-solid)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)]">{s.noData}</div>
+        )}
+      </ChartCard>
     </div>
   );
 }

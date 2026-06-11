@@ -96,22 +96,18 @@ export interface AuditLog {
   createdAt: string;
 }
 
+export interface MonthlyDataPoint {
+  month: string;
+  value: number;
+}
+
 export interface AdminAnalyticsData {
-  revenue: {
-    total: number;
-    monthly: number;
-    currency: string;
-    trend: Array<{ month: string; amount: number }>;
-  };
-  students: {
-    total: number;
-    active: number;
-    new: number;
-  };
-  attendance: {
-    rate: number;
-    trend: Array<{ date: string; rate: number }>;
-  };
+  revenueByMonth: MonthlyDataPoint[];
+  enrollmentsByMonth: MonthlyDataPoint[];
+  attendanceByMonth: MonthlyDataPoint[];
+  avgAttendanceRate: number;
+  totalRevenue: number;
+  totalEnrollments: number;
 }
 
 export interface OperationalReport {
