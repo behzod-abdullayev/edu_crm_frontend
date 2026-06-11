@@ -118,6 +118,7 @@ const I18N = {
     yes: "Ha",
     no: "Yo'q",
     freeLabel: "Bepul",
+    statusLabels: { draft: "Qoralama", published: "E'lon qilingan", archived: "Arxivlangan" },
   },
   en: {
     backToList: "Back to courses",
@@ -174,6 +175,7 @@ const I18N = {
     yes: "Yes",
     no: "No",
     freeLabel: "Free",
+    statusLabels: { draft: "Draft", published: "Published", archived: "Archived" },
   },
   ru: {
     backToList: "Назад к курсам",
@@ -230,6 +232,7 @@ const I18N = {
     yes: "Да",
     no: "Нет",
     freeLabel: "Бесплатно",
+    statusLabels: { draft: "Черновик", published: "Опубликован", archived: "В архиве" },
   },
 } as const;
 
@@ -238,10 +241,11 @@ type TabKey = 'overview' | 'students' | 'curriculum' | 'settings';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string | undefined): string {
+function formatDate(iso: string | undefined, locale: Locale): string {
   if (!iso) return '—';
+  const intlLocale = locale === 'uz' ? 'uz-UZ' : locale === 'ru' ? 'ru-RU' : 'en-US';
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return new Date(iso).toLocaleDateString(intlLocale, {
       year: 'numeric', month: 'short', day: 'numeric',
     });
   } catch { return iso; }
@@ -249,14 +253,17 @@ function formatDate(iso: string | undefined): string {
 
 // ─── Status color helper ──────────────────────────────────────────────────────
 
-function statusBadgeStatus(status: CourseStatus): 'active' | 'inactive' | 'pending' | 'enrolled' {
-  const map: Record<CourseStatus, 'active' | 'inactive' | 'pending' | 'enrolled'> = {
-    active: 'active',
+function statusBadgeStatus(status: CourseStatus): 'active' | 'inactive' | 'pending' {
+  const map: Record<CourseStatus, 'active' | 'inactive' | 'pending'> = {
+    published: 'active',
     archived: 'inactive',
-    completed: 'enrolled',
     draft: 'pending',
   };
   return map[status] ?? 'pending';
+}
+
+function statusLabel(status: CourseStatus, s: (typeof I18N)[Locale]): string {
+  return s.statusLabels[status] ?? status;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -273,13 +280,15 @@ interface AdminCourseDetailClientProps {
 function OverviewTab({
   course,
   s,
+  locale,
 }: {
   course: Course;
   s: (typeof I18N)[Locale];
+  locale: Locale;
 }) {
   const infoRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: s.overview.teacher, value: course.teacherName },
-    { label: s.overview.status, value: <StatusBadge status={statusBadgeStatus(course.status)} label={course.status} size="sm" /> },
+    { label: s.overview.status, value: <StatusBadge status={statusBadgeStatus(course.status)} label={statusLabel(course.status, s)} size="sm" /> },
     { label: s.overview.published, value: course.isPublished ? s.yes : s.no },
     { label: s.overview.enrolled, value: `${course.studentCount}` },
     { label: s.overview.category, value: course.categoryName ?? s.overview.noCategory },
@@ -289,15 +298,15 @@ function OverviewTab({
         ? `${course.price.toLocaleString()} ${course.currency ?? 'UZS'}`
         : s.freeLabel,
     },
-    { label: s.overview.created, value: formatDate(course.createdAt) },
-    { label: s.overview.updated, value: formatDate(course.updatedAt) },
+    { label: s.overview.created, value: formatDate(course.createdAt, locale) },
+    { label: s.overview.updated, value: formatDate(course.updatedAt, locale) },
   ];
 
   if (course.startDate) {
-    infoRows.push({ label: s.overview.startDate, value: formatDate(course.startDate) });
+    infoRows.push({ label: s.overview.startDate, value: formatDate(course.startDate, locale) });
   }
   if (course.endDate) {
-    infoRows.push({ label: s.overview.endDate, value: formatDate(course.endDate) });
+    infoRows.push({ label: s.overview.endDate, value: formatDate(course.endDate, locale) });
   }
   if (course.duration) {
     infoRows.push({ label: s.overview.duration, value: `${course.duration} ${s.overview.minPerLesson}` });
@@ -578,7 +587,7 @@ function SettingsTab({
               whileTap={{ scale: 0.96 }}
               onClick={() =>
                 updateMutation.mutate({
-                  status: course.status === 'archived' ? 'active' : 'archived',
+                  status: course.status === 'archived' ? 'published' : 'archived',
                 })
               }
               disabled={updateMutation.isPending}
@@ -617,7 +626,8 @@ export function AdminCourseDetailClient({
   startInEditMode,
   locale,
 }: AdminCourseDetailClientProps) {
-  const s = I18N[(locale as Locale) in I18N ? (locale as Locale) : 'en'];
+  const resolvedLocale: Locale = (locale as Locale) in I18N ? (locale as Locale) : 'en';
+  const s = I18N[resolvedLocale];
   const isMobile = useIsMobile();
   const router = useRouter();
   const { addToast: _addToast } = useUIStore();
@@ -711,7 +721,7 @@ export function AdminCourseDetailClient({
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <StatusBadge
                 status={statusBadgeStatus(course.status)}
-                label={course.status}
+                label={statusLabel(course.status, s)}
                 size="sm"
                 dot
               />
@@ -786,7 +796,7 @@ export function AdminCourseDetailClient({
       >
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
-            <OverviewTab key="overview" course={course} s={s} />
+            <OverviewTab key="overview" course={course} s={s} locale={resolvedLocale} />
           )}
           {activeTab === 'students' && (
             <motion.div

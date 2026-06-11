@@ -34,8 +34,8 @@ const I18N = {
   uz: {
     title: "Kurslar", subtitle: "Barcha kurslarni boshqaring",
     createBtn: "Yangi kurs", searchPlaceholder: "Kurs qidirish…",
-    filterAll: "Barcha", filterActive: "Faol", filterDraft: "Qoralama",
-    filterArchived: "Arxivlangan", filterCompleted: "Tugallangan",
+    filterAll: "Barcha", filterDraft: "Qoralama",
+    filterPublished: "E'lon qilingan", filterArchived: "Arxivlangan",
     colName: "Nomi", colTeacher: "O'qituvchi", colStudents: "Talabalar",
     colStatus: "Holat", colPublished: "E'lon", colCreated: "Yaratilgan", colActions: "Amallar",
     viewDetail: "Ko'rish", editCourse: "Tahrirlash", deleteCourse: "O'chirish",
@@ -46,14 +46,17 @@ const I18N = {
     noCoursesTitle: "Kurslar topilmadi", noCoursesDesc: "Birinchi kursni yarating.",
     noSearchTitle: "Natijalar topilmadi", noSearchDesc: "Boshqa kalit so'z bilan qidiring.",
     published: "Ha", unpublished: "Yo'q",
-    page: "Sahifa", of: "dan", students: "ta talaba",
+    page: "Sahifa", of: "dan", students: "ta talaba", total: "ta",
     createCourse: "Kurs yaratish", editCourseTitle: "Kursni tahrirlash",
+    statusDraft: "Qoralama", statusPublished: "E'lon qilingan", statusArchived: "Arxivlangan",
+    loadMore: "Ko'proq yuklash", prevPage: "Oldingi sahifa", nextPage: "Keyingi sahifa",
+    pageNumber: (n: number) => `${n}-sahifa`,
   },
   en: {
     title: "Courses", subtitle: "Manage all courses",
     createBtn: "New Course", searchPlaceholder: "Search courses…",
-    filterAll: "All", filterActive: "Active", filterDraft: "Draft",
-    filterArchived: "Archived", filterCompleted: "Completed",
+    filterAll: "All", filterDraft: "Draft",
+    filterPublished: "Published", filterArchived: "Archived",
     colName: "Name", colTeacher: "Teacher", colStudents: "Students",
     colStatus: "Status", colPublished: "Published", colCreated: "Created", colActions: "Actions",
     viewDetail: "View", editCourse: "Edit", deleteCourse: "Delete",
@@ -64,14 +67,17 @@ const I18N = {
     noCoursesTitle: "No courses found", noCoursesDesc: "Create your first course.",
     noSearchTitle: "No results", noSearchDesc: "Try a different keyword.",
     published: "Yes", unpublished: "No",
-    page: "Page", of: "of", students: "students",
+    page: "Page", of: "of", students: "students", total: "total",
     createCourse: "Create Course", editCourseTitle: "Edit Course",
+    statusDraft: "Draft", statusPublished: "Published", statusArchived: "Archived",
+    loadMore: "Load more", prevPage: "Previous page", nextPage: "Next page",
+    pageNumber: (n: number) => `Page ${n}`,
   },
   ru: {
     title: "Курсы", subtitle: "Управление всеми курсами",
     createBtn: "Новый курс", searchPlaceholder: "Поиск курсов…",
-    filterAll: "Все", filterActive: "Активные", filterDraft: "Черновики",
-    filterArchived: "Архив", filterCompleted: "Завершённые",
+    filterAll: "Все", filterDraft: "Черновики",
+    filterPublished: "Опубликованные", filterArchived: "Архив",
     colName: "Название", colTeacher: "Преподаватель", colStudents: "Студенты",
     colStatus: "Статус", colPublished: "Опубликован", colCreated: "Создан", colActions: "Действия",
     viewDetail: "Просмотр", editCourse: "Редактировать", deleteCourse: "Удалить",
@@ -82,8 +88,11 @@ const I18N = {
     noCoursesTitle: "Курсы не найдены", noCoursesDesc: "Создайте первый курс.",
     noSearchTitle: "Результатов нет", noSearchDesc: "Попробуйте другой запрос.",
     published: "Да", unpublished: "Нет",
-    page: "Страница", of: "из", students: "студентов",
+    page: "Страница", of: "из", students: "студентов", total: "всего",
     createCourse: "Создать курс", editCourseTitle: "Редактировать курс",
+    statusDraft: "Черновик", statusPublished: "Опубликован", statusArchived: "В архиве",
+    loadMore: "Загрузить ещё", prevPage: "Предыдущая страница", nextPage: "Следующая страница",
+    pageNumber: (n: number) => `Страница ${n}`,
   },
 } as const;
 
@@ -92,16 +101,24 @@ type StatusFilter = CourseStatus | 'all';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string): string {
-  try { return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+function formatDate(iso: string, locale: Locale): string {
+  const intlLocale = locale === 'uz' ? 'uz-UZ' : locale === 'ru' ? 'ru-RU' : 'en-US';
+  try { return new Date(iso).toLocaleDateString(intlLocale, { year: 'numeric', month: 'short', day: 'numeric' }); }
   catch { return iso; }
 }
 
-function statusBadgeStatus(status: CourseStatus): 'active' | 'inactive' | 'pending' | 'enrolled' {
-  const map: Record<CourseStatus, 'active' | 'inactive' | 'pending' | 'enrolled'> = {
-    active: 'active', archived: 'inactive', completed: 'enrolled', draft: 'pending',
+function statusBadgeStatus(status: CourseStatus): 'active' | 'inactive' | 'pending' {
+  const map: Record<CourseStatus, 'active' | 'inactive' | 'pending'> = {
+    published: 'active', archived: 'inactive', draft: 'pending',
   };
   return map[status] ?? 'pending';
+}
+
+function statusLabel(status: CourseStatus, s: (typeof I18N)[Locale]): string {
+  const map: Record<CourseStatus, string> = {
+    draft: s.statusDraft, published: s.statusPublished, archived: s.statusArchived,
+  };
+  return map[status] ?? status;
 }
 
 /** Convert Course (API) → CourseDto (form mapper), omitting undefined optional fields */
@@ -204,7 +221,7 @@ function MobileCourseCard({ course, locale, onEdit, onDelete, index, s }: {
             </Link>
             <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{course.teacherName}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <StatusBadge status={statusBadgeStatus(course.status)} label={course.status} size="sm" />
+              <StatusBadge status={statusBadgeStatus(course.status)} label={statusLabel(course.status, s)} size="sm" />
               <span className="text-xs text-[var(--text-muted)]">{course.studentCount} {s.students}</span>
             </div>
           </div>
@@ -285,7 +302,7 @@ function CourseFormModal({ title, courseDto, onClose, isMobile }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const LIMIT = 10;
-const STATUS_FILTERS: StatusFilter[] = ['all', 'active', 'draft', 'archived', 'completed'];
+const STATUS_FILTERS: StatusFilter[] = ['all', 'draft', 'published', 'archived'];
 
 export function AdminCoursesClient() {
   const locale = useLocale() as Locale;
@@ -332,8 +349,8 @@ export function AdminCoursesClient() {
   );
 
   const filterLabel = (f: StatusFilter): string => ({
-    all: s.filterAll, active: s.filterActive, draft: s.filterDraft,
-    archived: s.filterArchived, completed: s.filterCompleted,
+    all: s.filterAll, draft: s.filterDraft,
+    published: s.filterPublished, archived: s.filterArchived,
   }[f] ?? f);
 
   if (error) {
@@ -406,7 +423,7 @@ export function AdminCoursesClient() {
           {page < totalPages && (
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPage((p) => p + 1)}
               className="mt-2 w-full py-3 rounded-xl border border-[var(--border-default)] text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] transition-colors">
-              Load more
+              {s.loadMore}
             </motion.button>
           )}
         </div>
@@ -441,14 +458,14 @@ export function AdminCoursesClient() {
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">{course.teacherName}</td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] tabular-nums">{course.studentCount}</td>
-                    <td className="px-4 py-3"><StatusBadge status={statusBadgeStatus(course.status)} label={course.status} size="sm" /></td>
+                    <td className="px-4 py-3"><StatusBadge status={statusBadgeStatus(course.status)} label={statusLabel(course.status, s)} size="sm" /></td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: course.isPublished ? 'var(--success-text)' : 'var(--text-muted)' }}>
                         {course.isPublished ? <Globe size={12} aria-hidden="true" /> : <GlobeLock size={12} aria-hidden="true" />}
                         {course.isPublished ? s.published : s.unpublished}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[var(--text-muted)] whitespace-nowrap">{formatDate(course.createdAt)}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)] whitespace-nowrap">{formatDate(course.createdAt, locale)}</td>
                     <td className="px-4 py-3">
                       <RowActions course={course} locale={locale} onEdit={handleEdit} onDelete={(c) => setDeleteTarget(c)} onPublishToggle={handlePublishToggle} s={s} />
                     </td>
@@ -461,23 +478,23 @@ export function AdminCoursesClient() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-default)]" style={{ background: 'var(--bg-surface-secondary)' }}>
-              <p className="text-xs text-[var(--text-muted)]">{s.page} {page} {s.of} {totalPages} · {total} total</p>
+              <p className="text-xs text-[var(--text-muted)]">{s.page} {page} {s.of} {totalPages} · {total} {s.total}</p>
               <div className="flex items-center gap-1">
-                <motion.button whileTap={{ scale: 0.94 }} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} aria-label="Previous page"
+                <motion.button whileTap={{ scale: 0.94 }} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} aria-label={s.prevPage}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]">
                   <ChevronLeft size={15} aria-hidden="true" />
                 </motion.button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const pg = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
                   return (
-                    <motion.button key={pg} whileTap={{ scale: 0.94 }} onClick={() => setPage(pg)} aria-label={`Page ${pg}`} aria-current={pg === page ? 'page' : undefined}
+                    <motion.button key={pg} whileTap={{ scale: 0.94 }} onClick={() => setPage(pg)} aria-label={s.pageNumber(pg)} aria-current={pg === page ? 'page' : undefined}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
                       style={{ background: pg === page ? 'var(--brand-primary)' : 'transparent', color: pg === page ? 'var(--text-on-brand)' : 'var(--text-secondary)' }}>
                       {pg}
                     </motion.button>
                   );
                 })}
-                <motion.button whileTap={{ scale: 0.94 }} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} aria-label="Next page"
+                <motion.button whileTap={{ scale: 0.94 }} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} aria-label={s.nextPage}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]">
                   <ChevronRight size={15} aria-hidden="true" />
                 </motion.button>
