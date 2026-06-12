@@ -23,7 +23,7 @@ import {
   DollarSign,
   Shield,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useUnreadNotificationCount } from '@/services/query/notifications.queries';
 import type { UserRole } from '@/shared/types/common.types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -75,19 +75,8 @@ const TAB_CONFIGS: Record<UserRole, TabConfig[]> = {
 // ─── Notification Count Hook ──────────────────────────────────────────────────
 
 function useNotificationCount(): number {
-  const { data } = useQuery<number>({
-    queryKey: ['notification-count'],
-    queryFn: async () => {
-      const res = await fetch('/api/notifications/unread-count');
-      if (!res.ok) throw new Error('Failed to fetch notification count');
-      const json = (await res.json()) as { count: number };
-      return json.count;
-    },
-    refetchInterval: 30_000,
-    staleTime: 20_000,
-  });
-
-  return data ?? 0;
+  const { data } = useUnreadNotificationCount();
+  return data?.count ?? 0;
 }
 
 // ─── Notification Badge ───────────────────────────────────────────────────────

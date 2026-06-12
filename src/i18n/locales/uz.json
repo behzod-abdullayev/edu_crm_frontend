@@ -988,7 +988,8 @@
     "passwordTooShort": "Parol kamida 8 ta belgidan iborat bo'lishi kerak",
     "invalidDate": "Noto'g'ri sana formati",
     "futureDate": "Kelajak sana bo'lishi kerak",
-    "pastDate": "O'tgan sana bo'lishi kerak"
+    "pastDate": "O'tgan sana bo'lishi kerak",
+    "retry": "Qayta urinish"
   },
   "notifications": {
     "title": "Bildirishnomalar",

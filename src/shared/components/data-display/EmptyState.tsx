@@ -130,14 +130,7 @@ export function ErrorState({
           className="mt-5 flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-default)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--bg-surface-hover)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
         >
           <RefreshCw size={14} aria-hidden="true" />
-          {/* ✅ FIX: Fallback text in case translation also fails */}
-          {(() => {
-            try {
-              return t('retry');
-            } catch {
-              return 'Retry';
-            }
-          })()}
+          {t('retry')}
         </motion.button>
       )}
     </motion.div>

@@ -988,7 +988,8 @@
     "passwordTooShort": "Password must be at least 8 characters",
     "invalidDate": "Invalid date format",
     "futureDate": "Date must be in the future",
-    "pastDate": "Date must be in the past"
+    "pastDate": "Date must be in the past",
+    "retry": "Retry"
   },
   "notifications": {
     "title": "Notifications",
