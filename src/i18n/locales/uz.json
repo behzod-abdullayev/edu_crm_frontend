@@ -1218,7 +1218,12 @@
     "memberSince": "A'zo bo'lgan sana",
     "subtitle": "Hisob ma'lumotlaringiz va xavfsizlik sozlamalarini boshqaring.",
     "language": "Til",
-    "ownerRole": "Egasi"
+    "ownerRole": "Egasi",
+    "adminRole": "Administrator",
+    "accountInfo": "Hisob ma'lumotlari",
+    "fullName": "To'liq ism",
+    "emailAddress": "Elektron pochta",
+    "sectionsAria": "Profil bo'limlari"
   },
   "sidebar": {
     "collapseMenu": "Menyuni yig'ish",

@@ -11,20 +11,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Lock, Shield, Mail, Phone, Calendar } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { ChangePasswordForm } from '@/shared/components/ChangePasswordForm';
 import { AvatarWithRole } from '@/shared/components/data-display/AvatarWithRole';
 import { cn } from '@/shared/utils/cn';
-import { format } from 'date-fns';
+import { formatLocalizedDate } from '@/shared/utils/format';
 
-// ─── Tab definitions ──────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'password', label: 'Password', icon: Lock },
-] as const;
-
-type TabId = (typeof TABS)[number]['id'];
+type TabId = 'profile' | 'password';
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -67,6 +61,14 @@ export function AdminProfileClient() {
   const { user } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
+  const t = useTranslations('profile');
+  const locale = useLocale();
+
+  const TABS = [
+    { id: 'profile' as const, label: t('title'), icon: User },
+    { id: 'password' as const, label: t('security'), icon: Lock },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -77,10 +79,10 @@ export function AdminProfileClient() {
       {/* ── Page header ── */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
-          My Profile
+          {t('title')}
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Manage your account information and security settings.
+          {t('subtitle')}
         </p>
       </div>
 
@@ -104,7 +106,7 @@ export function AdminProfileClient() {
               style={{ background: 'var(--role-admin)' }}
             >
               <Shield size={11} aria-hidden="true" />
-              Admin
+              {t('adminRole')}
             </span>
           </div>
         </motion.div>
@@ -113,7 +115,7 @@ export function AdminProfileClient() {
       {/* ── Tab bar ── */}
       <nav
         role="tablist"
-        aria-label="Profile sections"
+        aria-label={t('sectionsAria')}
         className="flex gap-1 border-b border-[var(--border-default)] relative"
       >
         {TABS.map(({ id, label, icon: Icon }) => {
@@ -175,32 +177,31 @@ export function AdminProfileClient() {
               style={{ background: 'var(--bg-surface-secondary)' }}
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                Account Information
+                {t('accountInfo')}
               </h3>
             </div>
             <div className="px-5 py-1">
-              {/* FIX: UserProfile fieldlariga to'g'ridan-to'g'ri murojaat — cast kerak emas */}
               <InfoRow
                 icon={User}
-                label="Full Name"
+                label={t('fullName')}
                 value={user ? `${user.firstName} ${user.lastName}` : undefined}
               />
               <InfoRow
                 icon={Mail}
-                label="Email Address"
+                label={t('emailAddress')}
                 value={user?.email}
               />
               <InfoRow
                 icon={Phone}
-                label="Phone"
+                label={t('phone')}
                 value={user?.phone}
               />
               <InfoRow
                 icon={Calendar}
-                label="Member Since"
+                label={t('memberSince')}
                 value={
                   user?.createdAt
-                    ? format(new Date(user.createdAt), 'MMMM d, yyyy')
+                    ? formatLocalizedDate(user.createdAt, locale, 'long')
                     : undefined
                 }
               />

@@ -1218,7 +1218,12 @@
     "memberSince": "Member Since",
     "subtitle": "Manage your account information and security settings.",
     "language": "Language",
-    "ownerRole": "Owner"
+    "ownerRole": "Owner",
+    "adminRole": "Admin",
+    "accountInfo": "Account Information",
+    "fullName": "Full Name",
+    "emailAddress": "Email Address",
+    "sectionsAria": "Profile sections"
   },
   "sidebar": {
     "collapseMenu": "Collapse menu",
