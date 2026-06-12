@@ -1,9 +1,95 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
 import type { PricingEntry } from '../types/admin.types';
+
+// ─── i18n ───────────────────────────────────────────────────────────────────
+
+function ruCourseCount(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} курс`;
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return `${n} курса`;
+  return `${n} курсов`;
+}
+
+const I18N = {
+  uz: {
+    emptyTitle: 'Hozircha narx yozuvlari yo\'q',
+    emptyDesc: "Narxlarni sozlash uchun kurslar qo'shing.",
+    priceAria: (name: string) => `${name} uchun narx`,
+    currencyAria: (name: string) => `${name} uchun valyuta`,
+    saving: 'Saqlanmoqda…',
+    save: 'Saqlash',
+    saveAria: (name: string) => `${name} uchun o'zgarishlarni saqlash`,
+    cancel: 'Bekor qilish',
+    cancelAria: 'Tahrirlashni bekor qilish',
+    edit: 'Tahrirlash',
+    editAria: (name: string) => `${name} narxini tahrirlash`,
+    delete: "O'chirish",
+    deleteAria: (name: string) => `${name} narxini o'chirish`,
+    mobilePrice: 'Narx',
+    mobileCurrency: 'Valyuta',
+    saveChanges: "O'zgarishlarni saqlash",
+    title: 'Kurslar narxi',
+    courseCount: (n: number) => `${n} ta kurs`,
+    regionAria: 'Kurslar narxini boshqarish',
+    tableAria: 'Kurslar narxi jadvali',
+    columns: ['Kurs', 'Narx', 'Valyuta', 'Amallar'],
+  },
+  en: {
+    emptyTitle: 'No pricing entries yet',
+    emptyDesc: 'Add courses to configure their pricing.',
+    priceAria: (name: string) => `Price for ${name}`,
+    currencyAria: (name: string) => `Currency for ${name}`,
+    saving: 'Saving…',
+    save: 'Save',
+    saveAria: (name: string) => `Save changes for ${name}`,
+    cancel: 'Cancel',
+    cancelAria: 'Cancel editing',
+    edit: 'Edit',
+    editAria: (name: string) => `Edit price for ${name}`,
+    delete: 'Delete',
+    deleteAria: (name: string) => `Delete pricing for ${name}`,
+    mobilePrice: 'Price',
+    mobileCurrency: 'Currency',
+    saveChanges: 'Save Changes',
+    title: 'Course Pricing',
+    courseCount: (n: number) => `${n} ${n === 1 ? 'course' : 'courses'}`,
+    regionAria: 'Course pricing management',
+    tableAria: 'Course pricing table',
+    columns: ['Course', 'Price', 'Currency', 'Actions'],
+  },
+  ru: {
+    emptyTitle: 'Пока нет записей о ценах',
+    emptyDesc: 'Добавьте курсы, чтобы настроить их стоимость.',
+    priceAria: (name: string) => `Цена для ${name}`,
+    currencyAria: (name: string) => `Валюта для ${name}`,
+    saving: 'Сохранение…',
+    save: 'Сохранить',
+    saveAria: (name: string) => `Сохранить изменения для ${name}`,
+    cancel: 'Отмена',
+    cancelAria: 'Отменить редактирование',
+    edit: 'Изменить',
+    editAria: (name: string) => `Изменить цену для ${name}`,
+    delete: 'Удалить',
+    deleteAria: (name: string) => `Удалить цену для ${name}`,
+    mobilePrice: 'Цена',
+    mobileCurrency: 'Валюта',
+    saveChanges: 'Сохранить изменения',
+    title: 'Цены на курсы',
+    courseCount: ruCourseCount,
+    regionAria: 'Управление ценами на курсы',
+    tableAria: 'Таблица цен на курсы',
+    columns: ['Курс', 'Цена', 'Валюта', 'Действия'],
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+type PricingStrings = (typeof I18N)[Locale];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +109,7 @@ interface EditState {
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ s }: { s: PricingStrings }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -33,10 +119,10 @@ function EmptyState() {
     >
       <span className="text-4xl" aria-hidden="true">🏷️</span>
       <p className="mt-3 text-sm font-medium text-[var(--text-primary)]">
-        No pricing entries yet
+        {s.emptyTitle}
       </p>
       <p className="mt-1 text-xs text-[var(--text-muted)]">
-        Add courses to configure their pricing.
+        {s.emptyDesc}
       </p>
     </motion.div>
   );
@@ -56,6 +142,7 @@ interface DesktopRowProps {
   onCancel: () => void;
   onDelete: () => void;
   index: number;
+  s: PricingStrings;
 }
 
 function DesktopRow({
@@ -70,6 +157,7 @@ function DesktopRow({
   onCancel,
   onDelete,
   index,
+  s,
 }: DesktopRowProps) {
   return (
     <motion.tr
@@ -114,7 +202,7 @@ function DesktopRow({
                   'transition-[border-color,box-shadow]',
                 )}
                 min="0"
-                aria-label={`Price for ${entry.courseName}`}
+                aria-label={s.priceAria(entry.courseName)}
               />
             </motion.div>
           ) : (
@@ -155,7 +243,7 @@ function DesktopRow({
                   'focus:ring-2 focus:ring-[var(--border-focus)] focus:ring-offset-1',
                   'transition-[border-color,box-shadow]',
                 )}
-                aria-label={`Currency for ${entry.courseName}`}
+                aria-label={s.currencyAria(entry.courseName)}
               >
                 {currencies.map((c) => (
                   <option key={c} value={c}>
@@ -204,7 +292,7 @@ function DesktopRow({
                     'transition-opacity',
                   )}
                   type="button"
-                  aria-label={`Save changes for ${entry.courseName}`}
+                  aria-label={s.saveAria(entry.courseName)}
                 >
                   {isSaving ? (
                     <span className="flex items-center gap-1.5">
@@ -212,10 +300,10 @@ function DesktopRow({
                         className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"
                         aria-hidden="true"
                       />
-                      Saving…
+                      {s.saving}
                     </span>
                   ) : (
-                    'Save'
+                    s.save
                   )}
                 </motion.button>
                 <motion.button
@@ -231,9 +319,9 @@ function DesktopRow({
                     'disabled:opacity-50 transition-colors',
                   )}
                   type="button"
-                  aria-label="Cancel editing"
+                  aria-label={s.cancelAria}
                 >
-                  Cancel
+                  {s.cancel}
                 </motion.button>
               </motion.div>
             ) : (
@@ -256,9 +344,9 @@ function DesktopRow({
                     'transition-colors',
                   )}
                   type="button"
-                  aria-label={`Edit price for ${entry.courseName}`}
+                  aria-label={s.editAria(entry.courseName)}
                 >
-                  Edit
+                  {s.edit}
                 </motion.button>
                 <motion.button
                   onClick={onDelete}
@@ -272,9 +360,9 @@ function DesktopRow({
                     'transition-colors',
                   )}
                   type="button"
-                  aria-label={`Delete pricing for ${entry.courseName}`}
+                  aria-label={s.deleteAria(entry.courseName)}
                 >
-                  Delete
+                  {s.delete}
                 </motion.button>
               </motion.div>
             )}
@@ -299,6 +387,7 @@ interface MobileCardProps {
   onCancel: () => void;
   onDelete: () => void;
   index: number;
+  s: PricingStrings;
 }
 
 function MobileCard({
@@ -313,6 +402,7 @@ function MobileCard({
   onCancel,
   onDelete,
   index,
+  s,
 }: MobileCardProps) {
   return (
     <motion.div
@@ -353,9 +443,9 @@ function MobileCard({
                 'transition-colors',
               )}
               type="button"
-              aria-label={`Edit price for ${entry.courseName}`}
+              aria-label={s.editAria(entry.courseName)}
             >
-              Edit
+              {s.edit}
             </motion.button>
             <motion.button
               onClick={onDelete}
@@ -369,9 +459,9 @@ function MobileCard({
                 'transition-colors',
               )}
               type="button"
-              aria-label={`Delete pricing for ${entry.courseName}`}
+              aria-label={s.deleteAria(entry.courseName)}
             >
-              Delete
+              {s.delete}
             </motion.button>
           </div>
         )}
@@ -392,7 +482,7 @@ function MobileCard({
                 htmlFor={`mobile-price-${entry.id}`}
                 className="text-xs font-medium text-[var(--text-muted)]"
               >
-                Price
+                {s.mobilePrice}
               </label>
               <input
                 id={`mobile-price-${entry.id}`}
@@ -417,7 +507,7 @@ function MobileCard({
                 htmlFor={`mobile-currency-${entry.id}`}
                 className="text-xs font-medium text-[var(--text-muted)]"
               >
-                Currency
+                {s.mobileCurrency}
               </label>
               <select
                 id={`mobile-currency-${entry.id}`}
@@ -455,7 +545,7 @@ function MobileCard({
                 )}
                 type="button"
               >
-                {isSaving ? 'Saving…' : 'Save Changes'}
+                {isSaving ? s.saving : s.saveChanges}
               </motion.button>
               <motion.button
                 onClick={onCancel}
@@ -471,7 +561,7 @@ function MobileCard({
                 )}
                 type="button"
               >
-                Cancel
+                {s.cancel}
               </motion.button>
             </div>
           </motion.div>
@@ -489,6 +579,10 @@ export function PricingManager({
   onUpdatePrice,
   onDeleteEntry,
 }: PricingManagerProps) {
+  const rawLocale = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s = I18N[locale];
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState>({
     price: '',
@@ -530,28 +624,28 @@ export function PricingManager({
       transition={{ duration: 0.25 }}
       className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
       role="region"
-      aria-label="Course pricing management"
+      aria-label={s.regionAria}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Course Pricing
+          {s.title}
         </h3>
         <span className="rounded-full bg-[var(--bg-surface-secondary)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-muted)]">
-          {entries.length} {entries.length === 1 ? 'course' : 'courses'}
+          {s.courseCount(entries.length)}
         </span>
       </div>
 
       {entries.length === 0 ? (
-        <EmptyState />
+        <EmptyState s={s} />
       ) : (
         <>
           {/* ── Desktop table (md+) ─────────────────────────────────────── */}
           <div className="hidden md:block">
-            <table className="w-full text-sm" aria-label="Course pricing table">
+            <table className="w-full text-sm" aria-label={s.tableAria}>
               <thead>
                 <tr className="border-b border-[var(--border-default)] bg-[var(--bg-surface-secondary)]">
-                  {['Course', 'Price', 'Currency', 'Actions'].map((col) => (
+                  {s.columns.map((col) => (
                     <th
                       key={col}
                       scope="col"
@@ -577,6 +671,7 @@ export function PricingManager({
                     onCancel={cancelEdit}
                     onDelete={() => void onDeleteEntry(entry.id)}
                     index={index}
+                    s={s}
                   />
                 ))}
               </tbody>
@@ -599,6 +694,7 @@ export function PricingManager({
                 onCancel={cancelEdit}
                 onDelete={() => void onDeleteEntry(entry.id)}
                 index={index}
+                s={s}
               />
             ))}
           </div>

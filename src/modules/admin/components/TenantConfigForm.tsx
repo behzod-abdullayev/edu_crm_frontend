@@ -5,9 +5,129 @@
 //         Uses optional chaining and fallback defaults throughout
 
 import { useState, useId } from 'react';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
 import type { TenantConfig, FeatureFlags } from '../types/admin.types';
+
+// ─── i18n ───────────────────────────────────────────────────────────────────
+
+const I18N = {
+  uz: {
+    academyInfoTitle: 'Akademiya ma\'lumotlari',
+    academyInfoDesc: "Talabalar va o'qituvchilarga ko'rinadigan asosiy ma'lumotlar",
+    academyName: 'Akademiya nomi',
+    academyNamePlaceholder: 'masalan, Bright Future Academy',
+    timezone: 'Vaqt mintaqasi',
+    currency: 'Standart valyuta',
+    brandColor: 'Brend rangi',
+    pickColor: 'Brend rangini tanlash',
+    logoUrl: 'Logotip URL manzili',
+    preview: 'Ko\'rinish:',
+    logoAlt: 'Akademiya logotipi ko\'rinishi',
+    featureFlagsTitle: 'Funksiya bayroqlari',
+    featureFlagsDesc: 'Ushbu akademiya uchun modullarni yoqing yoki o\'chiring',
+    enable: 'Yoqish',
+    disable: "O'chirish",
+    savedAt: 'Saqlandi:',
+    changesApply: "O'zgarishlar saqlangandan so'ng darhol qo'llaniladi.",
+    reset: 'Bekor qilish',
+    resetAria: 'Formani boshlang\'ich qiymatlarga qaytarish',
+    saving: 'Saqlanmoqda…',
+    saveChanges: "O'zgarishlarni saqlash",
+    savingAria: 'Konfiguratsiya saqlanmoqda…',
+    saveAria: "Konfiguratsiya o'zgarishlarini saqlash",
+    formAria: 'Tenant konfiguratsiyasi formasi',
+    errors: {
+      academyNameRequired: 'Akademiya nomi talab qilinadi.',
+      logoUrlInvalid: 'Logotip URL manzili http:// yoki https:// bilan boshlanishi kerak',
+      colorInvalid: 'Yaroqli hex rang kiriting (masalan, #4F46E5).',
+    },
+    flags: {
+      payments: { label: "To'lov moduli", description: "Hisob-fakturalar, obunalar va qarzlarni kuzatish" },
+      chat: { label: 'Chat / Xabarlar', description: "O'qituvchilar va talabalar o'rtasida real vaqtda xabar almashish" },
+      certificates: { label: 'Sertifikatlar', description: 'Kursni tugatish sertifikatlarini yaratish va berish' },
+      exams: { label: 'Imtihonlar va testlar', description: 'Onlayn imtihon va test tizimi' },
+    },
+  },
+  en: {
+    academyInfoTitle: 'Academy Information',
+    academyInfoDesc: 'Basic details visible to students and teachers',
+    academyName: 'Academy Name',
+    academyNamePlaceholder: 'e.g. Bright Future Academy',
+    timezone: 'Timezone',
+    currency: 'Default Currency',
+    brandColor: 'Brand Color',
+    pickColor: 'Pick brand color',
+    logoUrl: 'Logo URL',
+    preview: 'Preview:',
+    logoAlt: 'Academy logo preview',
+    featureFlagsTitle: 'Feature Flags',
+    featureFlagsDesc: 'Toggle modules on or off for this academy',
+    enable: 'Enable',
+    disable: 'Disable',
+    savedAt: 'Saved at',
+    changesApply: 'Changes will apply immediately after saving.',
+    reset: 'Reset',
+    resetAria: 'Reset form to initial values',
+    saving: 'Saving…',
+    saveChanges: 'Save Changes',
+    savingAria: 'Saving configuration…',
+    saveAria: 'Save configuration changes',
+    formAria: 'Tenant configuration form',
+    errors: {
+      academyNameRequired: 'Academy name is required.',
+      logoUrlInvalid: 'Logo URL must start with http:// or https://',
+      colorInvalid: 'Enter a valid hex color (e.g. #4F46E5).',
+    },
+    flags: {
+      payments: { label: 'Payment Module', description: 'Invoices, subscriptions, and debt tracking' },
+      chat: { label: 'Chat / Messaging', description: 'Real-time messaging between teachers and students' },
+      certificates: { label: 'Certificates', description: 'Generate and issue completion certificates' },
+      exams: { label: 'Exams & Quizzes', description: 'Online examination and quiz engine' },
+    },
+  },
+  ru: {
+    academyInfoTitle: 'Информация об академии',
+    academyInfoDesc: 'Основные данные, видимые студентам и преподавателям',
+    academyName: 'Название академии',
+    academyNamePlaceholder: 'например, Bright Future Academy',
+    timezone: 'Часовой пояс',
+    currency: 'Валюта по умолчанию',
+    brandColor: 'Цвет бренда',
+    pickColor: 'Выбрать цвет бренда',
+    logoUrl: 'URL логотипа',
+    preview: 'Предпросмотр:',
+    logoAlt: 'Предпросмотр логотипа академии',
+    featureFlagsTitle: 'Флаги функций',
+    featureFlagsDesc: 'Включайте или отключайте модули для этой академии',
+    enable: 'Включить',
+    disable: 'Отключить',
+    savedAt: 'Сохранено в',
+    changesApply: 'Изменения вступят в силу сразу после сохранения.',
+    reset: 'Сбросить',
+    resetAria: 'Сбросить форму до исходных значений',
+    saving: 'Сохранение…',
+    saveChanges: 'Сохранить изменения',
+    savingAria: 'Сохранение конфигурации…',
+    saveAria: 'Сохранить изменения конфигурации',
+    formAria: 'Форма конфигурации тенанта',
+    errors: {
+      academyNameRequired: 'Название академии обязательно.',
+      logoUrlInvalid: 'URL логотипа должен начинаться с http:// или https://',
+      colorInvalid: 'Введите корректный hex-цвет (например, #4F46E5).',
+    },
+    flags: {
+      payments: { label: 'Модуль платежей', description: 'Счета, подписки и учёт задолженностей' },
+      chat: { label: 'Чат / Сообщения', description: 'Обмен сообщениями в реальном времени между преподавателями и студентами' },
+      certificates: { label: 'Сертификаты', description: 'Создание и выдача сертификатов о прохождении курса' },
+      exams: { label: 'Экзамены и тесты', description: 'Система онлайн-экзаменов и тестов' },
+    },
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
+type FormStrings = (typeof I18N)[Locale];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,37 +151,16 @@ const TIMEZONES = [
 
 const CURRENCIES = ['UZS', 'USD', 'EUR', 'RUB', 'KZT'] as const;
 
-const FEATURE_FLAGS: Array<{
-  key: keyof FeatureFlags;
-  label: string;
-  description: string;
-  icon: string;
-}> = [
-  {
-    key: 'payments',
-    label: 'Payment Module',
-    description: 'Invoices, subscriptions, and debt tracking',
-    icon: '💳',
-  },
-  {
-    key: 'chat',
-    label: 'Chat / Messaging',
-    description: 'Real-time messaging between teachers and students',
-    icon: '💬',
-  },
-  {
-    key: 'certificates',
-    label: 'Certificates',
-    description: 'Generate and issue completion certificates',
-    icon: '🎓',
-  },
-  {
-    key: 'exams',
-    label: 'Exams & Quizzes',
-    description: 'Online examination and quiz engine',
-    icon: '📝',
-  },
-];
+function getFeatureFlagsMeta(
+  s: FormStrings,
+): Array<{ key: keyof FeatureFlags; label: string; description: string; icon: string }> {
+  return [
+    { key: 'payments', label: s.flags.payments.label, description: s.flags.payments.description, icon: '💳' },
+    { key: 'chat', label: s.flags.chat.label, description: s.flags.chat.description, icon: '💬' },
+    { key: 'certificates', label: s.flags.certificates.label, description: s.flags.certificates.description, icon: '🎓' },
+    { key: 'exams', label: s.flags.exams.label, description: s.flags.exams.description, icon: '📝' },
+  ];
+}
 
 // ✅ FIX: Safe default config when API returns invalid data
 const SAFE_DEFAULT_CONFIG: TenantConfig = {
@@ -234,6 +333,11 @@ export function TenantConfigForm({
   initialConfig,
   onSave,
 }: TenantConfigFormProps) {
+  const rawLocale = useLocale();
+  const locale: Locale = rawLocale in I18N ? (rawLocale as Locale) : 'en';
+  const s = I18N[locale];
+  const featureFlags = getFeatureFlagsMeta(s);
+
   // ✅ FIX: Normalize config on init to ensure all required fields exist
   const [config, setConfig] = useState<TenantConfig>(() =>
     normalizeConfig(initialConfig),
@@ -270,14 +374,14 @@ export function TenantConfigForm({
   const validate = (): boolean => {
     const errs: Partial<Record<string, string>> = {};
     if (!config.academyName.trim())
-      errs['academyName'] = 'Academy name is required.';
+      errs['academyName'] = s.errors.academyNameRequired;
     if (config.logoUrl && !/^https?:\/\/.+/i.test(config.logoUrl))
-      errs['logoUrl'] = 'Logo URL must start with http:// or https://';
+      errs['logoUrl'] = s.errors.logoUrlInvalid;
     if (
       config.primaryColor &&
       !/^#[0-9A-Fa-f]{6}$/.test(config.primaryColor)
     )
-      errs['primaryColor'] = 'Enter a valid hex color (e.g. #4F46E5).';
+      errs['primaryColor'] = s.errors.colorInvalid;
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -312,19 +416,19 @@ export function TenantConfigForm({
     <div
       className="space-y-5"
       role="form"
-      aria-label="Tenant configuration form"
+      aria-label={s.formAria}
     >
       {/* ── Academy Information ─────────────────────────────────────────────── */}
       <SectionCard
-        title="Academy Information"
-        description="Basic details visible to students and teachers"
+        title={s.academyInfoTitle}
+        description={s.academyInfoDesc}
         delay={0}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Academy name */}
           <Field
             id={`${uid}-name`}
-            label="Academy Name"
+            label={s.academyName}
             required
             error={errors['academyName']}
           >
@@ -333,7 +437,7 @@ export function TenantConfigForm({
               type="text"
               value={config.academyName}
               onChange={(e) => updateField('academyName', e.target.value)}
-              placeholder="e.g. Bright Future Academy"
+              placeholder={s.academyNamePlaceholder}
               aria-required="true"
               aria-invalid={!!errors['academyName']}
               aria-describedby={
@@ -344,7 +448,7 @@ export function TenantConfigForm({
           </Field>
 
           {/* Timezone */}
-          <Field id={`${uid}-tz`} label="Timezone">
+          <Field id={`${uid}-tz`} label={s.timezone}>
             <select
               id={`${uid}-tz`}
               value={config.timezone}
@@ -360,7 +464,7 @@ export function TenantConfigForm({
           </Field>
 
           {/* Currency */}
-          <Field id={`${uid}-currency`} label="Default Currency">
+          <Field id={`${uid}-currency`} label={s.currency}>
             <select
               id={`${uid}-currency`}
               value={config.currency}
@@ -378,7 +482,7 @@ export function TenantConfigForm({
           {/* Primary color */}
           <Field
             id={`${uid}-color`}
-            label="Brand Color"
+            label={s.brandColor}
             error={errors['primaryColor']}
           >
             <div className="flex items-center gap-2">
@@ -394,7 +498,7 @@ export function TenantConfigForm({
                     ? 'border-[var(--error-solid)]'
                     : 'border-[var(--border-default)]',
                 )}
-                aria-label="Pick brand color"
+                aria-label={s.pickColor}
               />
               <input
                 id={`${uid}-color`}
@@ -416,7 +520,7 @@ export function TenantConfigForm({
           <div className="sm:col-span-2">
             <Field
               id={`${uid}-logo`}
-              label="Logo URL"
+              label={s.logoUrl}
               error={errors['logoUrl']}
             >
               <input
@@ -447,12 +551,12 @@ export function TenantConfigForm({
                 className="sm:col-span-2 flex items-center gap-3"
               >
                 <span className="text-xs text-[var(--text-muted)]">
-                  Preview:
+                  {s.preview}
                 </span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={config.logoUrl}
-                  alt="Academy logo preview"
+                  alt={s.logoAlt}
                   className="h-10 max-w-[120px] rounded-lg border border-[var(--border-default)] object-contain p-1"
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).style.display =
@@ -467,12 +571,12 @@ export function TenantConfigForm({
 
       {/* ── Feature Flags ───────────────────────────────────────────────────── */}
       <SectionCard
-        title="Feature Flags"
-        description="Toggle modules on or off for this academy"
+        title={s.featureFlagsTitle}
+        description={s.featureFlagsDesc}
         delay={0.06}
       >
         <div className="space-y-4">
-          {FEATURE_FLAGS.map((flag) => {
+          {featureFlags.map((flag) => {
             // ✅ FIX: Safe access with fallback to false — prevents crash when features is undefined
             const isEnabled = config.features?.[flag.key] ?? false;
 
@@ -513,7 +617,7 @@ export function TenantConfigForm({
                     id={`${uid}-flag-${flag.key}`}
                     checked={isEnabled}
                     onChange={() => toggleFeature(flag.key)}
-                    label={`${isEnabled ? 'Disable' : 'Enable'} ${flag.label}`}
+                    label={`${isEnabled ? s.disable : s.enable} ${flag.label}`}
                   />
                 </div>
               </motion.div>
@@ -545,7 +649,7 @@ export function TenantConfigForm({
                 className="flex items-center gap-1.5 text-xs font-medium text-[var(--success-text)]"
               >
                 <span aria-hidden="true">✅</span>
-                Saved at{' '}
+                {s.savedAt}{' '}
                 {savedAt.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -560,7 +664,7 @@ export function TenantConfigForm({
                 transition={{ duration: 0.15 }}
                 className="text-xs text-[var(--text-muted)]"
               >
-                Changes will apply immediately after saving.
+                {s.changesApply}
               </motion.p>
             )}
           </AnimatePresence>
@@ -584,9 +688,9 @@ export function TenantConfigForm({
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
               'disabled:opacity-50 transition-colors',
             )}
-            aria-label="Reset form to initial values"
+            aria-label={s.resetAria}
           >
-            Reset
+            {s.reset}
           </motion.button>
 
           <motion.button
@@ -603,11 +707,7 @@ export function TenantConfigForm({
               'transition-[background-color,opacity] duration-[var(--transition-base)]',
             )}
             aria-busy={isSaving}
-            aria-label={
-              isSaving
-                ? 'Saving configuration…'
-                : 'Save configuration changes'
-            }
+            aria-label={isSaving ? s.savingAria : s.saveAria}
           >
             {isSaving ? (
               <span className="flex items-center justify-center gap-2">
@@ -615,10 +715,10 @@ export function TenantConfigForm({
                   className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"
                   aria-hidden="true"
                 />
-                Saving…
+                {s.saving}
               </span>
             ) : (
-              'Save Changes'
+              s.saveChanges
             )}
           </motion.button>
         </div>

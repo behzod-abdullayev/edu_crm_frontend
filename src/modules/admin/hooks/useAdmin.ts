@@ -549,3 +549,36 @@ export function useAdminSettings() {
     defaultConfig: DEFAULT_TENANT_CONFIG,
   };
 }
+
+// ── Notification preferences ───────────────────────────────────────────────────
+
+export function useAdminNotificationPreferences() {
+  const [preferences, setPreferences] = useState<Record<string, boolean>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin/settings/notifications')
+      .then((r) => {
+        if (!r.ok) throw new Error(`Notifications fetch failed (${r.status})`);
+        return r.json() as Promise<unknown>;
+      })
+      .then((data) => {
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          setPreferences(data as Record<string, boolean>);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const savePreferences = useCallback(async (next: Record<string, boolean>) => {
+    await fetch('/api/admin/settings/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferences: next }),
+    });
+    setPreferences((prev) => ({ ...prev, ...next }));
+  }, []);
+
+  return { preferences, isLoading, savePreferences };
+}
