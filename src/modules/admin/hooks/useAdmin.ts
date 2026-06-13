@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { teachersApi } from '@/services/api/teachers.api';
-import { studentsApi, type Student } from '@/services/api/students.api';
+import { teachersApi, type CreateTeacherDto } from '@/services/api/teachers.api';
+import { studentsApi, type Student, type CreateStudentDto } from '@/services/api/students.api';
 import { schedulesApi } from '@/services/api/schedules.api';
 import {
   adminApi,
@@ -216,11 +216,25 @@ export function useAdminTeachers() {
     [toggleMutation],
   );
 
+  const createMutation = useMutation({
+    mutationFn: (dto: CreateTeacherDto) => teachersApi.create(dto),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.teachers.lists() });
+    },
+  });
+
+  const createTeacher = useCallback(
+    async (dto: CreateTeacherDto) => createMutation.mutateAsync(dto),
+    [createMutation],
+  );
+
   return {
     teachers,
     isLoading,
     error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load teachers') : null,
     toggleStatus,
+    createTeacher,
+    isCreatingTeacher: createMutation.isPending,
     refresh: refetch,
   };
 }
@@ -264,11 +278,25 @@ export function useAdminStudents() {
     [toggleMutation],
   );
 
+  const createMutation = useMutation({
+    mutationFn: (dto: CreateStudentDto) => studentsApi.create(dto),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.students.lists() });
+    },
+  });
+
+  const createStudent = useCallback(
+    async (dto: CreateStudentDto) => createMutation.mutateAsync(dto),
+    [createMutation],
+  );
+
   return {
     students,
     isLoading,
     error: queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load students') : null,
     toggleStatus,
+    createStudent,
+    isCreatingStudent: createMutation.isPending,
     refresh: refetch,
   };
 }
@@ -511,21 +539,23 @@ export function useAdminSettings() {
   }, []);
 
   const saveConfig = useCallback(async (cfg: TenantConfig) => {
-    await fetch('/api/admin/settings/config', {
+    const r = await fetch('/api/admin/settings/config', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cfg),
     });
+    if (!r.ok) throw new Error(`Config save failed (${r.status})`);
     setConfig(cfg);
   }, []);
 
   const updatePrice = useCallback(
     async (id: string, price: number, currency: string) => {
-      await fetch(`/api/admin/settings/pricing/${id}`, {
+      const r = await fetch(`/api/admin/settings/pricing/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ price, currency }),
       });
+      if (!r.ok) throw new Error(`Price update failed (${r.status})`);
       setPricing((prev) =>
         prev.map((p) => (p.id === id ? { ...p, price, currency } : p)),
       );
@@ -534,8 +564,9 @@ export function useAdminSettings() {
   );
 
   const deletePrice = useCallback(async (id: string) => {
-    await fetch(`/api/admin/settings/pricing/${id}`, { method: 'DELETE' });
-    setPricing((prev) => prev.filter((p) => p.id !== id));
+    const r = await fetch(`/api/admin/settings/pricing/${id}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`Price reset failed (${r.status})`);
+    setPricing((prev) => prev.map((p) => (p.id === id ? { ...p, price: 0 } : p)));
   }, []);
 
   return {

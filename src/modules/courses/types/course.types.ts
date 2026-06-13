@@ -1,9 +1,9 @@
 export interface CourseFormValues {
-  name: string;
+  title: string;
   description: string;
-  thumbnailKey: string | null;
+  thumbnailUrl: string | null;
   categoryId: string;
-  level: "beginner" | "intermediate" | "advanced";
+  difficultyLevel: "beginner" | "intermediate" | "advanced";
   isPublished: boolean;
 }
 

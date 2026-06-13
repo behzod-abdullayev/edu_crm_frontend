@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
+import { ConfirmDialog } from '@shared/components/feedback/ConfirmDialog';
 import type { PricingEntry } from '../types/admin.types';
 
 // ─── i18n ───────────────────────────────────────────────────────────────────
@@ -31,6 +32,10 @@ const I18N = {
     editAria: (name: string) => `${name} narxini tahrirlash`,
     delete: "O'chirish",
     deleteAria: (name: string) => `${name} narxini o'chirish`,
+    resetConfirmTitle: 'Narxni nolga tushirish',
+    resetConfirmMessage: (name: string) =>
+      `"${name}" kursi narxi 0 ga tushiriladi. Bu amalni qaytarib bo'lmaydi.`,
+    resetConfirmBtn: 'Nolga tushirish',
     mobilePrice: 'Narx',
     mobileCurrency: 'Valyuta',
     saveChanges: "O'zgarishlarni saqlash",
@@ -54,6 +59,10 @@ const I18N = {
     editAria: (name: string) => `Edit price for ${name}`,
     delete: 'Delete',
     deleteAria: (name: string) => `Delete pricing for ${name}`,
+    resetConfirmTitle: 'Reset price to zero',
+    resetConfirmMessage: (name: string) =>
+      `The price for "${name}" will be reset to 0. This action cannot be undone.`,
+    resetConfirmBtn: 'Reset to zero',
     mobilePrice: 'Price',
     mobileCurrency: 'Currency',
     saveChanges: 'Save Changes',
@@ -77,6 +86,10 @@ const I18N = {
     editAria: (name: string) => `Изменить цену для ${name}`,
     delete: 'Удалить',
     deleteAria: (name: string) => `Удалить цену для ${name}`,
+    resetConfirmTitle: 'Сбросить цену до нуля',
+    resetConfirmMessage: (name: string) =>
+      `Цена курса "${name}" будет сброшена до 0. Это действие нельзя отменить.`,
+    resetConfirmBtn: 'Сбросить до нуля',
     mobilePrice: 'Цена',
     mobileCurrency: 'Валюта',
     saveChanges: 'Сохранить изменения',
@@ -589,6 +602,8 @@ export function PricingManager({
     currency: '',
   });
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   const startEdit = (entry: PricingEntry) => {
     setEditingId(entry.id);
@@ -616,6 +631,19 @@ export function PricingManager({
       setSavingId(null);
     }
   };
+
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    setIsResetting(true);
+    try {
+      await onDeleteEntry(confirmDeleteId);
+    } finally {
+      setIsResetting(false);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const confirmDeleteEntry = entries.find((entry) => entry.id === confirmDeleteId);
 
   return (
     <motion.div
@@ -669,7 +697,7 @@ export function PricingManager({
                     onStartEdit={() => startEdit(entry)}
                     onSave={() => void saveEdit(entry.id)}
                     onCancel={cancelEdit}
-                    onDelete={() => void onDeleteEntry(entry.id)}
+                    onDelete={() => setConfirmDeleteId(entry.id)}
                     index={index}
                     s={s}
                   />
@@ -692,7 +720,7 @@ export function PricingManager({
                 onStartEdit={() => startEdit(entry)}
                 onSave={() => void saveEdit(entry.id)}
                 onCancel={cancelEdit}
-                onDelete={() => void onDeleteEntry(entry.id)}
+                onDelete={() => setConfirmDeleteId(entry.id)}
                 index={index}
                 s={s}
               />
@@ -700,6 +728,18 @@ export function PricingManager({
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setConfirmDeleteId(null)}
+        title={s.resetConfirmTitle}
+        description={confirmDeleteEntry ? s.resetConfirmMessage(confirmDeleteEntry.courseName) : ''}
+        confirmLabel={s.resetConfirmBtn}
+        cancelLabel={s.cancel}
+        variant="destructive"
+        isLoading={isResetting}
+      />
     </motion.div>
   );
 }

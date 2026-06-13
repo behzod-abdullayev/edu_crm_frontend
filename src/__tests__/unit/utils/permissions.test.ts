@@ -24,6 +24,7 @@ const makeUser = (
   phone: null,
   preferredLanguage: 'en',
   twoFactorEnabled: false,
+  teacherId: null,
   isActive: true,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',

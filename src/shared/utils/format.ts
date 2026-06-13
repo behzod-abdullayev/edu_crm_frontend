@@ -6,9 +6,9 @@ import { uz, ru, enUS } from 'date-fns/locale';
 const DATE_FNS_LOCALES = { uz, ru, en: enUS } as const;
 
 const LOCALIZED_DATE_FORMATS = {
-  en: { short: 'MMM d, yyyy', long: 'MMMM d, yyyy' },
-  ru: { short: 'd MMM yyyy', long: 'd MMMM yyyy' },
-  uz: { short: 'd-MMM, yyyy', long: 'd-MMMM, yyyy' },
+  en: { short: 'MMM d, yyyy', long: 'MMMM d, yyyy', full: 'EEEE, MMMM d' },
+  ru: { short: 'd MMM yyyy', long: 'd MMMM yyyy', full: 'EEEE, d MMMM' },
+  uz: { short: 'd-MMM, yyyy', long: 'd-MMMM, yyyy', full: 'EEEE, d-MMMM' },
 } as const;
 
 /**
@@ -24,7 +24,7 @@ const LOCALIZED_DATE_FORMATS = {
 export function formatLocalizedDate(
   date: string | Date | null | undefined,
   locale: string,
-  style: 'short' | 'long' = 'short',
+  style: 'short' | 'long' | 'full' = 'short',
 ): string {
   if (!date) return '—';
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -37,7 +37,8 @@ export function formatLocalizedDate(
 
   // date-fns' 'uz' locale only has capitalized month names (e.g. "Iyun"),
   // but Uzbek convention lowercases them in this position ("7-iyun, 2026").
-  return locale === 'uz' ? formatted.toLowerCase() : formatted;
+  // The 'full' style leads with the weekday name, which keeps its capital.
+  return locale === 'uz' && style !== 'full' ? formatted.toLowerCase() : formatted;
 }
 
 /**

@@ -19,6 +19,7 @@ export interface Course {
   teacherName: string;
   categoryId?: string;
   categoryName?: string;
+  difficultyLevel?: string;
   status: CourseStatus;
   price?: number;
   currency?: string;
@@ -42,32 +43,29 @@ export interface CourseSchedule {
 }
 
 export interface CreateCourseDto {
-  name: string;
+  title: string;
   description?: string;
-  teacherId: string;
+  teacherId?: string;
   categoryId?: string;
+  difficultyLevel?: string;
+  thumbnailUrl?: string;
   price?: number;
   currency?: string;
   maxStudents?: number;
-  startDate?: string;
-  endDate?: string;
-  schedule?: CourseSchedule[];
+  status?: CourseStatus;
 }
 
 export interface UpdateCourseDto {
-  name?: string;
+  title?: string;
   description?: string;
   thumbnailUrl?: string;
   teacherId?: string;
   categoryId?: string;
+  difficultyLevel?: string;
   status?: CourseStatus;
   price?: number;
   currency?: string;
   maxStudents?: number;
-  startDate?: string;
-  endDate?: string;
-  schedule?: CourseSchedule[];
-  isPublished?: boolean;
 }
 
 export interface Lesson {
@@ -125,6 +123,7 @@ interface RawCourse {
   teacherId?: string | null;
   teacher?: { user?: { firstName?: string; lastName?: string } | null } | null;
   categoryId?: string | null;
+  difficultyLevel?: string | null;
   price?: string | number | null;
   currency?: string;
   durationHours?: number;
@@ -158,6 +157,7 @@ function mapCourse(raw: RawCourse): Course {
     teacherId: raw.teacherId ?? '',
     teacherName,
     ...(raw.categoryId != null ? { categoryId: raw.categoryId } : {}),
+    ...(raw.difficultyLevel != null ? { difficultyLevel: raw.difficultyLevel } : {}),
     status: raw.status,
     ...(price !== undefined ? { price } : {}),
     ...(raw.currency !== undefined ? { currency: raw.currency } : {}),
@@ -207,8 +207,11 @@ export const coursesApi = {
     await httpClient.delete(`/courses/${id}`);
   },
 
-  publish: async (id: string): Promise<Course> => {
-    const { data } = await httpClient.post<RawCourse>(`/courses/${id}/publish`);
+  // Toggles publish state via PATCH /courses/:id — the dedicated
+  // POST /courses/:id/publish route only sets status to 'published'
+  // and can't be used to unpublish, and is registered as PATCH anyway.
+  publish: async (id: string, status: CourseStatus): Promise<Course> => {
+    const { data } = await httpClient.patch<RawCourse>(`/courses/${id}`, { status });
     return mapCourse(data);
   },
 

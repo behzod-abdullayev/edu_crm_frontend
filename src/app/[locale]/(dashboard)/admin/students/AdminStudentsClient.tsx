@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdminStudents } from '@modules/admin/hooks/useAdmin';
+import { AddStudentDialog } from './AddStudentDialog';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
 import { useMediaQuery } from '@shared/hooks/useMediaQuery';
@@ -826,6 +827,7 @@ export function AdminStudentsClient() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [page, setPage] = useState(1);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -922,6 +924,7 @@ export function AdminStudentsClient() {
 
             <motion.button
               whileTap={{ scale: 0.96 }}
+              onClick={() => setIsAddStudentOpen(true)}
               className="flex h-10 items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 text-sm font-medium text-[var(--text-on-brand)] transition-colors hover:bg-[var(--brand-primary-hover)] sm:px-4"
             >
               <Plus size={14} aria-hidden="true" />
@@ -929,6 +932,8 @@ export function AdminStudentsClient() {
             </motion.button>
           </div>
         </motion.div>
+
+        <AddStudentDialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen} locale={locale} />
 
         {/* ── KPI bar ─────────────────────────────────────────────────── */}
         {!isLoading && !hasNoData && (
@@ -960,7 +965,7 @@ export function AdminStudentsClient() {
             icon={GraduationCap}
             title={s.noStudentsTitle}
             description={s.noStudentsDesc}
-            action={{ label: s.addStudent, onClick: () => {} }}
+            action={{ label: s.addStudent, onClick: () => setIsAddStudentOpen(true) }}
           />
         ) : !isMobile ? (
           <>

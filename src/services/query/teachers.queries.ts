@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import {
   teachersApi,
@@ -77,18 +78,19 @@ export function useTeacherAnalytics(id: string) {
 export function useCreateTeacher() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: CreateTeacherDto) => teachersApi.create(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.teachers.lists() });
-      addToast({ type: 'success', title: 'teachers.createSuccess' });
+      addToast({ type: 'success', title: t('createSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'teachers.createFailed',
+        title: t('createError'),
         description: parsed.message,
       });
     },
@@ -97,7 +99,6 @@ export function useCreateTeacher() {
 
 export function useUpdateTeacher(id: string) {
   const queryClient = useQueryClient();
-  const addToast = useUIStore((s) => s.addToast);
 
   return useMutation({
     mutationFn: (dto: UpdateTeacherDto) => teachersApi.update(id, dto),
@@ -114,16 +115,10 @@ export function useUpdateTeacher(id: string) {
       }
       return { previous };
     },
-    onError: (error: unknown, _dto, context) => {
+    onError: (_error: unknown, _dto, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.teachers.detail(id), context.previous);
       }
-      const parsed = parseApiError(error);
-      addToast({
-        type: 'error',
-        title: 'teachers.updateFailed',
-        description: parsed.message,
-      });
     },
     onSuccess: (updated) => {
       queryClient.setQueryData<Teacher>(queryKeys.teachers.detail(id), updated);
@@ -134,22 +129,12 @@ export function useUpdateTeacher(id: string) {
 
 export function useDeleteTeacher() {
   const queryClient = useQueryClient();
-  const addToast = useUIStore((s) => s.addToast);
 
   return useMutation({
     mutationFn: (id: string) => teachersApi.delete(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.teachers.lists() });
       queryClient.removeQueries({ queryKey: queryKeys.teachers.detail(id) });
-      addToast({ type: 'success', title: 'teachers.deleteSuccess' });
-    },
-    onError: (error: unknown) => {
-      const parsed = parseApiError(error);
-      addToast({
-        type: 'error',
-        title: 'teachers.deleteFailed',
-        description: parsed.message,
-      });
     },
   });
 }

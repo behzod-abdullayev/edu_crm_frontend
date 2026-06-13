@@ -132,7 +132,7 @@ export function usePublishCourse(id: string) {
   const { addToast } = useUIStore();
 
   return useMutation({
-    mutationFn: () => coursesApi.publish(id),
+    mutationFn: (status: Course['status']) => coursesApi.publish(id, status),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.courses.detail(id), updated);
       void queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });

@@ -116,6 +116,7 @@ interface LoginApiResponse {
     phone: string | null;
     preferredLanguage: string;
     twoFactorEnabled: boolean;
+    teacherId: string | null;
     permissions: string[];
     [key: string]: unknown;
   };
@@ -214,6 +215,7 @@ function LoginForm({
         phone:             data.user.phone,
         preferredLanguage: data.user.preferredLanguage,
         twoFactorEnabled:  data.user.twoFactorEnabled,
+        teacherId:         data.user.teacherId,
         isActive:          data.user.status === 'active',
         ...avatarSpread,
       });

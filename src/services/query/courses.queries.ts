@@ -1,11 +1,13 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import {
   coursesApi,
   type Course,
   type CourseListParams,
+  type CourseStatus,
   type CreateCourseDto,
   type UpdateCourseDto,
 } from '@/services/api/courses.api';
@@ -59,18 +61,19 @@ export function useCourseEnrollments(id: string) {
 export function useCreateCourse() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: CreateCourseDto) => coursesApi.create(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });
-      addToast({ type: 'success', title: 'courses.createSuccess' });
+      addToast({ type: 'success', title: t('createSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'courses.createFailed',
+        title: t('createError'),
         description: parsed.message,
       });
     },
@@ -80,6 +83,7 @@ export function useCreateCourse() {
 export function useUpdateCourse(id: string) {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: UpdateCourseDto) => coursesApi.update(id, dto),
@@ -103,13 +107,14 @@ export function useUpdateCourse(id: string) {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'courses.updateFailed',
+        title: t('updateError'),
         description: parsed.message,
       });
     },
     onSuccess: (updated) => {
       queryClient.setQueryData<Course>(queryKeys.courses.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });
+      addToast({ type: 'success', title: t('updateSuccess') });
     },
   });
 }
@@ -117,19 +122,20 @@ export function useUpdateCourse(id: string) {
 export function useDeleteCourse() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (id: string) => coursesApi.delete(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });
       queryClient.removeQueries({ queryKey: queryKeys.courses.detail(id) });
-      addToast({ type: 'success', title: 'courses.deleteSuccess' });
+      addToast({ type: 'success', title: t('deleteSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'courses.deleteFailed',
+        title: t('deleteError'),
         description: parsed.message,
       });
     },
@@ -139,19 +145,24 @@ export function useDeleteCourse() {
 export function usePublishCourse() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
-    mutationFn: (id: string) => coursesApi.publish(id),
-    onSuccess: (updated, id) => {
+    mutationFn: ({ id, status }: { id: string; status: CourseStatus }) =>
+      coursesApi.publish(id, status),
+    onSuccess: (updated, { id, status }) => {
       queryClient.setQueryData<Course>(queryKeys.courses.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });
-      addToast({ type: 'success', title: 'courses.publishSuccess' });
+      addToast({
+        type: 'success',
+        title: status === 'published' ? t('publishSuccess') : t('unpublishSuccess'),
+      });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'courses.publishFailed',
+        title: t('publishError'),
         description: parsed.message,
       });
     },
@@ -161,6 +172,7 @@ export function usePublishCourse() {
 export function useEnrollStudent() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: ({ courseId, studentId }: { courseId: string; studentId: string }) =>
@@ -168,13 +180,13 @@ export function useEnrollStudent() {
     onSuccess: (_data, { courseId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.enrollments(courseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.students.lists() });
-      addToast({ type: 'success', title: 'courses.enrollSuccess' });
+      addToast({ type: 'success', title: t('enrollSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'courses.enrollFailed',
+        title: t('enrollError'),
         description: parsed.message,
       });
     },

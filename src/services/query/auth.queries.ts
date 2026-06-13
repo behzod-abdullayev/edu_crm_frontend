@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import { authApi, type LoginDto } from '@/services/api/auth.api';
 import { useAuthStore } from '@/store/auth.store';
@@ -32,6 +33,7 @@ export function useLogin() {
   const { setTokens, setUser } = useAuthStore.getState();
   const addToast = useUIStore((s) => s.addToast);
   const router = useRouter();
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: LoginDto) => authApi.login(dto),
@@ -44,8 +46,8 @@ export function useLogin() {
     onError: () => {
       addToast({
         type: 'error',
-        title: 'auth.loginFailed',
-        description: 'auth.loginFailedDescription',
+        title: t('loginError'),
+        description: t('loginErrorDescription'),
       });
     },
   });
@@ -68,21 +70,22 @@ export function useLogout() {
 
 export function useForgotPassword() {
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (email: string) => authApi.forgotPassword(email),
     onSuccess: () => {
       addToast({
         type: 'success',
-        title: 'auth.forgotPasswordSent',
-        description: 'auth.forgotPasswordSentDescription',
+        title: t('forgotPasswordSent'),
+        description: t('forgotPasswordSentDescription'),
         duration: 6000,
       });
     },
     onError: () => {
       addToast({
         type: 'error',
-        title: 'auth.forgotPasswordFailed',
+        title: t('forgotPasswordError'),
       });
     },
   });
@@ -91,6 +94,7 @@ export function useForgotPassword() {
 export function useResetPassword() {
   const addToast = useUIStore((s) => s.addToast);
   const router = useRouter();
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: ({ token, password }: { token: string; password: string }) =>
@@ -98,7 +102,7 @@ export function useResetPassword() {
     onSuccess: () => {
       addToast({
         type: 'success',
-        title: 'auth.passwordResetSuccess',
+        title: t('passwordResetSuccess'),
         duration: 4000,
       });
       router.push('/login');
@@ -106,7 +110,7 @@ export function useResetPassword() {
     onError: () => {
       addToast({
         type: 'error',
-        title: 'auth.passwordResetFailed',
+        title: t('passwordResetError'),
       });
     },
   });

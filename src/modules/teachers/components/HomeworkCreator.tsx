@@ -270,7 +270,7 @@ interface HomeworkCreatorProps {
 
 export function HomeworkCreator({ onSuccess }: HomeworkCreatorProps) {
   const { user: currentUser } = useCurrentUser();
-  const teacherId = currentUser?.id ?? '';
+  const teacherId = currentUser?.teacherId ?? '';
   const router = useRouter();
 
   const { data: groups, isLoading: groupsLoading } = useTeacherGroups(teacherId);

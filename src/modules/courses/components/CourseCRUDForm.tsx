@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import { ImageIcon, Loader2, Save, X } from 'lucide-react';
 import { httpClient } from '@/services/api/axios.instance';
 import { queryKeys } from '@/services/query/keys.factory';
+import { resolveFileUrl } from '@/shared/hooks/useUpdateProfile';
 import { useToast } from '@shared/hooks/useToast';
 import { parseApiError, mapApiErrorsToForm } from '@shared/utils/api-error';
 import { Button } from '@shared/components/ui/button';
@@ -31,39 +33,92 @@ import {
 } from '../utils/course.mapper';
 import type { CourseFormValues } from '../types/course.types';
 
-// ─── Zod Schema ───────────────────────────────────────────────────────────────
+// ─── i18n ─────────────────────────────────────────────────────────────────────
 
-const courseSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Course name is required')
-    .max(200, 'Course name must be 200 characters or fewer'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(2000, 'Description must be 2000 characters or fewer'),
-  thumbnailKey: z.string().nullable(),
-  categoryId: z.string().min(1, 'Category is required'),
-  level: z.enum(['beginner', 'intermediate', 'advanced']),
-  isPublished: z.boolean(),
-});
+const I18N = {
+  uz: {
+    formAriaCreate: 'Kurs yaratish formasi', formAriaEdit: 'Kursni tahrirlash formasi',
+    thumbnailLabel: 'Kurs rasmi', thumbnailUploadAria: 'Kurs rasmini yuklash',
+    thumbnailHint: "Rasm yuklash uchun bosing yoki shu yerga tashlang",
+    thumbnailSizeHint: 'PNG, JPG, WebP — maksimal 5 MB',
+    thumbnailUploading: 'Yuklanmoqda…', thumbnailRemove: "Rasmni o'chirish",
+    thumbnailInvalidType: 'Faqat rasm fayllarini yuklash mumkin',
+    thumbnailTooLarge: "Fayl hajmi 5 MB dan oshmasligi kerak",
+    thumbnailUploadFailed: "Rasmni yuklab bo'lmadi",
+    nameLabel: 'Kurs nomi', namePlaceholder: 'Masalan: Oliy matematika',
+    nameRequired: 'Kurs nomini kiriting', nameMaxLength: "Kurs nomi 200 belgidan oshmasligi kerak",
+    descriptionLabel: 'Tavsif', descriptionPlaceholder: "Talabalar bu kursda nimani o'rganadi?",
+    descriptionRequired: 'Tavsifni kiriting', descriptionMaxLength: "Tavsif 2000 belgidan oshmasligi kerak",
+    levelLabel: 'Daraja', levelBeginner: "Boshlang'ich", levelIntermediate: "O'rta", levelAdvanced: 'Yuqori',
+    categoryLabel: 'Kategoriya', categoryPlaceholder: 'Masalan: Matematika (ixtiyoriy)',
+    publishedLabel: "E'lon qilingan", draftLabel: 'Qoralama',
+    publishedHint: 'Talabalarga ko‘rinadi', draftHint: "E'lon qilinmaguncha talabalardan yashirin",
+    cancelBtn: 'Bekor qilish', createBtn: 'Kurs yaratish', saveBtn: 'Saqlash',
+    creatingBtn: 'Yaratilmoqda…', savingBtn: 'Saqlanmoqda…',
+    createSuccess: 'Kurs muvaffaqiyatli yaratildi', updateSuccess: 'Kurs muvaffaqiyatli yangilandi',
+    createError: "Kursni yaratib bo'lmadi", updateError: "Kursni yangilab bo'lmadi",
+  },
+  en: {
+    formAriaCreate: 'Create course form', formAriaEdit: 'Edit course form',
+    thumbnailLabel: 'Course Thumbnail', thumbnailUploadAria: 'Upload course thumbnail',
+    thumbnailHint: 'Click or drag to upload thumbnail',
+    thumbnailSizeHint: 'PNG, JPG, WebP — max 5 MB',
+    thumbnailUploading: 'Uploading…', thumbnailRemove: 'Remove image',
+    thumbnailInvalidType: 'Only image files can be uploaded',
+    thumbnailTooLarge: 'File size must not exceed 5 MB',
+    thumbnailUploadFailed: 'Failed to upload image',
+    nameLabel: 'Course Name', namePlaceholder: 'e.g. Advanced Mathematics',
+    nameRequired: 'Course name is required', nameMaxLength: 'Course name must be 200 characters or fewer',
+    descriptionLabel: 'Description', descriptionPlaceholder: 'What will students learn in this course?',
+    descriptionRequired: 'Description is required', descriptionMaxLength: 'Description must be 2000 characters or fewer',
+    levelLabel: 'Level', levelBeginner: 'Beginner', levelIntermediate: 'Intermediate', levelAdvanced: 'Advanced',
+    categoryLabel: 'Category', categoryPlaceholder: 'e.g. Mathematics (optional)',
+    publishedLabel: 'Published', draftLabel: 'Draft',
+    publishedHint: 'Visible to enrolled students', draftHint: 'Hidden from students until published',
+    cancelBtn: 'Cancel', createBtn: 'Create Course', saveBtn: 'Save Changes',
+    creatingBtn: 'Creating…', savingBtn: 'Saving…',
+    createSuccess: 'Course created successfully', updateSuccess: 'Course updated successfully',
+    createError: 'Failed to create course', updateError: 'Failed to update course',
+  },
+  ru: {
+    formAriaCreate: 'Форма создания курса', formAriaEdit: 'Форма редактирования курса',
+    thumbnailLabel: 'Изображение курса', thumbnailUploadAria: 'Загрузить изображение курса',
+    thumbnailHint: 'Нажмите или перетащите файл для загрузки',
+    thumbnailSizeHint: 'PNG, JPG, WebP — макс. 5 МБ',
+    thumbnailUploading: 'Загрузка…', thumbnailRemove: 'Удалить изображение',
+    thumbnailInvalidType: 'Можно загружать только файлы изображений',
+    thumbnailTooLarge: 'Размер файла не должен превышать 5 МБ',
+    thumbnailUploadFailed: 'Не удалось загрузить изображение',
+    nameLabel: 'Название курса', namePlaceholder: 'например, Высшая математика',
+    nameRequired: 'Введите название курса', nameMaxLength: 'Название курса не должно превышать 200 символов',
+    descriptionLabel: 'Описание', descriptionPlaceholder: 'Что студенты изучат на этом курсе?',
+    descriptionRequired: 'Введите описание', descriptionMaxLength: 'Описание не должно превышать 2000 символов',
+    levelLabel: 'Уровень', levelBeginner: 'Начальный', levelIntermediate: 'Средний', levelAdvanced: 'Продвинутый',
+    categoryLabel: 'Категория', categoryPlaceholder: 'например, Математика (необязательно)',
+    publishedLabel: 'Опубликован', draftLabel: 'Черновик',
+    publishedHint: 'Виден зачисленным студентам', draftHint: 'Скрыт от студентов до публикации',
+    cancelBtn: 'Отмена', createBtn: 'Создать курс', saveBtn: 'Сохранить изменения',
+    creatingBtn: 'Создание…', savingBtn: 'Сохранение…',
+    createSuccess: 'Курс успешно создан', updateSuccess: 'Курс успешно обновлён',
+    createError: 'Не удалось создать курс', updateError: 'Не удалось обновить курс',
+  },
+} as const;
+
+type Locale = keyof typeof I18N;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LEVEL_OPTIONS: { value: CourseFormValues['level']; label: string }[] = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-];
-
 const DEFAULT_VALUES: CourseFormValues = {
-  name: '',
+  title: '',
   description: '',
-  thumbnailKey: null,
+  thumbnailUrl: null,
   categoryId: '',
-  level: 'beginner',
+  difficultyLevel: 'beginner',
   isPublished: false,
 };
+
+const ACCEPTED_THUMBNAIL_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -97,7 +152,38 @@ export function CourseCRUDForm({
   const queryClient = useQueryClient();
   const router = useRouter();
   const { toast } = useToast();
+  const locale = useLocale();
+  const s = I18N[locale as Locale] ?? I18N.en;
   const isEdit = !!course;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // ── Zod schema (localized) ───────────────────────────────────────────────
+
+  const courseSchema = useMemo(
+    () =>
+      z.object({
+        title: z
+          .string()
+          .min(1, s.nameRequired)
+          .max(200, s.nameMaxLength),
+        description: z
+          .string()
+          .min(1, s.descriptionRequired)
+          .max(2000, s.descriptionMaxLength),
+        thumbnailUrl: z.string().nullable(),
+        categoryId: z.string(),
+        difficultyLevel: z.enum(['beginner', 'intermediate', 'advanced']),
+        isPublished: z.boolean(),
+      }),
+    [s],
+  );
+
+  const LEVEL_OPTIONS: { value: CourseFormValues['difficultyLevel']; label: string }[] = [
+    { value: 'beginner', label: s.levelBeginner },
+    { value: 'intermediate', label: s.levelIntermediate },
+    { value: 'advanced', label: s.levelAdvanced },
+  ];
 
   // ── Mutation ──────────────────────────────────────────────────────────────
 
@@ -120,7 +206,7 @@ export function CourseCRUDForm({
         );
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.courses.lists() });
-      toast.success(isEdit ? 'Course updated successfully' : 'Course created successfully');
+      toast.success(isEdit ? s.updateSuccess : s.createSuccess);
       onSuccess?.();
       if (!isEdit) router.push('/admin/courses');
     },
@@ -147,8 +233,44 @@ export function CourseCRUDForm({
   }, [course, reset]);
 
   const isPublished = watch('isPublished');
-  const currentLevel = watch('level');
+  const currentLevel = watch('difficultyLevel');
+  const thumbnailUrl = watch('thumbnailUrl');
   const isBusy = saveMutation.isPending || isSubmitting;
+
+  // ── Thumbnail upload ──────────────────────────────────────────────────────
+
+  const handleFileSelect = async (file: File) => {
+    if (!ACCEPTED_THUMBNAIL_TYPES.includes(file.type)) {
+      toast.error(s.thumbnailInvalidType);
+      return;
+    }
+    if (file.size > MAX_THUMBNAIL_SIZE) {
+      toast.error(s.thumbnailTooLarge);
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await httpClient.post<{ url: string }>(
+        '/files/upload?entity=course&public=true',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setValue('thumbnailUrl', resolveFileUrl(data.url), { shouldDirty: true, shouldValidate: true });
+    } catch {
+      toast.error(s.thumbnailUploadFailed);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleThumbnailDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (isUploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFileSelect(file);
+  };
 
   // ── Submit handler ────────────────────────────────────────────────────────
 
@@ -161,7 +283,7 @@ export function CourseCRUDForm({
       mapApiErrorsToForm(parsed, setError);
       // Show toast only if there are no field errors to display inline
       if (Object.keys(parsed.errors).length === 0) {
-        toast.error(parsed.message || `Failed to ${isEdit ? 'update' : 'create'} course`);
+        toast.error(parsed.message || (isEdit ? s.updateError : s.createError));
       }
     }
   });
@@ -183,7 +305,7 @@ export function CourseCRUDForm({
       onSubmit={onSubmit}
       noValidate
       className={cn('space-y-6', className)}
-      aria-label={isEdit ? 'Edit course form' : 'Create course form'}
+      aria-label={isEdit ? s.formAriaEdit : s.formAriaCreate}
     >
       {/* ── Thumbnail ── */}
       <motion.div
@@ -193,30 +315,71 @@ export function CourseCRUDForm({
         animate="visible"
         className="space-y-1.5"
       >
-        <Label>Course Thumbnail</Label>
+        <Label>{s.thumbnailLabel}</Label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_THUMBNAIL_TYPES.join(',')}
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleFileSelect(file);
+            e.target.value = '';
+          }}
+        />
         <motion.div
           whileHover={{ borderColor: 'var(--border-focus)' }}
           transition={{ duration: 0.15 }}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
+          onDrop={handleThumbnailDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
           className={cn(
             'relative h-36 rounded-xl border-2 border-dashed border-[var(--border-default)]',
-            'flex flex-col items-center justify-center gap-2',
+            'flex flex-col items-center justify-center gap-2 overflow-hidden',
             'cursor-pointer bg-[var(--bg-surface-secondary)] hover:bg-[var(--bg-surface-hover)]',
             'transition-colors duration-[var(--transition-base)]',
           )}
           role="button"
           tabIndex={0}
-          aria-label="Upload course thumbnail"
+          aria-label={s.thumbnailUploadAria}
         >
-          <ImageIcon
-            className="w-8 h-8 text-[var(--text-muted)]"
-            aria-hidden="true"
-          />
-          <p className="text-sm text-[var(--text-muted)]">
-            Click or drag to upload thumbnail
-          </p>
-          <p className="text-xs text-[var(--text-muted)]">
-            PNG, JPG, WebP — max 5 MB
-          </p>
+          {thumbnailUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setValue('thumbnailUrl', null, { shouldDirty: true });
+                }}
+                aria-label={s.thumbnailRemove}
+                className="absolute top-2 right-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70 transition-colors"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </>
+          ) : isUploading ? (
+            <>
+              <Loader2 className="w-8 h-8 text-[var(--text-muted)] animate-spin" aria-hidden="true" />
+              <p className="text-sm text-[var(--text-muted)]">{s.thumbnailUploading}</p>
+            </>
+          ) : (
+            <>
+              <ImageIcon
+                className="w-8 h-8 text-[var(--text-muted)]"
+                aria-hidden="true"
+              />
+              <p className="text-sm text-[var(--text-muted)]">{s.thumbnailHint}</p>
+              <p className="text-xs text-[var(--text-muted)]">{s.thumbnailSizeHint}</p>
+            </>
+          )}
         </motion.div>
       </motion.div>
 
@@ -228,31 +391,31 @@ export function CourseCRUDForm({
         animate="visible"
         className="space-y-1.5"
       >
-        <Label htmlFor="courseName">
-          Course Name{' '}
+        <Label htmlFor="courseTitle">
+          {s.nameLabel}{' '}
           <span className="text-[var(--error-solid)]" aria-hidden="true">
             *
           </span>
         </Label>
         <Input
-          id="courseName"
-          {...register('name')}
-          placeholder="e.g. Advanced Mathematics"
+          id="courseTitle"
+          {...register('title')}
+          placeholder={s.namePlaceholder}
           aria-required="true"
-          aria-describedby={errors.name ? 'courseName-error' : undefined}
-          aria-invalid={!!errors.name}
-          inputState={errors.name ? 'error' : 'default'}
+          aria-describedby={errors.title ? 'courseTitle-error' : undefined}
+          aria-invalid={!!errors.title}
+          inputState={errors.title ? 'error' : 'default'}
           autoComplete="off"
         />
-        {errors.name && (
+        {errors.title && (
           <motion.p
-            id="courseName-error"
+            id="courseTitle-error"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-xs text-[var(--error-text)]"
             role="alert"
           >
-            {errors.name.message}
+            {errors.title.message}
           </motion.p>
         )}
       </motion.div>
@@ -266,7 +429,7 @@ export function CourseCRUDForm({
         className="space-y-1.5"
       >
         <Label htmlFor="courseDescription">
-          Description{' '}
+          {s.descriptionLabel}{' '}
           <span className="text-[var(--error-solid)]" aria-hidden="true">
             *
           </span>
@@ -274,7 +437,7 @@ export function CourseCRUDForm({
         <textarea
           id="courseDescription"
           {...register('description')}
-          placeholder="What will students learn in this course?"
+          placeholder={s.descriptionPlaceholder}
           rows={4}
           aria-required="true"
           aria-describedby={errors.description ? 'courseDescription-error' : undefined}
@@ -315,11 +478,11 @@ export function CourseCRUDForm({
       >
         {/* Level */}
         <div className="space-y-1.5">
-          <Label htmlFor="courseLevel">Level</Label>
+          <Label htmlFor="courseLevel">{s.levelLabel}</Label>
           <Select
             value={currentLevel}
             onValueChange={(v) =>
-              setValue('level', v as CourseFormValues['level'], {
+              setValue('difficultyLevel', v as CourseFormValues['difficultyLevel'], {
                 shouldDirty: true,
                 shouldValidate: true,
               })
@@ -327,7 +490,7 @@ export function CourseCRUDForm({
           >
             <SelectTrigger
               id="courseLevel"
-              aria-label="Select course level"
+              aria-label={s.levelLabel}
               className="w-full"
             >
               <SelectValue />
@@ -344,17 +507,11 @@ export function CourseCRUDForm({
 
         {/* Category */}
         <div className="space-y-1.5">
-          <Label htmlFor="categoryId">
-            Category{' '}
-            <span className="text-[var(--error-solid)]" aria-hidden="true">
-              *
-            </span>
-          </Label>
+          <Label htmlFor="categoryId">{s.categoryLabel}</Label>
           <Input
             id="categoryId"
             {...register('categoryId')}
-            placeholder="e.g. Mathematics"
-            aria-required="true"
+            placeholder={s.categoryPlaceholder}
             aria-describedby={errors.categoryId ? 'categoryId-error' : undefined}
             aria-invalid={!!errors.categoryId}
             inputState={errors.categoryId ? 'error' : 'default'}
@@ -401,15 +558,13 @@ export function CourseCRUDForm({
             htmlFor="isPublished"
             className="cursor-pointer font-medium text-sm"
           >
-            {isPublished ? 'Published' : 'Draft'}
+            {isPublished ? s.publishedLabel : s.draftLabel}
           </Label>
           <p
             id="isPublished-hint"
             className="text-xs text-[var(--text-muted)] mt-0.5"
           >
-            {isPublished
-              ? 'Visible to enrolled students'
-              : 'Hidden from students until published'}
+            {isPublished ? s.publishedHint : s.draftHint}
           </p>
         </div>
       </motion.div>
@@ -434,7 +589,7 @@ export function CourseCRUDForm({
           className="w-full sm:w-auto gap-2"
         >
           <X className="w-4 h-4" aria-hidden="true" />
-          Cancel
+          {s.cancelBtn}
         </Button>
 
         <motion.div
@@ -453,12 +608,12 @@ export function CourseCRUDForm({
                   className="w-4 h-4 animate-spin"
                   aria-hidden="true"
                 />
-                {isEdit ? 'Saving…' : 'Creating…'}
+                {isEdit ? s.savingBtn : s.creatingBtn}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" aria-hidden="true" />
-                {isEdit ? 'Save Changes' : 'Create Course'}
+                {isEdit ? s.saveBtn : s.createBtn}
               </>
             )}
           </Button>

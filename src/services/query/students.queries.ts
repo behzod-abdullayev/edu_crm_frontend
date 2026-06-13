@@ -5,6 +5,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import {
   studentsApi,
@@ -90,18 +91,19 @@ export function useStudentCertificates(id: string) {
 export function useCreateStudent() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: CreateStudentDto) => studentsApi.create(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.students.lists() });
-      addToast({ type: 'success', title: 'students.createSuccess' });
+      addToast({ type: 'success', title: t('createSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'students.createFailed',
+        title: t('createError'),
         description: parsed.message,
       });
     },
@@ -110,7 +112,6 @@ export function useCreateStudent() {
 
 export function useUpdateStudent(id: string) {
   const queryClient = useQueryClient();
-  const addToast = useUIStore((s) => s.addToast);
 
   return useMutation({
     mutationFn: (dto: UpdateStudentDto) => studentsApi.update(id, dto),
@@ -127,16 +128,10 @@ export function useUpdateStudent(id: string) {
       }
       return { previous };
     },
-    onError: (error: unknown, _dto, context) => {
+    onError: (_error: unknown, _dto, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.students.detail(id), context.previous);
       }
-      const parsed = parseApiError(error);
-      addToast({
-        type: 'error',
-        title: 'students.updateFailed',
-        description: parsed.message,
-      });
     },
     onSuccess: (updated) => {
       queryClient.setQueryData<Student>(queryKeys.students.detail(id), updated);
@@ -147,22 +142,12 @@ export function useUpdateStudent(id: string) {
 
 export function useDeleteStudent() {
   const queryClient = useQueryClient();
-  const addToast = useUIStore((s) => s.addToast);
 
   return useMutation({
     mutationFn: (id: string) => studentsApi.delete(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.students.lists() });
       queryClient.removeQueries({ queryKey: queryKeys.students.detail(id) });
-      addToast({ type: 'success', title: 'students.deleteSuccess' });
-    },
-    onError: (error: unknown) => {
-      const parsed = parseApiError(error);
-      addToast({
-        type: 'error',
-        title: 'students.deleteFailed',
-        description: parsed.message,
-      });
     },
   });
 }

@@ -146,7 +146,7 @@ const rowVariants = {
 
 export function TeacherExamsClient() {
   const { user } = useCurrentUser();
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
   const isMobile = useIsMobile();
   const examEnabled = useFeatureFlag("examEngine");
   const queryClient = useQueryClient();

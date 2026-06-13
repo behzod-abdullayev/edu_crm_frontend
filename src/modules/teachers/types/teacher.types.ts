@@ -87,15 +87,18 @@ export interface ChatConversation {
   unreadCount: number;
 }
 
-export interface TeacherKpiData {
-  activeGroups: number;
+// ─── Teacher dashboard KPIs ──────────────────────────────────────────────────
+// Mirrors the subset of `TeacherAnalyticsDto` (backend `/teachers/:id/analytics`)
+// consumed by the dashboard KPI cards.
+export interface TeacherDashboardKpi {
+  totalGroups: number;
   totalStudents: number;
-  pendingGrading: number;
-  todaysClasses: number;
-  activeGroupsTrend: number;
-  totalStudentsTrend: number;
-  pendingGradingTrend: number;
-  todaysClassesTrend: number;
+  avgAttendanceRate: number;
+  homeworkStats: {
+    assigned: number;
+    graded: number;
+    pending: number;
+  };
 }
 
 // ─── Backend DTO (mirrors API response shape) ───────────────────────────────

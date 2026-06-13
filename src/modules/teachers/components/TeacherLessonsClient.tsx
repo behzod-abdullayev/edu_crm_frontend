@@ -313,7 +313,7 @@ export function TeacherLessonsClient() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
 
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
 
   const { data, isLoading, isError, error, refetch } = useTeacherLessons(
     teacherId,

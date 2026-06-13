@@ -7,7 +7,7 @@
  *       • @generated/models — orval-generated types (TeacherDto, UpdateTeacherDto,
  *         AttendanceEntryDto). Do NOT write these types manually in this file.
  *       • ../types/teacher.types — module-level UI types (TeacherFormValues,
- *         AttendanceMarkEntry, TeacherKpiData, ChatConversation).
+ *         AttendanceMarkEntry, ChatConversation).
  *       • @shared/types/attendance — AttendanceStatus union type shared between
  *         the student and teacher modules.
  *
@@ -28,7 +28,6 @@ import type {
 import type {
   TeacherFormValues,
   AttendanceMarkEntry,
-  TeacherKpiData,
   ChatConversation,
 } from '../types/teacher.types';
 import type { AttendanceStatus } from '@shared/types/attendance';
@@ -113,37 +112,6 @@ export function mapAttendanceEntryDto(dto: AttendanceEntryDto): AttendanceMarkEn
       ? { note: dto.note }
       : {}),
   };
-}
-
-// ─── KPI helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Creates a zero-initialised TeacherKpiData placeholder — used while the real
- * dashboard data is loading so KPI cards can render skeletons without
- * conditional logic in the component.
- */
-export function createEmptyTeacherKpi(): TeacherKpiData {
-  return {
-    activeGroups: 0,
-    totalStudents: 0,
-    pendingGrading: 0,
-    todaysClasses: 0,
-    activeGroupsTrend: 0,
-    totalStudentsTrend: 0,
-    pendingGradingTrend: 0,
-    todaysClassesTrend: 0,
-  };
-}
-
-/**
- * Derives the percentage change between two numeric KPI values.
- *
- * Positive → improvement. Negative → regression.
- * Returns 0 when previous is 0 (avoids division-by-zero).
- */
-export function deriveTrendPercent(current: number, previous: number): number {
-  if (previous === 0) return 0;
-  return Math.round(((current - previous) / previous) * 100);
 }
 
 // ─── Display formatters ───────────────────────────────────────────────────────

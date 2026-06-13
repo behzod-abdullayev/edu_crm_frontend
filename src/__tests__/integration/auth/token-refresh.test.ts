@@ -34,6 +34,7 @@ const mockUser: UserProfile = {
   phone: null,
   preferredLanguage: 'en',
   twoFactorEnabled: false,
+  teacherId: null,
   isActive: true,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

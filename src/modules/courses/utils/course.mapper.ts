@@ -3,12 +3,11 @@ import type { CourseFormValues, LessonItem, ModuleWithLessons } from '../types/c
 // Local DTO shapes (generated models are incomplete for this module)
 export interface CourseDto {
   id: string;
-  name: string;
+  title: string;
   description?: string;
-  thumbnailKey?: string | null;
   thumbnailUrl?: string | null;
   categoryId?: string;
-  level?: 'beginner' | 'intermediate' | 'advanced';
+  difficultyLevel?: 'beginner' | 'intermediate' | 'advanced';
   isPublished?: boolean;
   status?: string;
   teacherId?: string;
@@ -17,21 +16,21 @@ export interface CourseDto {
 }
 
 export interface CreateCourseDto {
-  name: string;
+  title: string;
   description?: string;
-  thumbnailKey?: string;
+  thumbnailUrl?: string;
   categoryId?: string;
-  level?: string;
-  isPublished?: boolean;
+  difficultyLevel?: string;
+  status?: 'draft' | 'published' | 'archived';
 }
 
 export interface UpdateCourseDto {
-  name?: string;
+  title?: string;
   description?: string;
-  thumbnailKey?: string;
+  thumbnailUrl?: string;
   categoryId?: string;
-  level?: string;
-  isPublished?: boolean;
+  difficultyLevel?: string;
+  status?: 'draft' | 'published' | 'archived';
 }
 
 export interface LessonDto {
@@ -53,23 +52,23 @@ export interface ModuleDto {
 
 export function mapCourseDtoToForm(dto: CourseDto): CourseFormValues {
   return {
-    name: dto.name ?? '',
+    title: dto.title ?? '',
     description: dto.description ?? '',
-    thumbnailKey: dto.thumbnailKey ?? null,
+    thumbnailUrl: dto.thumbnailUrl ?? null,
     categoryId: dto.categoryId ?? '',
-    level: (dto.level as CourseFormValues['level']) ?? 'beginner',
-    isPublished: dto.isPublished ?? false,
+    difficultyLevel: (dto.difficultyLevel as CourseFormValues['difficultyLevel']) ?? 'beginner',
+    isPublished: dto.status ? dto.status === 'published' : (dto.isPublished ?? false),
   };
 }
 
 export function mapCourseFormToDto(form: CourseFormValues): CreateCourseDto | UpdateCourseDto {
   return {
-    name: form.name,
+    title: form.title,
     description: form.description,
-    ...(form.thumbnailKey ? { thumbnailKey: form.thumbnailKey } : {}),
-    categoryId: form.categoryId,
-    level: form.level,
-    isPublished: form.isPublished,
+    difficultyLevel: form.difficultyLevel,
+    status: form.isPublished ? 'published' : 'draft',
+    ...(form.categoryId ? { categoryId: form.categoryId } : {}),
+    ...(form.thumbnailUrl ? { thumbnailUrl: form.thumbnailUrl } : {}),
   };
 }
 

@@ -38,6 +38,9 @@ export interface UserProfile {
   phone: string | null;
   preferredLanguage: string;
   twoFactorEnabled: boolean;
+  // Teacher profile ID (teachers.id) — present only for role === 'teacher'.
+  // Required for all /teachers/:id/* endpoints (teachers.id !== users.id).
+  teacherId: string | null;
   // Legacy opsional fieldlar — eski komponentlar uchun
   // exactOptionalPropertyTypes: true → bu fieldlar key absent yoki `string` (isActive: boolean)
   // `string | undefined` assign qilib bo'lmaydi — conditional spread ishlatish shart

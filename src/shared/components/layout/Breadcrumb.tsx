@@ -29,14 +29,11 @@ export function Breadcrumb() {
   const crumbs = segments.map((seg, i) => {
     // Map segment to correct translation key (e.g. 'groups' → 'myGroups')
     const tKey = SEGMENT_KEY_MAP[seg] ?? seg;
-    let label: string;
-    try {
-      const translated = t(tKey as Parameters<typeof t>[0]);
-      // If result is still the raw key (not found), fall back to capitalize
-      label = typeof translated === 'string' ? translated : capitalize(seg);
-    } catch {
-      label = capitalize(seg);
-    }
+    // Dynamic segments (course/student/etc. UUIDs) have no translation —
+    // t.has() avoids next-intl's MISSING_MESSAGE console error.
+    const label = t.has(tKey as Parameters<typeof t.has>[0])
+      ? t(tKey as Parameters<typeof t>[0])
+      : capitalize(seg);
 
     // Build href including locale prefix
     return {

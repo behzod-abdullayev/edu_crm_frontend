@@ -111,7 +111,7 @@ interface ExamCreatorProps {
 
 export function ExamCreator({ onSuccess, onCancel }: ExamCreatorProps) {
   const { user } = useCurrentUser();
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

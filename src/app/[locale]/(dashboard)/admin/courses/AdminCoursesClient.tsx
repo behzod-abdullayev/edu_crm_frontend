@@ -125,8 +125,7 @@ function statusLabel(status: CourseStatus, s: (typeof I18N)[Locale]): string {
 function toCourseDto(c: Course): CourseDto {
   const dto: CourseDto = {
     id: c.id,
-    name: c.name,
-    thumbnailKey: null,
+    title: c.name,
     isPublished: c.isPublished,
     status: c.status,
     teacherId: c.teacherId,
@@ -136,6 +135,7 @@ function toCourseDto(c: Course): CourseDto {
   if (c.description !== undefined) dto.description = c.description;
   if (c.thumbnailUrl !== undefined) dto.thumbnailUrl = c.thumbnailUrl;
   if (c.categoryId !== undefined) dto.categoryId = c.categoryId;
+  if (c.difficultyLevel !== undefined) dto.difficultyLevel = c.difficultyLevel as 'beginner' | 'intermediate' | 'advanced';
   return dto;
 }
 
@@ -344,7 +344,12 @@ export function AdminCoursesClient() {
   }, [deleteTarget, deleteMutation]);
 
   const handlePublishToggle = useCallback(
-    async (course: Course) => { await publishMutation.mutateAsync(course.id); },
+    async (course: Course) => {
+      await publishMutation.mutateAsync({
+        id: course.id,
+        status: course.isPublished ? 'draft' : 'published',
+      });
+    },
     [publishMutation]
   );
 
@@ -456,7 +461,7 @@ export function AdminCoursesClient() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">{course.teacherName}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">{course.teacherName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] tabular-nums">{course.studentCount}</td>
                     <td className="px-4 py-3"><StatusBadge status={statusBadgeStatus(course.status)} label={statusLabel(course.status, s)} size="sm" /></td>
                     <td className="px-4 py-3">

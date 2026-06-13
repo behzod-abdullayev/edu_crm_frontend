@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import {
   paymentsApi,
@@ -57,19 +58,20 @@ export function usePaymentDebts() {
 export function useCreatePayment() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: CreatePaymentDto) => paymentsApi.create(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.lists() });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-      addToast({ type: 'success', title: 'payments.createSuccess' });
+      addToast({ type: 'success', title: t('createSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'payments.createFailed',
+        title: t('createError'),
         description: parsed.message,
       });
     },
@@ -79,6 +81,7 @@ export function useCreatePayment() {
 export function useUpdatePayment(id: string) {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (dto: UpdatePaymentDto) => paymentsApi.update(id, dto),
@@ -102,7 +105,7 @@ export function useUpdatePayment(id: string) {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'payments.updateFailed',
+        title: t('updateError'),
         description: parsed.message,
       });
     },
@@ -117,6 +120,7 @@ export function useUpdatePayment(id: string) {
 export function useMarkPaymentPaid() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: ({ id }: { id: string }) => paymentsApi.markAsPaid(id),
@@ -125,13 +129,13 @@ export function useMarkPaymentPaid() {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.lists() });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.summary() });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.debts() });
-      addToast({ type: 'success', title: 'payments.markedAsPaid' });
+      addToast({ type: 'success', title: t('markedAsPaid') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'payments.markPaidFailed',
+        title: t('markPaidError'),
         description: parsed.message,
       });
     },
@@ -141,6 +145,7 @@ export function useMarkPaymentPaid() {
 export function useDeletePayment() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: (id: string) => paymentsApi.delete(id),
@@ -148,13 +153,13 @@ export function useDeletePayment() {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.lists() });
       queryClient.removeQueries({ queryKey: queryKeys.payments.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.summary() });
-      addToast({ type: 'success', title: 'payments.deleteSuccess' });
+      addToast({ type: 'success', title: t('deleteSuccess') });
     },
     onError: (error: unknown) => {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'payments.deleteFailed',
+        title: t('deleteError'),
         description: parsed.message,
       });
     },

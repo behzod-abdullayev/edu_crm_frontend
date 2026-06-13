@@ -2,15 +2,15 @@
 
 import * as React from 'react';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
-import { motion } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
 
 // ─── Switch ───────────────────────────────────────────────────────────────────
 //
 // Toggle switch built on @radix-ui/react-switch.
-// The thumb is animated with Framer Motion spring physics so the
-// slide animation is smooth and tactile — matching the prompt requirement
-// for every interactive element to have animation.
+// The thumb slides via an inline `transform` driven by the `checked` prop,
+// animated with a CSS transition (Tailwind's `translate-x-*` utilities rely on
+// `--tw-translate-x`, which doesn't reliably recompute `transform` when only the
+// `data-state` attribute changes).
 //
 // Accessibility:
 //   • Inherits Radix role="switch" and aria-checked automatically
@@ -22,9 +22,7 @@ import { cn } from '@shared/utils/cn';
 //   ON  state: bg-[var(--brand-primary)]          (indigo track)
 //   Thumb:     white, 20 × 20 px, drop-shadow-sm
 //
-// Usage:
-//   <Switch />
-//   <Switch defaultChecked />
+// Usage (controlled — required for the thumb slide animation):
 //   <Switch checked={isOn} onCheckedChange={setIsOn} disabled />
 //
 // With label (using Label from ui/label):
@@ -36,9 +34,10 @@ import { cn } from '@shared/utils/cn';
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root>
->(({ className, ...props }, ref) => (
+>(({ className, checked, ...props }, ref) => (
   <SwitchPrimitive.Root
     ref={ref}
+    {...(checked !== undefined ? { checked } : {})}
     className={cn(
       // Track
       'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full',
@@ -57,19 +56,10 @@ const Switch = React.forwardRef<
     )}
     {...props}
   >
-    <SwitchPrimitive.Thumb asChild>
-      <motion.span
-        layout
-        transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-        className={cn(
-          'pointer-events-none block h-5 w-5 rounded-full bg-white',
-          'shadow-sm ring-0',
-          // Radix translates the thumb via data-state — Framer Motion layout
-          // animates the actual position change for smooth spring physics.
-          'data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0',
-        )}
-      />
-    </SwitchPrimitive.Thumb>
+    <SwitchPrimitive.Thumb
+      className="pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ease-in-out"
+      style={{ transform: checked ? 'translateX(20px)' : 'translateX(0px)' }}
+    />
   </SwitchPrimitive.Root>
 ));
 Switch.displayName = SwitchPrimitive.Root.displayName;

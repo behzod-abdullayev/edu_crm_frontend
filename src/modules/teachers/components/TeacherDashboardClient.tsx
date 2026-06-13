@@ -4,29 +4,31 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Users,
   GraduationCap,
   ClipboardList,
-  Calendar,
+  Percent,
   CheckSquare,
   PlusCircle,
   Upload,
 } from "lucide-react";
 
 import { httpClient } from "@/services/api/axios.instance";
+import { queryKeys } from "@/services/query/keys.factory";
 import { useCurrentUser } from "@shared/hooks/useCurrentUser";
 import { useSocketEvent } from "@shared/hooks/useWebSocket";
 import { useToast } from "@shared/hooks/useToast";
 import { KPICard } from "@shared/components/data-display/KPICard";
 import { Button } from "@shared/components/ui/button";
+import { formatLocalizedDate } from "@shared/utils/format";
 import {
   SocketEvent,
   type HomeworkSubmittedPayload,
   type ScheduleUpdatedPayload,
 } from "@/services/websocket/socket.events";
-import type { TeacherKpiData } from "../types/teacher.types";
+import type { TeacherDashboardKpi } from "../types/teacher.types";
 
 // ─── Lazy-loaded chart (heavy Recharts bundle) ────────────────────────────────
 const TeacherPerformanceChart = dynamic(
@@ -34,63 +36,63 @@ const TeacherPerformanceChart = dynamic(
   { ssr: false },
 );
 
-// ─── Runtime type guard for KPI response ─────────────────────────────────────
-function isTeacherKpiData(data: unknown): data is TeacherKpiData {
+// ─── Runtime type guard for analytics response ───────────────────────────────
+function isTeacherDashboardKpi(data: unknown): data is TeacherDashboardKpi {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
-  return (
-    typeof d.activeGroups === "number" &&
-    typeof d.totalStudents === "number" &&
-    typeof d.pendingGrading === "number" &&
-    typeof d.todaysClasses === "number"
-  );
+  if (
+    typeof d.totalGroups !== "number" ||
+    typeof d.totalStudents !== "number" ||
+    typeof d.avgAttendanceRate !== "number"
+  ) {
+    return false;
+  }
+  const hw = d.homeworkStats as Record<string, unknown> | undefined;
+  return !!hw && typeof hw.pending === "number";
 }
 
 // ─── Greeting helper ──────────────────────────────────────────────────────────
-function getGreeting(): string {
+function getGreetingKey(): "greetingMorning" | "greetingAfternoon" | "greetingEvening" {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "greetingMorning";
+  if (h < 17) return "greetingAfternoon";
+  return "greetingEvening";
 }
 
 // ─── KPI card configuration ───────────────────────────────────────────────────
 interface KpiConfig {
-  title: string;
+  titleKey: "activeGroups" | "totalStudents" | "pendingHomework" | "averageAttendance";
   icon: typeof Users;
   iconColor: string;
-  kpiKey: keyof TeacherKpiData;
-  trendKey?: keyof TeacherKpiData;
+  getValue: (kpi: TeacherDashboardKpi) => number;
+  unit?: string;
 }
 
 const KPI_CARDS: KpiConfig[] = [
   {
-    title: "Active Groups",
+    titleKey: "activeGroups",
     icon: Users,
     iconColor: "var(--role-student)",
-    kpiKey: "activeGroups",
-    trendKey: "activeGroupsTrend",
+    getValue: (kpi) => kpi.totalGroups,
   },
   {
-    title: "Total Students",
+    titleKey: "totalStudents",
     icon: GraduationCap,
     iconColor: "var(--role-teacher)",
-    kpiKey: "totalStudents",
-    trendKey: "totalStudentsTrend",
+    getValue: (kpi) => kpi.totalStudents,
   },
   {
-    title: "Pending Grading",
+    titleKey: "pendingHomework",
     icon: ClipboardList,
     iconColor: "var(--role-owner)",
-    kpiKey: "pendingGrading",
-    trendKey: "pendingGradingTrend",
+    getValue: (kpi) => kpi.homeworkStats.pending,
   },
   {
-    title: "Today's Classes",
-    icon: Calendar,
+    titleKey: "averageAttendance",
+    icon: Percent,
     iconColor: "var(--brand-accent)",
-    kpiKey: "todaysClasses",
-    trendKey: "todaysClassesTrend",
+    getValue: (kpi) => kpi.avgAttendanceRate,
+    unit: "%",
   },
 ];
 
@@ -116,30 +118,31 @@ export function TeacherDashboardClient() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const locale = useLocale();
+  const t = useTranslations("teacher.dashboard");
 
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
 
-  // ── KPI data ──────────────────────────────────────────────────────────────
+  // ── KPI data (derived from teacher analytics) ────────────────────────────
   const { data: kpiRaw, isLoading } = useQuery({
-    queryKey: ["teachers", teacherId, "kpi"],
+    queryKey: queryKeys.teachers.analytics(teacherId),
     queryFn: () =>
       httpClient
-        .get<unknown>(`/teachers/${teacherId}/kpi`)
+        .get<unknown>(`/teachers/${teacherId}/analytics`)
         .then((r) => r.data),
     enabled: !!teacherId,
     staleTime: 5 * 60 * 1_000,
   });
 
-  const kpi: TeacherKpiData | null = isTeacherKpiData(kpiRaw) ? kpiRaw : null;
+  const kpi: TeacherDashboardKpi | null = isTeacherDashboardKpi(kpiRaw) ? kpiRaw : null;
 
   // ── WebSocket: homework submitted → refresh KPI + toast ──────────────────
   useSocketEvent(
     SocketEvent.HOMEWORK_SUBMITTED,
     (_payload: HomeworkSubmittedPayload) => {
       void queryClient.invalidateQueries({
-        queryKey: ["teachers", teacherId, "kpi"],
+        queryKey: queryKeys.teachers.analytics(teacherId),
       });
-      toast({ title: "New homework submission received", type: "info" });
+      toast({ title: t("newSubmissionToast"), type: "info" });
     },
     !!teacherId,
   );
@@ -149,18 +152,14 @@ export function TeacherDashboardClient() {
     SocketEvent.SCHEDULE_UPDATED,
     (_payload: ScheduleUpdatedPayload) => {
       void queryClient.invalidateQueries({
-        queryKey: ["teachers", teacherId, "kpi"],
+        queryKey: queryKeys.teachers.analytics(teacherId),
       });
     },
     !!teacherId,
   );
 
   // ── Today's date label ────────────────────────────────────────────────────
-  const dateLabel = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const dateLabel = formatLocalizedDate(new Date(), locale, "full");
 
   return (
     <motion.div
@@ -172,9 +171,9 @@ export function TeacherDashboardClient() {
       {/* ── Greeting ──────────────────────────────────────────────────────── */}
       <motion.div variants={itemVariants}>
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-[var(--text-primary)]">
-          {getGreeting()},{" "}
+          {t(getGreetingKey())},{" "}
           <span className="text-[var(--brand-primary)]">
-            {user?.firstName ?? "Teacher"}
+            {user?.firstName ?? t("defaultName")}
           </span>
           !
         </h1>
@@ -185,39 +184,20 @@ export function TeacherDashboardClient() {
       <motion.div
         variants={containerVariants}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-        aria-label="Key performance indicators"
+        aria-label={t("kpiAriaLabel")}
       >
-        {KPI_CARDS.map((card) => {
-          const value = kpi?.[card.kpiKey] ?? 0;
-          const trendValue =
-            card.trendKey !== undefined ? (kpi?.[card.trendKey] ?? 0) : undefined;
-
-          return (
-            <motion.div key={card.title} variants={itemVariants}>
-              <KPICard
-                title={card.title}
-                value={value as number}
-                icon={card.icon}
-                iconColor={card.iconColor}
-                isLoading={isLoading}
-                {...(trendValue !== undefined
-                  ? {
-                      trend: {
-                        value: trendValue as number,
-                        label: "vs last week",
-                        direction:
-                          (trendValue as number) > 0
-                            ? "up"
-                            : (trendValue as number) < 0
-                              ? "down"
-                              : "neutral",
-                      },
-                    }
-                  : {})}
-              />
-            </motion.div>
-          );
-        })}
+        {KPI_CARDS.map((card) => (
+          <motion.div key={card.titleKey} variants={itemVariants}>
+            <KPICard
+              title={t(card.titleKey)}
+              value={kpi ? card.getValue(kpi) : 0}
+              icon={card.icon}
+              iconColor={card.iconColor}
+              isLoading={isLoading}
+              {...(card.unit !== undefined ? { unit: card.unit } : {})}
+            />
+          </motion.div>
+        ))}
       </motion.div>
 
       {/* ── Quick actions ─────────────────────────────────────────────────── */}
@@ -225,7 +205,7 @@ export function TeacherDashboardClient() {
         variants={itemVariants}
         className="flex flex-wrap gap-3"
         role="group"
-        aria-label="Quick actions"
+        aria-label={t("quickActionsAriaLabel")}
       >
         <Button
           asChild
@@ -235,7 +215,7 @@ export function TeacherDashboardClient() {
         >
           <Link href={`/${locale}/teacher/attendance`}>
             <CheckSquare size={16} aria-hidden="true" />
-            Mark Attendance
+            {t("quickMarkAttendance")}
           </Link>
         </Button>
 
@@ -247,7 +227,7 @@ export function TeacherDashboardClient() {
         >
           <Link href={`/${locale}/teacher/homework/create`}>
             <PlusCircle size={16} aria-hidden="true" />
-            Create Homework
+            {t("quickCreateHomework")}
           </Link>
         </Button>
 
@@ -259,7 +239,7 @@ export function TeacherDashboardClient() {
         >
           <Link href={`/${locale}/teacher/lessons/upload`}>
             <Upload size={16} aria-hidden="true" />
-            Upload Lesson
+            {t("quickUploadLesson")}
           </Link>
         </Button>
       </motion.div>
@@ -275,7 +255,7 @@ export function TeacherDashboardClient() {
           className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 space-y-3 shadow-[var(--shadow-sm)]"
         >
           <h2 className="font-semibold text-base text-[var(--text-primary)]">
-            Student Performance
+            {t("studentPerformance")}
           </h2>
           <TeacherPerformanceChart teacherId={teacherId} chartType="bar" />
         </motion.div>
@@ -286,7 +266,7 @@ export function TeacherDashboardClient() {
           className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 space-y-3 shadow-[var(--shadow-sm)]"
         >
           <h2 className="font-semibold text-base text-[var(--text-primary)]">
-            Attendance Rate
+            {t("attendanceRateChart")}
           </h2>
           <TeacherPerformanceChart teacherId={teacherId} chartType="area" />
         </motion.div>

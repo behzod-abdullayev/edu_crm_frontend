@@ -84,7 +84,7 @@ function GroupSelectSkeleton() {
 export function LessonUploader() {
   const router = useRouter();
   const { user } = useCurrentUser();
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
 
   const { data: groups, isLoading: groupsLoading } = useTeacherGroups(teacherId);
   const uploadMutation = useLessonUpload(teacherId);

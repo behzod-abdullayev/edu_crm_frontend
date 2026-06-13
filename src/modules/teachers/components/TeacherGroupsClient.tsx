@@ -146,7 +146,7 @@ export function TeacherGroupsClient() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusOption>("active");
 
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
 
   const {
     data: groups,

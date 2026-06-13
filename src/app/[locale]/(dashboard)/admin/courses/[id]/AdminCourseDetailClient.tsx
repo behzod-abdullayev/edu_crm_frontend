@@ -315,10 +315,8 @@ function OverviewTab({
   return (
     <motion.div
       key="overview"
-      initial={{ opacity: 0, y: 8 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
       className="grid grid-cols-1 lg:grid-cols-3 gap-5"
     >
       {/* Description */}
@@ -386,7 +384,7 @@ function CurriculumTab({
     return (
       <motion.div
         key="curriculum-empty"
-        initial={{ opacity: 0, y: 8 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
       >
         <EmptyState
@@ -409,10 +407,8 @@ function CurriculumTab({
   return (
     <motion.div
       key="curriculum"
-      initial={{ opacity: 0, y: 8 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
       className="flex flex-col gap-3"
     >
       <h3 className="text-sm font-semibold text-[var(--text-primary)]">
@@ -513,8 +509,7 @@ function SettingsTab({
   // Build CourseDto omitting undefined optional fields (exactOptionalPropertyTypes)
   const courseDto: CourseDto = {
     id: course.id,
-    name: course.name,
-    thumbnailKey: null,
+    title: course.name,
     isPublished: course.isPublished,
     status: course.status,
     teacherId: course.teacherId,
@@ -524,14 +519,13 @@ function SettingsTab({
   if (course.description !== undefined) courseDto.description = course.description;
   if (course.thumbnailUrl !== undefined) courseDto.thumbnailUrl = course.thumbnailUrl;
   if (course.categoryId !== undefined) courseDto.categoryId = course.categoryId;
+  if (course.difficultyLevel !== undefined) courseDto.difficultyLevel = course.difficultyLevel as 'beginner' | 'intermediate' | 'advanced';
 
   return (
     <motion.div
       key="settings"
-      initial={{ opacity: 0, y: 8 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
       className="flex flex-col gap-5"
     >
       {/* Edit form */}
@@ -566,7 +560,12 @@ function SettingsTab({
             </div>
             <motion.button
               whileTap={{ scale: 0.96 }}
-              onClick={() => publishMutation.mutate(course.id)}
+              onClick={() =>
+                publishMutation.mutate({
+                  id: course.id,
+                  status: course.isPublished ? 'draft' : 'published',
+                })
+              }
               disabled={publishMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)] min-h-[44px] whitespace-nowrap"
             >
@@ -794,34 +793,30 @@ export function AdminCourseDetailClient({
         role="tabpanel"
         aria-labelledby={`tab-${activeTab}`}
       >
-        <AnimatePresence mode="wait">
-          {activeTab === 'overview' && (
-            <OverviewTab key="overview" course={course} s={s} locale={resolvedLocale} />
-          )}
-          {activeTab === 'students' && (
-            <motion.div
-              key="students"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              <EnrollmentManager courseId={courseId} />
-            </motion.div>
-          )}
-          {activeTab === 'curriculum' && (
-            <CurriculumTab key="curriculum" courseId={courseId} s={s} />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsTab
-              key="settings"
-              course={course}
-              locale={locale}
-              s={s}
-              onDeleteRequest={() => setShowDeleteConfirm(true)}
-            />
-          )}
-        </AnimatePresence>
+        {activeTab === 'overview' && (
+          <OverviewTab key="overview" course={course} s={s} locale={resolvedLocale} />
+        )}
+        {activeTab === 'students' && (
+          <motion.div
+            key="students"
+            initial={false}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <EnrollmentManager courseId={courseId} />
+          </motion.div>
+        )}
+        {activeTab === 'curriculum' && (
+          <CurriculumTab key="curriculum" courseId={courseId} s={s} />
+        )}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            key="settings"
+            course={course}
+            locale={locale}
+            s={s}
+            onDeleteRequest={() => setShowDeleteConfirm(true)}
+          />
+        )}
       </div>
 
       {/* Delete confirm dialog */}

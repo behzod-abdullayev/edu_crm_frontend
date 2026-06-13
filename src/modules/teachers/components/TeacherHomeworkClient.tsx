@@ -289,7 +289,7 @@ export function TeacherHomeworkClient() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  const teacherId = user?.id ?? "";
+  const teacherId = user?.teacherId ?? "";
 
   const { data, isLoading, isError, error, refetch } = useTeacherHomework(
     teacherId,

@@ -120,7 +120,7 @@ export function TeacherProfileClient() {
             animate="visible"
             exit="exit"
           >
-            <TeacherProfileForm teacherId={user?.id ?? ''} />
+            <TeacherProfileForm teacherId={user?.teacherId ?? ''} />
           </motion.div>
         )}
 

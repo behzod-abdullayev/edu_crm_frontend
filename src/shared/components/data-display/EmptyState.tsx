@@ -29,9 +29,8 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
       className={cn(
         'flex flex-col items-center justify-center text-center py-12 px-6',
         className,
@@ -97,9 +96,8 @@ export function ErrorState({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
       className={cn(
         'flex flex-col items-center justify-center text-center py-12 px-6',
         className,

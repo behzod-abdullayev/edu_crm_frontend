@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from './keys.factory';
 import {
   notificationsApi,
@@ -78,6 +79,7 @@ export function useMarkNotificationRead() {
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
+  const t = useTranslations('toast');
 
   return useMutation({
     mutationFn: () => notificationsApi.markAllAsRead(),
@@ -101,7 +103,7 @@ export function useMarkAllNotificationsRead() {
       const parsed = parseApiError(error);
       addToast({
         type: 'error',
-        title: 'notifications.markAllReadFailed',
+        title: t('markAllReadError'),
         description: parsed.message,
       });
     },

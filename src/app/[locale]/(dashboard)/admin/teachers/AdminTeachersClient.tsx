@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdminTeachers } from '@modules/admin/hooks/useAdmin';
+import { AddTeacherDialog } from './AddTeacherDialog';
 import { SkeletonLoader } from '@shared/components/feedback/SkeletonLoader';
 import { EmptyState } from '@shared/components/data-display/EmptyState';
 import { useMediaQuery } from '@shared/hooks/useMediaQuery';
@@ -580,6 +581,7 @@ export function AdminTeachersClient() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [page, setPage] = useState(1);
+  const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -659,6 +661,7 @@ export function AdminTeachersClient() {
 
             <motion.button
               whileTap={{ scale: 0.96 }}
+              onClick={() => setIsAddTeacherOpen(true)}
               className="flex items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 py-2 text-sm font-medium text-[var(--text-on-brand)] transition-colors hover:bg-[var(--brand-primary-hover)] sm:px-4"
             >
               <Plus size={14} aria-hidden="true" />
@@ -666,6 +669,8 @@ export function AdminTeachersClient() {
             </motion.button>
           </div>
         </motion.div>
+
+        <AddTeacherDialog open={isAddTeacherOpen} onOpenChange={setIsAddTeacherOpen} locale={locale} />
 
         {/* ── KPI bar ─────────────────────────────────────────────────── */}
         {!isLoading && <KPIBar teachers={teachers} s={s} />}

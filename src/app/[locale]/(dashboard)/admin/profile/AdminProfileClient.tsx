@@ -3,20 +3,31 @@
 /**
  * src/app/[locale]/(dashboard)/admin/profile/AdminProfileClient.tsx
  *
- * FIX TS2352: `UserProfile | undefined` ni `Record<string, unknown>` ga
- * cast qilish noto'g'ri edi. UserProfile-da `phone` va `createdAt` fieldlari
- * to'g'ridan-to'g'ri mavjud (@/services/api/auth.api) — cast kerak emas.
+ * Editable Admin profile page:
+ *  - First/last name + phone are editable and persisted via PATCH /users/me
+ *    (see useUpdateProfile).
+ *  - Avatar can be uploaded (POST /files/upload) and saved as avatarUrl.
+ *  - "Member Since" reads `user.createdAt`.
+ *  - All UI text uses next-intl translations.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, Shield, Mail, Phone, Calendar } from 'lucide-react';
+import { User, Lock, Shield, Camera, Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useTranslations, useLocale } from 'next-intl';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
+import { useUpdateProfile, useUploadAvatar, resolveFileUrl } from '@/shared/hooks/useUpdateProfile';
+import { useToast } from '@/shared/hooks/useToast';
 import { ChangePasswordForm } from '@/shared/components/ChangePasswordForm';
 import { AvatarWithRole } from '@/shared/components/data-display/AvatarWithRole';
-import { cn } from '@/shared/utils/cn';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
 import { formatLocalizedDate } from '@/shared/utils/format';
+import { cn } from '@/shared/utils/cn';
 
 type TabId = 'profile' | 'password';
 
@@ -28,46 +39,96 @@ const panelVariants = {
   exit:    { opacity: 0, y: -8, transition: { duration: 0.15, ease: 'easeIn' } },
 };
 
-// ─── Info row ─────────────────────────────────────────────────────────────────
+// ─── Form schema ──────────────────────────────────────────────────────────────
 
-interface InfoRowProps {
-  icon:  React.ElementType;
-  label: string;
-  value: string | null | undefined;
-}
+const profileSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string(),
+});
 
-function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
-  return (
-    <div className="flex items-center gap-3 py-3 border-b border-[var(--border-default)] last:border-0">
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-        style={{ background: 'var(--bg-surface-secondary)' }}
-      >
-        <Icon size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-[var(--text-muted)] font-medium">{label}</p>
-        <p className="text-sm text-[var(--text-primary)] font-medium truncate mt-0.5">
-          {value ?? '—'}
-        </p>
-      </div>
-    </div>
-  );
-}
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+const MAX_AVATAR_MB = 5;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AdminProfileClient() {
   const { user } = useCurrentUser();
+  const { updateProfile, isUpdating } = useUpdateProfile();
+  const { uploadAvatar, isUploading } = useUploadAvatar();
+  const { toast } = useToast();
+
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
   const t = useTranslations('profile');
+  const tc = useTranslations('common');
+  const te = useTranslations('errors');
   const locale = useLocale();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const TABS = [
     { id: 'profile' as const, label: t('title'), icon: User },
     { id: 'password' as const, label: t('security'), icon: Lock },
   ];
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty },
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { firstName: '', lastName: '', phone: '' },
+  });
+
+  // Populate form once the current user has loaded (or after a refetch).
+  useEffect(() => {
+    if (user) {
+      reset({
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
+        phone: user.phone ?? '',
+      });
+    }
+  }, [user, reset]);
+
+  const onSubmit = handleSubmit(async (values) => {
+    try {
+      await updateProfile(values);
+      toast.success(t('profileUpdated'));
+    } catch {
+      toast.error(tc('error'));
+    }
+  });
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(te('invalidFileType'));
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_AVATAR_MB * 1024 * 1024) {
+      toast.error(te('fileTooLarge', { max: MAX_AVATAR_MB }));
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      const result = await uploadAvatar(file);
+      await updateProfile({ avatarUrl: resolveFileUrl(result.url) });
+      toast.success(t('profileUpdated'));
+    } catch {
+      toast.error(te('uploadFailed'));
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   return (
     <motion.div
@@ -95,7 +156,35 @@ export function AdminProfileClient() {
           className="flex items-center gap-4 p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]"
           style={{ boxShadow: 'var(--shadow-sm)' }}
         >
-          <AvatarWithRole user={user} size="lg" showRole />
+          <div className="relative shrink-0">
+            <AvatarWithRole user={user} size="lg" />
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              disabled={isUploading}
+              aria-label={t('uploadAvatar')}
+              className={cn(
+                'absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center',
+                'bg-[var(--brand-primary)] text-white border-2 border-[var(--bg-surface)]',
+                'hover:bg-[var(--brand-primary-hover)] transition-colors',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]',
+              )}
+            >
+              {isUploading ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Camera size={12} aria-hidden="true" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => void handleAvatarChange(e)}
+            />
+          </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-[var(--text-primary)] leading-tight">
               {user.firstName} {user.lastName}
@@ -177,35 +266,99 @@ export function AdminProfileClient() {
               style={{ background: 'var(--bg-surface-secondary)' }}
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                {t('accountInfo')}
+                {t('personalInfo')}
               </h3>
             </div>
-            <div className="px-5 py-1">
-              <InfoRow
-                icon={User}
-                label={t('fullName')}
-                value={user ? `${user.firstName} ${user.lastName}` : undefined}
-              />
-              <InfoRow
-                icon={Mail}
-                label={t('emailAddress')}
-                value={user?.email}
-              />
-              <InfoRow
-                icon={Phone}
-                label={t('phone')}
-                value={user?.phone}
-              />
-              <InfoRow
-                icon={Calendar}
-                label={t('memberSince')}
-                value={
-                  user?.createdAt
-                    ? formatLocalizedDate(user.createdAt, locale, 'long')
-                    : undefined
-                }
-              />
-            </div>
+
+            <form onSubmit={(e) => void onSubmit(e)} className="px-5 py-5 space-y-5" noValidate>
+              {/* Name row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ap-firstName" required>
+                    {t('firstName')}
+                  </Label>
+                  <Input
+                    id="ap-firstName"
+                    autoComplete="given-name"
+                    aria-required="true"
+                    hasError={!!errors.firstName}
+                    aria-describedby={errors.firstName ? 'ap-firstName-err' : undefined}
+                    {...register('firstName')}
+                  />
+                  {errors.firstName && (
+                    <p id="ap-firstName-err" role="alert" className="text-xs text-[var(--error-text)]">
+                      {te('required')}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ap-lastName" required>
+                    {t('lastName')}
+                  </Label>
+                  <Input
+                    id="ap-lastName"
+                    autoComplete="family-name"
+                    aria-required="true"
+                    hasError={!!errors.lastName}
+                    aria-describedby={errors.lastName ? 'ap-lastName-err' : undefined}
+                    {...register('lastName')}
+                  />
+                  {errors.lastName && (
+                    <p id="ap-lastName-err" role="alert" className="text-xs text-[var(--error-text)]">
+                      {te('required')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Email (read-only) */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ap-email">{tc('email')}</Label>
+                <Input
+                  id="ap-email"
+                  type="email"
+                  value={user?.email ?? ''}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ap-phone">{t('phone')}</Label>
+                <Input
+                  id="ap-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  {...register('phone')}
+                />
+              </div>
+
+              {/* Member Since */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ap-memberSince">{t('memberSince')}</Label>
+                <Input
+                  id="ap-memberSince"
+                  value={user?.createdAt ? formatLocalizedDate(user.createdAt, locale, 'long') : '—'}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              {/* Submit */}
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  disabled={!isDirty || isUpdating}
+                  isLoading={isUpdating}
+                  className="min-w-[120px] sm:min-w-[140px] w-full sm:w-auto"
+                >
+                  {isUpdating ? tc('saving') : t('saveChanges')}
+                </Button>
+              </div>
+            </form>
           </motion.div>
         )}
 

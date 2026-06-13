@@ -194,6 +194,7 @@ describe('LoginPage', () => {
           tenantId: 'tenant-1', status: 'active',
           profilePictureUrl: null, phone: null,
           preferredLanguage: 'en', twoFactorEnabled: false,
+          teacherId: null,
           isActive: true, createdAt: '', updatedAt: '',
         },
       });
