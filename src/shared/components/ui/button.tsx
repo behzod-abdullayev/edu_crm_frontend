@@ -54,8 +54,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={!asChild ? isLoading : undefined}
         {...props}
       >
-        {!asChild && isLoading && <Loader2 size={14} className="animate-spin shrink-0" aria-hidden="true" />}
-        {children}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {isLoading && <Loader2 size={14} className="animate-spin shrink-0" aria-hidden="true" />}
+            {children}
+          </>
+        )}
       </Comp>
     );
   }
